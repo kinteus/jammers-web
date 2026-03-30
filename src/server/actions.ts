@@ -1139,15 +1139,27 @@ export async function sortSetlistByDrummerAction(formData: FormData) {
     return left.orderIndex - right.orderIndex;
   });
 
-  for (const [index, item] of sorted.entries()) {
-    await db.setlistItem.update({
-      where: { id: item.id },
-      data: {
-        orderIndex: index + 1,
-        editedById: admin.id,
-      },
-    });
-  }
+  await db.$transaction(async (tx) => {
+    for (const [index, item] of sorted.entries()) {
+      await tx.setlistItem.update({
+        where: { id: item.id },
+        data: {
+          orderIndex: 1000 + index + 1,
+          editedById: admin.id,
+        },
+      });
+    }
+
+    for (const [index, item] of sorted.entries()) {
+      await tx.setlistItem.update({
+        where: { id: item.id },
+        data: {
+          orderIndex: index + 1,
+          editedById: admin.id,
+        },
+      });
+    }
+  });
 
   revalidateAll(pathBundle(eventSlug));
 }
