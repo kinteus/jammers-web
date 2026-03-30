@@ -19,13 +19,13 @@ const rawSchema = z.object({
 
 const rawEnv = rawSchema.parse(process.env);
 
+if (rawEnv.NODE_ENV === "production" && !rawEnv.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET must be set in production.");
+}
+
 export const env = {
   ...rawEnv,
-  SESSION_SECRET:
-    rawEnv.SESSION_SECRET ??
-    (rawEnv.NODE_ENV === "production"
-      ? "__MISSING_PRODUCTION_SESSION_SECRET__"
-      : "local-development-session-secret"),
+  SESSION_SECRET: rawEnv.SESSION_SECRET ?? "local-development-session-secret",
   ENABLE_DEV_AUTH:
     rawEnv.ENABLE_DEV_AUTH !== undefined
       ? rawEnv.ENABLE_DEV_AUTH === "true"

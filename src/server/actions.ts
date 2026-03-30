@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 
 import {
   EventStatus,
+  Prisma,
   SetlistSection,
   TrackInviteStatus,
   TrackSeatStatus,
@@ -256,16 +257,28 @@ export async function createTrackAction(formData: FormData) {
     assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
   }
 
-  const track = await db.track.create({
-    data: {
-      eventId,
-      songId,
-      proposedById: user.id,
-      comment: getString(formData, "comment") || null,
-      tuning: getString(formData, "tuning") || null,
-      playbackRequired: getBoolean(formData, "playbackRequired"),
-    },
-  });
+  let track;
+  try {
+    track = await db.track.create({
+      data: {
+        eventId,
+        songId,
+        proposedById: user.id,
+        comment: getString(formData, "comment") || null,
+        tuning: getString(formData, "tuning") || null,
+        playbackRequired: getBoolean(formData, "playbackRequired"),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new Error("This song is already on the current event board.");
+    }
+
+    throw error;
+  }
 
   await createDefaultTrackSeats(track.id, eventId);
   await ensureSetlistItem(track.id, eventId, user.id);
@@ -383,6 +396,10 @@ export async function markSeatUnavailableAction(formData: FormData) {
     throw new Error("Only the proposer or an admin can mark seats unavailable.");
   }
 
+  if (seat.userId && user.role !== UserRole.ADMIN) {
+    throw new Error("Claimed seats cannot be marked as unavailable.");
+  }
+
   await db.trackSeat.update({
     where: { id: seatId },
     data: {
@@ -419,6 +436,7 @@ export async function inviteToSeatAction(formData: FormData) {
   }
 
   assertEventAllowsChanges(seat.track.event);
+  assertSeatClaimable(seat);
 
   const recipient = await db.user.findUnique({
     where: { telegramUsername: username },
@@ -426,6 +444,18 @@ export async function inviteToSeatAction(formData: FormData) {
 
   if (!recipient) {
     throw new Error("Recipient not found. Ask them to register first.");
+  }
+
+  const existingInvite = await db.trackInvite.findFirst({
+    where: {
+      seatId,
+      recipientId: recipient.id,
+      status: TrackInviteStatus.PENDING,
+    },
+  });
+
+  if (existingInvite) {
+    throw new Error("This user already has a pending invite for the selected seat.");
   }
 
   const delivery = await sendTelegramInviteMessage({
@@ -1038,6 +1068,7 @@ export async function moveSetlistItemAction(formData: FormData) {
       where: { id: itemId },
       data: {
         section,
+        orderIndex: 3000 + items.length + 1,
         editedById: admin.id,
       },
     });
