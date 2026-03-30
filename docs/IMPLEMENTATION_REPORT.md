@@ -1,34 +1,51 @@
 # Implementation Report
 
-## Delivered
+## Delivered scope
 
-- Public Next.js web application for concert setlist planning
-- Telegram-based authentication entrypoint plus dev-only fallback
+- Public Next.js application for concert setlist planning
+- Telegram-based authentication entrypoint with bot-backed invite integration
 - User profile management with instrument preferences
-- Event boards with configurable stage lineup
-- Controlled song catalog and song-addition request flow
-- Track proposal flow with N/A seats and immediate seat claims
-- Seat join/leave flow and Telegram invite flow
-- Admin event CRUD, curation lock, bans, ratings, and known-group registry
-- Coverage-first setlist selection algorithm with backlog publication flow
-- Prisma schema, seed data, migrations, tests, Docker packaging, CI workflows, and Kubernetes manifests
+- Event configuration with lineup, timing, playback toggle, and participation limits
+- Song catalog and missing-song request flow
+- Track proposal, seat claim, seat release, seat N/A marking, and invite response flow
+- Admin moderation for ratings, bans, known groups, seat overrides, and event curation
+- Coverage-first setlist algorithm with previous-concert song exclusion
+- Manual setlist backlog management, publishing, and drummer-based sorting
+- Prisma schema, migrations, seed data, tests, Docker packaging, CI, and Kubernetes manifests
 
-## Important assumptions
+## Key implementation decisions
 
-- Telegram auth is the canonical identity flow for this release.
-- Google/email flows from the PDF were intentionally left out because the newer brief superseded them.
-- Production requires explicit `SESSION_SECRET`, `DATABASE_URL`, and `TELEGRAM_BOT_TOKEN`.
-- Known groups are identified by exact participant-set match during selection.
+- Kept the system as a single deployable full-stack monolith to minimize delivery risk.
+- Stored sessions server-side in PostgreSQL-backed session records instead of client-side JWTs.
+- Used a deterministic coverage-first algorithm because it is explainable to admins and fast in runtime.
+- Treated Telegram as the canonical identity provider and collaboration channel.
 
-## Validation completed
+## Validation status
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test`
-- `npm run build`
-- `npx prisma validate` with a valid `DATABASE_URL`
+- `npm run lint`: passing
+- `npm run typecheck`: passing
+- `npm run test`: passing
+- `npm run build`: passing
+- `npx prisma validate`: passing when `DATABASE_URL` is set
 
-## External blocker
+## Review and bug-fix pass
 
-- GitHub publication is not completed because local `gh` authentication for account `kinteus` is currently invalid and interactive re-auth did not complete successfully inside this environment.
-- The repository is initialized locally and ready to be pushed immediately after `gh` is re-authenticated.
+During the final hardening pass, the following issues were found and fixed:
+
+- Timer-based event closure is now enforced in mutation rules, not only shown in the UI.
+- Canceled tracks are removed from setlist items to prevent ghost entries in published views.
+- Telegram sign-in now merges correctly with existing users by Telegram username or ID.
+- Dev-only sign-in is explicitly blocked in production.
+- Admin curation now includes explicit sorting by drummer.
+- Setlist reordering and drummer sorting use safe two-step reindexing to avoid unique-constraint collisions.
+
+## Remaining external blocker
+
+Three independent `codex exec review` runs were attempted to satisfy the explicit sub-agent review requirement. All three were blocked by external Codex/OpenAI authentication and API transport failures in the current environment, so that part could not be completed automatically from this session.
+
+## Recommended next steps
+
+1. Re-authenticate `gh` for account `kinteus` if GitHub operations are still needed from this machine.
+2. Re-run the three external `codex exec review` sessions once the Codex/OpenAI auth issue is resolved.
+3. Configure production Telegram bot credentials and disable dev auth in production config.
+4. Replace placeholder ingress hostnames and image tags in `infra/k8s/base`.
