@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.local
+.env.test
+.next
+coverage
+dist
+node_modules
+*.log
+prisma/dev.db
+tmp
+*.tsbuildinfo
+requirements.pdf

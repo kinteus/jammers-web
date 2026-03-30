@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-manrope:
+    "Avenir Next", "Avenir", "Segoe UI", "Trebuchet MS", sans-serif;
+  --font-space-grotesk:
+    "Gill Sans", "Franklin Gothic Medium", "Trebuchet MS", sans-serif;
+}
+
+body {
+  @apply bg-sand bg-hero-glow font-body text-ink antialiased;
+}
+
+a {
+  @apply transition-colors;
+}
+
+code {
+  @apply rounded bg-ink/5 px-1.5 py-0.5 text-sm;
+}
+
+input,
+textarea,
+select {
+  @apply rounded-2xl border-ink/10 bg-white;
+}

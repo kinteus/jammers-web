@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jammers-web
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+spec:
+  tls:
+    - hosts:
+        - jammers.example.com
+      secretName: jammers-web-tls
+  rules:
+    - host: jammers.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jammers-web
+                port:
+                  number: 80

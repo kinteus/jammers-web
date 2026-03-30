@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+enum EventStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CURATING
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TrackState {
+  ACTIVE
+  CANCELED
+}
+
+enum TrackSeatStatus {
+  OPEN
+  CLAIMED
+  UNAVAILABLE
+}
+
+enum TrackInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+  DELIVERY_FAILED
+}
+
+enum SelectionStrategy {
+  COVERAGE_FIRST
+}
+
+enum SetlistSection {
+  MAIN
+  BACKLOG
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  telegramId         String?             @unique
+  telegramUsername   String?             @unique
+  fullName           String?
+  email              String?
+  phone              String?
+  bio                String?             @db.Text
+  avatarUrl          String?
+  role               UserRole            @default(USER)
+  status             UserStatus          @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  instruments        UserInstrument[]
+  proposedTracks     Track[]             @relation("TrackProposer")
+  trackSeats         TrackSeat[]
+  invitationsSent    TrackInvite[]       @relation("InviteSender")
+  invitations        TrackInvite[]       @relation("InviteRecipient")
+  ratingsReceived    AdminUserRating[]   @relation("RatedUser")
+  ratingsAuthored    AdminUserRating[]   @relation("RatingAuthor")
+  sessions           AuthSession[]
+  bans               Ban[]               @relation("BannedUser")
+  bansIssued         Ban[]               @relation("BanIssuer")
+  groups             EnsembleGroupMember[]
+  songRequests       SongCatalogRequest[]
+  selectionRuns      SelectionRun[]
+  locks              EventEditLock[]
+  setlistChanges     SetlistItem[]       @relation("SetlistEditor")
+
+  @@index([role])
+  @@index([telegramUsername])
+}
+
+model Instrument {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  userLinks   UserInstrument[]
+  lineupSlots EventLineupSlot[]
+}
+
+model UserInstrument {
+  userId       String
+  instrumentId String
+  proficiency  Int?
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument   Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, instrumentId])
+}
+
+model Ban {
+  id          String    @id @default(cuid())
+  userId      String
+  createdById String
+  reason      String?
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime?
+  isPermanent Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  user        User      @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("BanIssuer", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([userId, endsAt])
+}
+
+model AuthSession {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  userId      String
+  expiresAt   DateTime
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  userAgent   String?
+  ipAddress   String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Artist {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  songs     Song[]
+}
+
+model Song {
+  id              String               @id @default(cuid())
+  slug            String               @unique
+  title           String
+  artistId        String
+  defaultTuning   String?
+  durationSeconds Int?
+  notes           String?              @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  artist          Artist               @relation(fields: [artistId], references: [id], onDelete: Restrict)
+  tracks          Track[]
+
+  @@unique([artistId, title])
+}
+
+model SongCatalogRequest {
+  id            String   @id @default(cuid())
+  requestedById String
+  artistName    String
+  trackTitle    String
+  comment       String?  @db.Text
+  createdAt     DateTime @default(now())
+  requestedBy   User     @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id                      String           @id @default(cuid())
+  slug                    String           @unique
+  title                   String
+  description             String?          @db.Text
+  venueName               String?
+  venueMapUrl             String?
+  startsAt                DateTime
+  registrationOpensAt     DateTime?
+  registrationClosesAt    DateTime?
+  status                  EventStatus      @default(DRAFT)
+  maxSetDurationMinutes   Int              @default(120)
+  maxTracksPerUser        Int              @default(3)
+  allowPlayback           Boolean          @default(true)
+  stageNotes              String?          @db.Text
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  lineupSlots             EventLineupSlot[]
+  tracks                  Track[]
+  setlistItems            SetlistItem[]
+  selectionRuns           SelectionRun[]
+  editLocks               EventEditLock[]
+
+  @@index([status, startsAt])
+}
+
+model EventLineupSlot {
+  id             String      @id @default(cuid())
+  eventId        String
+  instrumentId   String?
+  key            String
+  label          String
+  seatCount      Int
+  displayOrder   Int
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  instrument     Instrument? @relation(fields: [instrumentId], references: [id], onDelete: SetNull)
+  trackSeats     TrackSeat[]
+
+  @@unique([eventId, key])
+  @@index([eventId, displayOrder])
+}
+
+model Track {
+  id               String        @id @default(cuid())
+  eventId          String
+  songId           String
+  proposedById     String
+  linkedGroupId    String?
+  comment          String?       @db.Text
+  tuning           String?
+  playbackRequired Boolean       @default(false)
+  state            TrackState    @default(ACTIVE)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  event            Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  song             Song          @relation(fields: [songId], references: [id], onDelete: Restrict)
+  proposedBy       User          @relation("TrackProposer", fields: [proposedById], references: [id], onDelete: Restrict)
+  group            EnsembleGroup? @relation(fields: [linkedGroupId], references: [id], onDelete: SetNull)
+  seats            TrackSeat[]
+  invites          TrackInvite[]
+  setlistItems     SetlistItem[]
+
+  @@index([eventId, createdAt])
+  @@index([songId, eventId])
+}
+
+model TrackSeat {
+  id               String          @id @default(cuid())
+  trackId          String
+  lineupSlotId     String
+  userId           String?
+  seatIndex        Int
+  label            String
+  status           TrackSeatStatus @default(OPEN)
+  claimedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  track            Track           @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  lineupSlot       EventLineupSlot @relation(fields: [lineupSlotId], references: [id], onDelete: Restrict)
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invites          TrackInvite[]
+
+  @@unique([trackId, lineupSlotId, seatIndex])
+  @@index([userId, trackId])
+}
+
+model TrackInvite {
+  id             String            @id @default(cuid())
+  trackId        String
+  seatId         String
+  senderId       String
+  recipientId    String
+  status         TrackInviteStatus @default(PENDING)
+  deliveryNote   String?
+  createdAt      DateTime          @default(now())
+  respondedAt    DateTime?
+  track          Track             @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  seat           TrackSeat         @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  sender         User              @relation("InviteSender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient      User              @relation("InviteRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, status])
+  @@index([trackId, status])
+}
+
+model EnsembleGroup {
+  id          String                @id @default(cuid())
+  slug        String                @unique
+  name        String                @unique
+  description String?               @db.Text
+  isKnownBand Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  members     EnsembleGroupMember[]
+  tracks      Track[]
+}
+
+model EnsembleGroupMember {
+  groupId    String
+  userId     String
+  createdAt  DateTime      @default(now())
+  group      EnsembleGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+}
+
+model AdminUserRating {
+  id          String   @id @default(cuid())
+  userId      String
+  createdById String
+  score       Int
+  note        String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("RatedUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("RatingAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([userId, createdById])
+  @@index([userId, score])
+}
+
+model SelectionRun {
+  id                String            @id @default(cuid())
+  eventId           String
+  startedById       String
+  strategy          SelectionStrategy @default(COVERAGE_FIRST)
+  resultSummaryJson Json
+  createdAt         DateTime          @default(now())
+  event             Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startedBy         User              @relation(fields: [startedById], references: [id], onDelete: Cascade)
+}
+
+model SetlistItem {
+  id           String         @id @default(cuid())
+  eventId       String
+  trackId       String
+  section       SetlistSection
+  orderIndex    Int
+  editedById    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  event         Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  track         Track         @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  editedBy      User?         @relation("SetlistEditor", fields: [editedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, trackId])
+  @@unique([eventId, section, orderIndex])
+}
+
+model EventEditLock {
+  id          String   @id @default(cuid())
+  eventId      String
+  userId       String
+  scope        String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, scope, expiresAt])
+}

@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jammers-web-migrate
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/kinteus/jammers-web:latest
+          command: ["sh", "-c", "npx prisma migrate deploy"]
+          envFrom:
+            - configMapRef:
+                name: jammers-web-config
+            - secretRef:
+                name: jammers-web-secrets

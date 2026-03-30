@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jammers-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jammers-web
+  template:
+    metadata:
+      labels:
+        app: jammers-web
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/kinteus/jammers-web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: jammers-web-config
+            - secretRef:
+                name: jammers-web-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
