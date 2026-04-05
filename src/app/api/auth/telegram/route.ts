@@ -17,9 +17,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/profile", env.NEXT_PUBLIC_APP_URL));
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Telegram authentication failed.";
+      error instanceof Error ? error.message : "telegram-auth-failed";
+    const code =
+      message === "telegram-auth-claim-required" || message === "telegram-auth-conflict"
+        ? "claim-required"
+        : "failed";
     return NextResponse.redirect(
-      new URL(`/profile?authError=${encodeURIComponent(message)}`, env.NEXT_PUBLIC_APP_URL),
+      new URL(`/profile?authError=${encodeURIComponent(code)}`, env.NEXT_PUBLIC_APP_URL),
     );
   }
 }

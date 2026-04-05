@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jammers-web
+  annotations:
+    kubernetes.io/ingress.class: public
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - thejammers.org
+      secretName: jammers-next-gig-ingress-tls
+  rules:
+    - host: thejammers.org

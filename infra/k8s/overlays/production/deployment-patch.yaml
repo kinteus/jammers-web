@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jammers-web
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: app
+          imagePullPolicy: Always
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: potgres-secret
+                  key: POSTGRES_DATABASE_URL

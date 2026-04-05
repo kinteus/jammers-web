@@ -1,0 +1,5 @@
+ALTER TABLE "EventLineupSlot"
+ADD COLUMN "allowOptional" BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE "TrackSeat"
+ADD COLUMN "isOptional" BOOLEAN NOT NULL DEFAULT false;

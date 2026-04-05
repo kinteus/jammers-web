@@ -5,11 +5,19 @@ metadata:
 spec:
   template:
     spec:
+      imagePullSecrets:
+        - name: ghcr-registry
       restartPolicy: Never
       containers:
         - name: migrate
           image: ghcr.io/kinteus/jammers-web:latest
           command: ["sh", "-c", "npx prisma migrate deploy"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: potgres-secret
+                  key: POSTGRES_DATABASE_URL
           envFrom:
             - configMapRef:
                 name: jammers-web-config

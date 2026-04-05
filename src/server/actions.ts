@@ -11,27 +11,52 @@ import {
   UserRole,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { createSession, deleteSession } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/current-user";
+import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
 import { verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import {
   assertEventAllowsChanges,
+  canRequestClosedOptionalSeat,
   assertSeatClaimable,
   assertUserCanParticipate,
   assertWithinTrackLimit,
 } from "@/lib/domain/rules";
+import {
+  parseClosedOptionalSeatRequestMeta,
+  serializeClosedOptionalSeatRequestMeta,
+} from "@/lib/track-invite-meta";
 import { buildSetlistRecommendation } from "@/lib/domain/setlist-algorithm";
 import { env } from "@/lib/env";
+import {
+  parseTrackInfoFieldsInput,
+  serializeTrackInfoFields,
+  serializeTrackInfoKeys,
+} from "@/lib/track-info-flags";
+import {
+  DEFAULT_LINEUP_DETAILS_MARKDOWN,
+  DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+  SITE_CONTENT_ID,
+  parseVideoUrlsInput,
+  serializeVideoUrls,
+} from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
 import { requireAdmin, requireUser } from "@/server/auth-guards";
-import { sendTelegramInviteMessage } from "@/server/telegram-bot";
+import {
+  sendTelegramFeedbackMessage,
+  sendTelegramInviteMessage,
+  sendTelegramSeatApprovalRequestMessage,
+} from "@/server/telegram-bot";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
 function pathBundle(eventSlug?: string) {
-  const paths = ["/", "/admin", "/profile"];
+  const paths = ["/", "/admin", "/profile", "/faq"];
   if (eventSlug) {
     paths.push(`/events/${eventSlug}`, `/admin/events/${eventSlug}`);
   }
@@ -42,6 +67,149 @@ function revalidateAll(paths: string[]) {
   for (const path of paths) {
     revalidatePath(path);
   }
+}
+
+function buildEventRedirectUrl(
+  eventSlug: string,
+  params: Record<string, string>,
+  hash = "track-board",
+) {
+  const search = new URLSearchParams(params);
+  return `/events/${eventSlug}?${search.toString()}#${hash}`;
+}
+
+function redirectToEventError(eventSlug: string | undefined, error: string): never {
+  if (eventSlug) {
+    redirect(buildEventRedirectUrl(eventSlug, { error }));
+  }
+
+  throw new Error(error);
+}
+
+function assertEventAllowsChangesOrRedirect(
+  event: Parameters<typeof assertEventAllowsChanges>[0],
+  eventSlug?: string,
+) {
+  try {
+    assertEventAllowsChanges(event);
+  } catch (error) {
+    if (eventSlug) {
+      redirectToEventError(eventSlug, "event-locked");
+    }
+
+    throw error;
+  }
+}
+
+async function createClosedOptionalSeatRequest({
+  seat,
+  eventSlug,
+  requester,
+  targetUser,
+  mode,
+}: {
+  seat: Awaited<ReturnType<typeof db.trackSeat.findUniqueOrThrow>> & {
+    track: {
+      event: {
+        title: string;
+        startsAt: Date;
+        status: EventStatus;
+        registrationOpensAt: Date | null;
+        registrationClosesAt: Date | null;
+      };
+      song: {
+        title: string;
+        artist: {
+          name: string;
+        };
+      };
+      proposedById: string;
+      proposedBy: {
+        telegramId: string | null;
+        telegramUsername: string | null;
+        fullName: string | null;
+      };
+    };
+  };
+  eventSlug: string;
+  requester: {
+    id: string;
+    telegramUsername: string | null;
+    fullName: string | null;
+  };
+  targetUser: {
+    id: string;
+    telegramUsername: string | null;
+    fullName: string | null;
+  };
+  mode: "self" | "friend";
+}) {
+  const requesterLabel = requester.telegramUsername ?? requester.fullName ?? "A bandmate";
+  const targetLabel = targetUser.telegramUsername ?? targetUser.fullName ?? "A musician";
+  const requesterMessageLabel = requester.telegramUsername
+    ? `@${requester.telegramUsername}`
+    : requester.fullName ?? "A bandmate";
+  const targetMessageLabel = targetUser.telegramUsername
+    ? `@${targetUser.telegramUsername}`
+    : targetUser.fullName ?? "A musician";
+  const pendingRequests = await db.trackInvite.findMany({
+    where: {
+      seatId: seat.id,
+      recipientId: seat.track.proposedById,
+      status: TrackInviteStatus.PENDING,
+    },
+    select: {
+      id: true,
+      deliveryNote: true,
+    },
+  });
+
+  const duplicateRequest = pendingRequests.some((invite) => {
+    const meta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
+    return meta?.targetUserId === targetUser.id;
+  });
+
+  if (duplicateRequest) {
+    redirect(buildEventRedirectUrl(eventSlug, { error: "opt-request-exists" }));
+  }
+
+  const delivery = await sendTelegramSeatApprovalRequestMessage({
+    recipientTelegramId: seat.track.proposedBy.telegramId,
+    eventTitle: seat.track.event.title,
+    songLabel: `${seat.track.song.artist.name} - ${seat.track.song.title}`,
+    seatLabel: seat.label,
+    requesterLabel: requesterMessageLabel,
+    targetLabel: targetMessageLabel,
+    mode,
+  });
+
+  await db.trackInvite.create({
+    data: {
+      trackId: seat.trackId,
+      seatId: seat.id,
+      senderId: requester.id,
+      recipientId: seat.track.proposedById,
+      status: TrackInviteStatus.PENDING,
+      deliveryNote: serializeClosedOptionalSeatRequestMeta({
+        kind: "closed-opt-request",
+        requesterId: requester.id,
+        requesterLabel,
+        targetUserId: targetUser.id,
+        targetLabel,
+        mode,
+      }),
+    },
+  });
+
+  revalidateAll(pathBundle(eventSlug));
+  redirect(
+    buildEventRedirectUrl(eventSlug, {
+      notice:
+        delivery.status === "DELIVERY_FAILED"
+          ? "opt-request-saved"
+          : "opt-request-sent",
+    }),
+  );
 }
 
 function getString(formData: FormData, key: string) {
@@ -102,10 +270,62 @@ async function createDefaultTrackSeats(trackId: string, eventId: string) {
           lineupSlotId: slot.id,
           seatIndex: index,
           label: seatLabelForSlot(slot, index),
+          isOptional: false,
         },
       });
     }
   }
+}
+
+async function resolveSongId(formData: FormData) {
+  const explicitSongId = getString(formData, "songId");
+  if (explicitSongId) {
+    return explicitSongId;
+  }
+
+  const artistName =
+    getString(formData, "selectedArtistName") || getString(formData, "artistName");
+  const trackTitle =
+    getString(formData, "selectedTrackTitle") ||
+    getString(formData, "songTitle") ||
+    getString(formData, "trackTitle");
+  const selectedDurationSeconds = getInt(formData, "selectedDurationSeconds", 0);
+  const durationMs = getInt(formData, "durationMs", 0);
+  const durationSeconds =
+    selectedDurationSeconds > 0
+      ? selectedDurationSeconds
+      : durationMs > 0
+        ? Math.round(durationMs / 1000)
+        : 0;
+
+  if (!artistName || !trackTitle) {
+    throw new Error("Choose a song from search results before proposing it.");
+  }
+
+  const artist = await db.artist.upsert({
+    where: { slug: slugify(artistName) },
+    update: { name: artistName },
+    create: {
+      slug: slugify(artistName),
+      name: artistName,
+    },
+  });
+
+  const song = await db.song.upsert({
+    where: { slug: slugify(`${artistName}-${trackTitle}`) },
+    update: {
+      title: trackTitle,
+      durationSeconds: durationSeconds > 0 ? durationSeconds : undefined,
+    },
+    create: {
+      artistId: artist.id,
+      slug: slugify(`${artistName}-${trackTitle}`),
+      title: trackTitle,
+      durationSeconds: durationSeconds > 0 ? durationSeconds : null,
+    },
+  });
+
+  return song.id;
 }
 
 async function ensureSetlistItem(trackId: string, eventId: string, editedById?: string) {
@@ -163,7 +383,10 @@ export async function devSignInAction(formData: FormData) {
     throw new Error("Development auth is disabled.");
   }
 
-  const username = getString(formData, "telegramUsername");
+  const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+  if (!username) {
+    throw new Error("Telegram username is required.");
+  }
   const role = getString(formData, "role") === "ADMIN" ? UserRole.ADMIN : UserRole.USER;
   const user = await db.user.upsert({
     where: { telegramUsername: username },
@@ -183,7 +406,7 @@ export async function devSignInAction(formData: FormData) {
 export async function updateProfileAction(formData: FormData) {
   const user = await requireUser();
   const instrumentIds = parseInstrumentIds(formData);
-  const requestedTelegramUsername = getString(formData, "telegramUsername") || null;
+  const requestedTelegramUsername = normalizeTelegramUsername(getString(formData, "telegramUsername"));
 
   await db.$transaction([
     db.user.update({
@@ -216,6 +439,7 @@ export async function updateProfileAction(formData: FormData) {
 
 export async function requestSongCatalogAction(formData: FormData) {
   const user = await requireUser();
+  const eventSlug = getString(formData, "eventSlug");
   await db.songCatalogRequest.create({
     data: {
       requestedById: user.id,
@@ -226,6 +450,79 @@ export async function requestSongCatalogAction(formData: FormData) {
   });
 
   revalidateAll(["/admin", "/"]);
+  if (eventSlug) {
+    redirect(
+      buildEventRedirectUrl(
+        eventSlug,
+        { notice: "song-requested" },
+        "missing-song-request",
+      ),
+    );
+  }
+}
+
+export async function updateFaqContentAction(formData: FormData) {
+  await requireAdmin();
+
+  await db.sitePageContent.upsert({
+    where: { id: SITE_CONTENT_ID },
+    update: {
+      participationRulesMarkdown:
+        getString(formData, "participationRulesMarkdown") || DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+      lineupDetailsMarkdown:
+        getString(formData, "lineupDetailsMarkdown") || DEFAULT_LINEUP_DETAILS_MARKDOWN,
+      lineupVideoUrlsJson: serializeVideoUrls(
+        parseVideoUrlsInput(getString(formData, "lineupVideoUrlsInput")),
+      ),
+    },
+    create: {
+      id: SITE_CONTENT_ID,
+      participationRulesMarkdown:
+        getString(formData, "participationRulesMarkdown") || DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+      lineupDetailsMarkdown:
+        getString(formData, "lineupDetailsMarkdown") || DEFAULT_LINEUP_DETAILS_MARKDOWN,
+      lineupVideoUrlsJson: serializeVideoUrls(
+        parseVideoUrlsInput(getString(formData, "lineupVideoUrlsInput")),
+      ),
+    },
+  });
+
+  revalidateAll(["/faq", "/admin"]);
+  redirect("/admin?notice=faq-saved#faq-content");
+}
+
+export async function sendFaqFeedbackAction(formData: FormData) {
+  const currentUser = await getCurrentUser();
+  const name = getString(formData, "name");
+  const contact = getString(formData, "contact");
+  const message = getString(formData, "message");
+
+  if (!name || !message) {
+    redirect(`/faq?error=feedback-invalid#feedback`);
+  }
+
+  const fromLabel =
+    currentUser?.telegramUsername
+      ? `@${currentUser.telegramUsername} (${name})`
+      : currentUser?.fullName
+        ? `${currentUser.fullName} (${name})`
+        : name;
+
+  const delivery = await sendTelegramFeedbackMessage({
+    fromLabel,
+    contactLabel:
+      contact ||
+      (currentUser?.telegramUsername ? `@${currentUser.telegramUsername}` : null) ||
+      currentUser?.email ||
+      null,
+    message,
+  });
+
+  if (delivery.status === "DELIVERY_FAILED") {
+    redirect(`/faq?error=feedback-failed#feedback`);
+  }
+
+  redirect(`/faq?notice=feedback-sent#feedback`);
 }
 
 export async function createTrackAction(formData: FormData) {
@@ -233,7 +530,8 @@ export async function createTrackAction(formData: FormData) {
   assertUserCanParticipate(user);
 
   const eventId = getString(formData, "eventId");
-  const songId = getString(formData, "songId");
+  const eventSlug = getString(formData, "eventSlug");
+  const songId = await resolveSongId(formData);
   const event = await db.event.findUniqueOrThrow({
     where: { id: eventId },
   });
@@ -248,16 +546,24 @@ export async function createTrackAction(formData: FormData) {
   });
 
   if (existingTrack) {
+    if (eventSlug) {
+      redirect(buildEventRedirectUrl(eventSlug, { error: "track-exists" }));
+    }
     throw new Error("This song is already on the current event board.");
   }
 
   const claimSeatIds = parseSeatSelections(formData, "claimSeatKeys");
+  const optionalSeatIds = parseSeatSelections(formData, "optionalSeatKeys");
   if (claimSeatIds.length > 0) {
     const joinedCount = await countUniqueJoinedTracks(user.id, event.id);
     assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
   }
 
   let track;
+  const selectedTrackInfoKeys = formData
+    .getAll("trackInfoFlagKeys")
+    .map((value) => String(value))
+    .filter(Boolean);
   try {
     track = await db.track.create({
       data: {
@@ -265,8 +571,8 @@ export async function createTrackAction(formData: FormData) {
         songId,
         proposedById: user.id,
         comment: getString(formData, "comment") || null,
-        tuning: getString(formData, "tuning") || null,
-        playbackRequired: getBoolean(formData, "playbackRequired"),
+        playbackRequired: selectedTrackInfoKeys.includes("playback"),
+        trackInfoKeysJson: serializeTrackInfoKeys(selectedTrackInfoKeys),
       },
     });
   } catch (error) {
@@ -274,6 +580,9 @@ export async function createTrackAction(formData: FormData) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
+      if (eventSlug) {
+        redirect(buildEventRedirectUrl(eventSlug, { error: "track-exists" }));
+      }
       throw new Error("This song is already on the current event board.");
     }
 
@@ -285,6 +594,7 @@ export async function createTrackAction(formData: FormData) {
 
   const seats = await db.trackSeat.findMany({
     where: { trackId: track.id },
+    include: { lineupSlot: true },
   });
   const unavailableKeys = parseSeatSelections(formData, "unavailableSeatKeys");
 
@@ -299,28 +609,58 @@ export async function createTrackAction(formData: FormData) {
       where: { id: seat.id },
       data: {
         status: claimed ? TrackSeatStatus.CLAIMED : status,
+        isOptional:
+          seat.lineupSlot.allowOptional &&
+          optionalSeatIds.includes(seatKey) &&
+          !unavailableKeys.includes(seatKey),
         userId: claimed ? user.id : null,
         claimedAt: claimed ? new Date() : null,
       },
     });
   }
 
-  revalidateAll(pathBundle(getString(formData, "eventSlug")));
+  revalidateAll(pathBundle(eventSlug));
+  if (eventSlug) {
+    redirect(buildEventRedirectUrl(eventSlug, { notice: "track-created" }));
+  }
 }
 
 export async function claimSeatAction(formData: FormData) {
   const user = await requireUser();
   const seatId = getString(formData, "seatId");
+  const eventSlug = getString(formData, "eventSlug");
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
       track: {
-        include: { event: true },
+        include: {
+          event: true,
+          song: {
+            include: { artist: true },
+          },
+          proposedBy: true,
+        },
       },
     },
   });
 
-  assertEventAllowsChanges(seat.track.event);
+  if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
+    if (user.id === seat.track.proposedById || user.role === UserRole.ADMIN) {
+      assertSeatClaimable(seat);
+    } else {
+      await createClosedOptionalSeatRequest({
+        seat,
+        eventSlug,
+        requester: user,
+        targetUser: user,
+        mode: "self",
+      });
+      return;
+    }
+  } else {
+    assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
+  }
+
   assertSeatClaimable(seat);
 
   const alreadyOnTrack = await db.trackSeat.count({
@@ -345,12 +685,13 @@ export async function claimSeatAction(formData: FormData) {
     },
   });
 
-  revalidateAll(pathBundle(getString(formData, "eventSlug")));
+  revalidateAll(pathBundle(eventSlug));
 }
 
 export async function releaseSeatAction(formData: FormData) {
   const user = await requireUser();
   const seatId = getString(formData, "seatId");
+  const eventSlug = getString(formData, "eventSlug");
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -360,7 +701,7 @@ export async function releaseSeatAction(formData: FormData) {
     },
   });
 
-  assertEventAllowsChanges(seat.track.event);
+  assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
   if (seat.userId !== user.id && seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
     throw new Error("You cannot remove this participant.");
   }
@@ -374,12 +715,13 @@ export async function releaseSeatAction(formData: FormData) {
     },
   });
 
-  revalidateAll(pathBundle(getString(formData, "eventSlug")));
+  revalidateAll(pathBundle(eventSlug));
 }
 
 export async function markSeatUnavailableAction(formData: FormData) {
   const user = await requireUser();
   const seatId = getString(formData, "seatId");
+  const eventSlug = getString(formData, "eventSlug");
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -391,7 +733,7 @@ export async function markSeatUnavailableAction(formData: FormData) {
     },
   });
 
-  assertEventAllowsChanges(seat.track.event);
+  assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
   if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
     throw new Error("Only the proposer or an admin can mark seats unavailable.");
   }
@@ -409,14 +751,17 @@ export async function markSeatUnavailableAction(formData: FormData) {
     },
   });
 
-  revalidateAll(pathBundle(getString(formData, "eventSlug")));
+  revalidateAll(pathBundle(eventSlug));
 }
 
 export async function inviteToSeatAction(formData: FormData) {
   const user = await requireUser();
   const eventSlug = getString(formData, "eventSlug");
-  const username = getString(formData, "recipientUsername").replace(/^@/, "");
+  const username = normalizeTelegramUsername(getString(formData, "recipientUsername"));
   const seatId = getString(formData, "seatId");
+  if (!username) {
+    throw new Error("Recipient username is required.");
+  }
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -426,17 +771,11 @@ export async function inviteToSeatAction(formData: FormData) {
           song: {
             include: { artist: true },
           },
+          proposedBy: true,
         },
       },
     },
   });
-
-  if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    throw new Error("Only the proposer or an admin can invite people to this track.");
-  }
-
-  assertEventAllowsChanges(seat.track.event);
-  assertSeatClaimable(seat);
 
   const recipient = await db.user.findUnique({
     where: { telegramUsername: username },
@@ -444,6 +783,97 @@ export async function inviteToSeatAction(formData: FormData) {
 
   if (!recipient) {
     throw new Error("Recipient not found. Ask them to register first.");
+  }
+
+  if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
+    if (user.id === seat.track.proposedById || user.role === UserRole.ADMIN) {
+      assertSeatClaimable(seat);
+
+      const alreadyOnTrack = await db.trackSeat.count({
+        where: {
+          userId: recipient.id,
+          trackId: seat.trackId,
+          status: TrackSeatStatus.CLAIMED,
+        },
+      });
+
+      if (!alreadyOnTrack) {
+        const joinedCount = await countUniqueJoinedTracks(recipient.id, seat.track.eventId);
+        assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
+      }
+
+      await db.trackSeat.update({
+        where: { id: seat.id },
+        data: {
+          userId: recipient.id,
+          status: TrackSeatStatus.CLAIMED,
+          claimedAt: new Date(),
+        },
+      });
+
+      await db.trackInvite.updateMany({
+        where: {
+          seatId,
+          status: TrackInviteStatus.PENDING,
+        },
+        data: {
+          status: TrackInviteStatus.CANCELED,
+          respondedAt: new Date(),
+        },
+      });
+
+      revalidateAll(pathBundle(eventSlug));
+      if (eventSlug) {
+        redirect(buildEventRedirectUrl(eventSlug, { notice: "seat-claimed" }));
+      }
+      return;
+    }
+
+    await createClosedOptionalSeatRequest({
+      seat,
+      eventSlug,
+      requester: user,
+      targetUser: recipient,
+      mode: recipient.id === user.id ? "self" : "friend",
+    });
+    return;
+  }
+
+  if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
+    throw new Error("Only the proposer or an admin can invite people to this track.");
+  }
+
+  assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
+  assertSeatClaimable(seat);
+
+  if (recipient.id === user.id) {
+    const alreadyOnTrack = await db.trackSeat.count({
+      where: {
+        userId: user.id,
+        trackId: seat.trackId,
+        status: TrackSeatStatus.CLAIMED,
+      },
+    });
+
+    if (!alreadyOnTrack) {
+      const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
+      assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
+    }
+
+    await db.trackSeat.update({
+      where: { id: seat.id },
+      data: {
+        userId: user.id,
+        status: TrackSeatStatus.CLAIMED,
+        claimedAt: new Date(),
+      },
+    });
+
+    revalidateAll(pathBundle(eventSlug));
+    if (eventSlug) {
+      redirect(buildEventRedirectUrl(eventSlug, { notice: "seat-claimed" }));
+    }
+    return;
   }
 
   const existingInvite = await db.trackInvite.findFirst({
@@ -487,6 +917,7 @@ export async function respondToInviteAction(formData: FormData) {
   const user = await requireUser();
   const inviteId = getString(formData, "inviteId");
   const decision = getString(formData, "decision");
+  const eventSlug = getString(formData, "eventSlug");
   const invite = await db.trackInvite.findUniqueOrThrow({
     where: { id: inviteId },
     include: {
@@ -502,18 +933,28 @@ export async function respondToInviteAction(formData: FormData) {
       track: true,
     },
   });
+  const requestMeta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
 
   if (invite.recipientId !== user.id) {
     throw new Error("This invite is not yours.");
   }
 
   if (decision === "accept") {
-    assertEventAllowsChanges(invite.seat.track.event);
+    const targetUserId = requestMeta?.targetUserId ?? user.id;
+
+    if (requestMeta) {
+      if (!canRequestClosedOptionalSeat(invite.seat.track.event, invite.seat)) {
+        redirectToEventError(eventSlug, "event-locked");
+      }
+    } else {
+      assertEventAllowsChanges(invite.seat.track.event);
+    }
+
     assertSeatClaimable(invite.seat);
 
-    const joinedCount = await countUniqueJoinedTracks(user.id, invite.track.eventId);
+    const joinedCount = await countUniqueJoinedTracks(targetUserId, invite.track.eventId);
     const alreadyOnTrack = await db.trackSeat.count({
-      where: { userId: user.id, trackId: invite.trackId, status: TrackSeatStatus.CLAIMED },
+      where: { userId: targetUserId, trackId: invite.trackId, status: TrackSeatStatus.CLAIMED },
     });
     if (!alreadyOnTrack) {
       assertWithinTrackLimit(joinedCount, invite.seat.track.event.maxTracksPerUser);
@@ -523,7 +964,7 @@ export async function respondToInviteAction(formData: FormData) {
       db.trackSeat.update({
         where: { id: invite.seatId },
         data: {
-          userId: user.id,
+          userId: targetUserId,
           status: TrackSeatStatus.CLAIMED,
           claimedAt: new Date(),
         },
@@ -532,6 +973,17 @@ export async function respondToInviteAction(formData: FormData) {
         where: { id: inviteId },
         data: {
           status: TrackInviteStatus.ACCEPTED,
+          respondedAt: new Date(),
+        },
+      }),
+      db.trackInvite.updateMany({
+        where: {
+          seatId: invite.seatId,
+          status: TrackInviteStatus.PENDING,
+          id: { not: inviteId },
+        },
+        data: {
+          status: TrackInviteStatus.CANCELED,
           respondedAt: new Date(),
         },
       }),
@@ -546,7 +998,7 @@ export async function respondToInviteAction(formData: FormData) {
     });
   }
 
-  revalidateAll(["/profile", `/events/${getString(formData, "eventSlug")}`]);
+  revalidateAll(["/profile", `/events/${eventSlug}`]);
 }
 
 export async function createEventAction(formData: FormData) {
@@ -570,6 +1022,9 @@ export async function createEventAction(formData: FormData) {
       maxSetDurationMinutes: getInt(formData, "maxSetDurationMinutes", 120),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", 3),
       allowPlayback: getBoolean(formData, "allowPlayback"),
+      trackInfoFieldsJson: serializeTrackInfoFields(
+        parseTrackInfoFieldsInput(getString(formData, "trackInfoFieldsInput")),
+      ),
       stageNotes: getString(formData, "stageNotes") || null,
     },
   });
@@ -577,7 +1032,12 @@ export async function createEventAction(formData: FormData) {
   const lineupPayload = getString(formData, "lineupJson");
   const lineup =
     lineupPayload.length > 0
-      ? (JSON.parse(lineupPayload) as Array<{ key: string; label: string; seatCount: number }>)
+      ? (JSON.parse(lineupPayload) as Array<{
+          key: string;
+          label: string;
+          seatCount: number;
+          allowOptional?: boolean;
+        }>)
       : [];
 
   for (const [index, slot] of lineup.entries()) {
@@ -587,6 +1047,7 @@ export async function createEventAction(formData: FormData) {
         key: slot.key,
         label: slot.label,
         seatCount: slot.seatCount,
+        allowOptional: slot.allowOptional ?? true,
         displayOrder: index + 1,
       },
     });
@@ -627,6 +1088,9 @@ export async function updateEventAction(formData: FormData) {
       maxSetDurationMinutes: getInt(formData, "maxSetDurationMinutes", event.maxSetDurationMinutes),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", event.maxTracksPerUser),
       allowPlayback: getBoolean(formData, "allowPlayback"),
+      trackInfoFieldsJson: serializeTrackInfoFields(
+        parseTrackInfoFieldsInput(getString(formData, "trackInfoFieldsInput")),
+      ),
       stageNotes: getString(formData, "stageNotes") || null,
     },
   });
@@ -637,6 +1101,7 @@ export async function updateEventAction(formData: FormData) {
       key: string;
       label: string;
       seatCount: number;
+      allowOptional?: boolean;
     }>;
 
     await db.eventLineupSlot.deleteMany({ where: { eventId } });
@@ -647,6 +1112,7 @@ export async function updateEventAction(formData: FormData) {
           key: slot.key,
           label: slot.label,
           seatCount: slot.seatCount,
+          allowOptional: slot.allowOptional ?? true,
           displayOrder: index + 1,
         },
       });
@@ -690,7 +1156,6 @@ export async function createCatalogSongAction(formData: FormData) {
     update: {
       title: trackTitle,
       durationSeconds: getInt(formData, "durationSeconds", 240),
-      defaultTuning: getString(formData, "defaultTuning") || null,
       notes: getString(formData, "notes") || null,
     },
     create: {
@@ -698,7 +1163,6 @@ export async function createCatalogSongAction(formData: FormData) {
       slug: slugify(`${artistName}-${trackTitle}`),
       title: trackTitle,
       durationSeconds: getInt(formData, "durationSeconds", 240),
-      defaultTuning: getString(formData, "defaultTuning") || null,
       notes: getString(formData, "notes") || null,
     },
   });
@@ -710,8 +1174,8 @@ export async function createKnownGroupAction(formData: FormData) {
   await requireAdmin();
   const usernames = getString(formData, "memberUsernames")
     .split(",")
-    .map((value) => value.trim().replace(/^@/, ""))
-    .filter(Boolean);
+    .map((value) => normalizeTelegramUsername(value))
+    .filter((value): value is string => Boolean(value));
   const users = await db.user.findMany({
     where: {
       telegramUsername: {
@@ -738,7 +1202,10 @@ export async function createKnownGroupAction(formData: FormData) {
 
 export async function setBanAction(formData: FormData) {
   const admin = await requireAdmin();
-  const username = getString(formData, "telegramUsername").replace(/^@/, "");
+  const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+  if (!username) {
+    throw new Error("Telegram username is required.");
+  }
   const user = await db.user.findUniqueOrThrow({
     where: { telegramUsername: username },
   });
@@ -766,7 +1233,10 @@ export async function setBanAction(formData: FormData) {
 
 export async function setRatingAction(formData: FormData) {
   const admin = await requireAdmin();
-  const username = getString(formData, "telegramUsername").replace(/^@/, "");
+  const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+  if (!username) {
+    throw new Error("Telegram username is required.");
+  }
   const user = await db.user.findUniqueOrThrow({
     where: { telegramUsername: username },
   });
@@ -807,7 +1277,7 @@ export async function cancelTrackAction(formData: FormData) {
   }
 
   if (user.role !== UserRole.ADMIN) {
-    assertEventAllowsChanges(track.event);
+    assertEventAllowsChangesOrRedirect(track.event, eventSlug);
   }
 
   await db.track.update({
@@ -826,8 +1296,11 @@ export async function cancelTrackAction(formData: FormData) {
 export async function adminAssignSeatAction(formData: FormData) {
   const admin = await requireAdmin();
   const seatId = getString(formData, "seatId");
-  const username = getString(formData, "telegramUsername").replace(/^@/, "");
+  const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
   const eventSlug = getString(formData, "eventSlug");
+  if (!username) {
+    throw new Error("Telegram username is required.");
+  }
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -857,8 +1330,13 @@ export async function adminAssignSeatAction(formData: FormData) {
 export async function adminClearSeatAction(formData: FormData) {
   const admin = await requireAdmin();
   const seatId = getString(formData, "seatId");
-  const eventId = getString(formData, "eventId");
-  await assertLockOwnership(eventId, admin.id);
+  const seat = await db.trackSeat.findUniqueOrThrow({
+    where: { id: seatId },
+    include: {
+      track: true,
+    },
+  });
+  await assertLockOwnership(seat.track.eventId, admin.id);
 
   await db.trackSeat.update({
     where: { id: seatId },
@@ -966,7 +1444,11 @@ export async function runSelectionAction(formData: FormData) {
         );
       }) ?? null;
 
-    const filledSeats = track.seats.filter((seat) => seat.status === TrackSeatStatus.CLAIMED).length;
+    const completion = getTrackCompletionSummary(track.seats);
+    const requiredSeatCount = track.seats.filter(
+      (seat) => seat.status !== TrackSeatStatus.UNAVAILABLE && !seat.isOptional,
+    ).length;
+    const requiredClaimed = requiredSeatCount - completion.requiredOpen;
     return {
       id: track.id,
       songId: track.songId,
@@ -974,7 +1456,7 @@ export async function runSelectionAction(formData: FormData) {
       artistName: track.song.artist.name,
       durationSeconds: track.song.durationSeconds,
       participantIds,
-      filledSeatRatio: track.seats.length > 0 ? filledSeats / track.seats.length : 0,
+      filledSeatRatio: requiredSeatCount > 0 ? requiredClaimed / requiredSeatCount : 1,
       createdAt: track.createdAt,
       matchedKnownGroupName: matchedGroup?.name ?? null,
     };

@@ -7,7 +7,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[2rem] border border-ink/10 bg-white/90 p-6 shadow-card backdrop-blur",
+        "panel-linear relative overflow-hidden p-6 text-sand transition duration-200 hover:-translate-y-0.5 hover:border-white/16 hover:shadow-card",
         className,
       )}
       {...props}

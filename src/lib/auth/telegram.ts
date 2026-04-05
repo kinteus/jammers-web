@@ -47,7 +47,10 @@ export function verifyTelegramAuth(payload: TelegramAuthPayload) {
     .update(dataCheckString)
     .digest("hex");
 
-  if (computedHash !== payload.hash) {
+  const computed = Buffer.from(computedHash, "hex");
+  const received = Buffer.from(payload.hash, "hex");
+
+  if (computed.length !== received.length || !crypto.timingSafeEqual(computed, received)) {
     throw new Error("Invalid Telegram payload signature.");
   }
 

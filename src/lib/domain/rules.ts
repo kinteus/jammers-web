@@ -6,7 +6,10 @@ import {
   type User,
 } from "@prisma/client";
 
-import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import {
+  allowsClosedOptionalSeatRequests,
+  getEffectiveEventStatus,
+} from "@/lib/domain/event-status";
 import { hasActiveBan } from "@/lib/permissions";
 
 type UserWithBan = User & {
@@ -48,6 +51,18 @@ export function assertSeatClaimable(seat: Pick<TrackSeat, "status" | "userId">) 
   if (seat.userId) {
     throw new Error("This position is already occupied.");
   }
+}
+
+export function canRequestClosedOptionalSeat(
+  event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt" | "startsAt">,
+  seat: Pick<TrackSeat, "status" | "userId" | "isOptional">,
+) {
+  return (
+    allowsClosedOptionalSeatRequests(event) &&
+    seat.status === TrackSeatStatus.OPEN &&
+    !seat.userId &&
+    seat.isOptional
+  );
 }
 
 export function assertWithinTrackLimit(

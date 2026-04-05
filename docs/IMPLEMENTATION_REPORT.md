@@ -6,11 +6,12 @@
 - Telegram-based authentication entrypoint with bot-backed invite integration
 - User profile management with instrument preferences
 - Event configuration with lineup, timing, playback toggle, and participation limits
-- Song catalog and missing-song request flow
-- Track proposal, seat claim, seat release, seat N/A marking, and invite response flow
+- Live song search via external provider plus missing-song request flow
+- Track proposal composer, seat claim, seat release, seat skip marking, and invite response flow
 - Admin moderation for ratings, bans, known groups, seat overrides, and event curation
 - Coverage-first setlist algorithm with previous-concert song exclusion
 - Manual setlist backlog management, publishing, and drummer-based sorting
+- Stage-sheet board redesign aligned with The Jammers brand system
 - Prisma schema, migrations, seed data, tests, Docker packaging, CI, and Kubernetes manifests
 
 ## Key implementation decisions

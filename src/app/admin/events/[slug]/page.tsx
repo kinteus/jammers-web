@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 
 import {
+  formatTrackInfoFieldsForTextarea,
+  getEventTrackInfoFields,
+} from "@/lib/track-info-flags";
+import {
   acquireCurationLockAction,
   adminAssignSeatAction,
   adminClearSeatAction,
@@ -13,6 +17,7 @@ import {
   updateEventAction,
   updateEventStatusAction,
 } from "@/server/actions";
+import { requireAdmin } from "@/server/auth-guards";
 import { getEventWorkspace } from "@/server/query-data";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +32,7 @@ type AdminEventPageProps = {
 
 export default async function AdminEventPage({ params }: AdminEventPageProps) {
   const { slug } = await params;
+  await requireAdmin();
   const event = await getEventWorkspace(slug);
 
   if (!event) {
@@ -39,9 +45,13 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
       key: slot.key,
       label: slot.label,
       seatCount: slot.seatCount,
+      allowOptional: slot.allowOptional,
     })),
     null,
     2,
+  );
+  const trackInfoFields = formatTrackInfoFieldsForTextarea(
+    getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback),
   );
 
   return (
@@ -114,8 +124,24 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
               Allow playback
             </label>
             <label className="space-y-2 text-sm md:col-span-2">
+              <span>Track info flags</span>
+              <textarea
+                className="min-h-24 w-full px-4 py-3"
+                defaultValue={trackInfoFields}
+                name="trackInfoFieldsInput"
+              />
+              <p className="text-xs leading-5 text-ink/55">
+                One label per line. These checkboxes add context to a song, but never affect
+                completeness or setlist selection.
+              </p>
+            </label>
+            <label className="space-y-2 text-sm md:col-span-2">
               <span>Lineup JSON</span>
               <textarea className="min-h-40 w-full px-4 py-3 font-mono text-xs" defaultValue={lineupJson} name="lineupJson" />
+              <p className="text-xs leading-5 text-ink/55">
+                Set <code>allowOptional</code> to <code>false</code> for lineup roles that cannot
+                be treated as optional in track proposals.
+              </p>
             </label>
             <Button className="md:col-span-2" type="submit">
               Save event settings

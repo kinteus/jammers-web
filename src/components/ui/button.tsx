@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-full text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center rounded-sm border text-sm font-semibold uppercase tracking-[0.12em] transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 will-change-transform hover:-translate-y-0.5 active:translate-y-0",
   {
     variants: {
       variant: {
-        primary: "bg-ink text-sand hover:bg-ink/90",
-        secondary: "bg-white text-ink ring-1 ring-ink/10 hover:bg-sand/80",
-        accent: "bg-clay text-white hover:bg-ember",
-        ghost: "bg-transparent text-ink hover:bg-ink/5",
+        primary: "border-red bg-red text-white shadow-card hover:border-red/90 hover:bg-red/90 hover:shadow-glow",
+        secondary: "border-white/14 bg-stage text-sand hover:border-gold/28 hover:text-white",
+        accent: "border-blue bg-blue text-white shadow-card hover:border-blue/90 hover:bg-blue/90 hover:shadow-glow",
+        ghost: "border-transparent bg-transparent text-white/78 hover:border-white/10 hover:bg-white/8 hover:text-white",
       },
       size: {
-        sm: "h-9 px-4",
-        md: "h-11 px-5",
+        sm: "h-8 px-3.5 text-[11px]",
+        md: "h-10 px-4 text-[11px]",
       },
     },
     defaultVariants: {

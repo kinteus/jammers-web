@@ -1,11 +1,23 @@
 import { EventStatus, SetlistSection, TrackSeatStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { buildArchiveStats, buildUserArchiveStats } from "@/lib/domain/archive-stats";
 import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import {
+  DEFAULT_LINEUP_DETAILS_MARKDOWN,
+  DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+  SITE_CONTENT_ID,
+  parseVideoUrls,
+} from "@/lib/site-content";
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 
 export async function getHomePageData() {
-  const [events, publishedEvents] = await Promise.all([
+  const now = new Date();
+  const [events, archiveEvents] = await Promise.all([
     db.event.findMany({
+      where: {
+        OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+      },
       include: {
         tracks: {
           where: { state: "ACTIVE" },
@@ -19,14 +31,28 @@ export async function getHomePageData() {
     db.event.findMany({
       where: {
         status: EventStatus.PUBLISHED,
+        startsAt: { lt: now },
       },
       include: {
         setlistItems: {
           where: { section: SetlistSection.MAIN },
+          orderBy: { orderIndex: "asc" },
+          include: {
+            track: {
+              include: {
+                proposedBy: true,
+                song: {
+                  include: { artist: true },
+                },
+                seats: {
+                  include: { user: true },
+                },
+              },
+            },
+          },
         },
       },
       orderBy: { startsAt: "desc" },
-      take: 5,
     }),
   ]);
 
@@ -40,8 +66,12 @@ export async function getHomePageData() {
         ),
       ).size,
       trackCount: event.tracks.length,
+      completedTrackCount: event.tracks.filter((track) =>
+        getTrackCompletionSummary(track.seats).isComplete,
+      ).length,
     })),
-    publishedEvents,
+    publishedEvents: archiveEvents.slice(0, 5),
+    archiveStats: buildArchiveStats(archiveEvents),
   };
 }
 
@@ -158,46 +188,135 @@ export async function getAdminDashboardData() {
 }
 
 export async function getProfileWorkspace(userId: string) {
-  return db.user.findUnique({
-    where: { id: userId },
-    include: {
-      instruments: {
-        include: { instrument: true },
-      },
-      trackSeats: {
-        include: {
-          track: {
-            include: {
-              event: true,
-              song: {
-                include: { artist: true },
+  const now = new Date();
+  const [profile, archiveEvents] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      include: {
+        instruments: {
+          include: { instrument: true },
+        },
+        trackSeats: {
+          where: {
+            status: TrackSeatStatus.CLAIMED,
+            track: {
+              state: "ACTIVE",
+              event: {
+                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
               },
-              seats: {
-                include: { user: true, lineupSlot: true },
+            },
+          },
+          include: {
+            track: {
+              include: {
+                event: true,
+                song: {
+                  include: { artist: true },
+                },
+                seats: {
+                  include: { user: true, lineupSlot: true },
+                },
+              },
+            },
+          },
+          orderBy: { claimedAt: "desc" },
+        },
+        invitations: {
+          where: {
+            status: "PENDING",
+            track: {
+              event: {
+                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+              },
+            },
+          },
+          include: {
+            track: {
+              include: {
+                event: true,
+                song: {
+                  include: { artist: true },
+                },
+              },
+            },
+            seat: true,
+            sender: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    }),
+    db.event.findMany({
+      where: {
+        status: EventStatus.PUBLISHED,
+        setlistItems: {
+          some: {
+            track: {
+              OR: [
+                { proposedById: userId },
+                {
+                  seats: {
+                    some: {
+                      userId,
+                      status: TrackSeatStatus.CLAIMED,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      include: {
+        setlistItems: {
+          where: { section: SetlistSection.MAIN },
+          orderBy: { orderIndex: "asc" },
+          include: {
+            track: {
+              include: {
+                proposedBy: true,
+                song: {
+                  include: { artist: true },
+                },
+                seats: {
+                  include: { user: true },
+                },
               },
             },
           },
         },
-        orderBy: { claimedAt: "desc" },
       },
-      invitations: {
-        where: {
-          status: "PENDING",
-        },
-        include: {
-          track: {
-            include: {
-              event: true,
-              song: {
-                include: { artist: true },
-              },
-            },
-          },
-          seat: true,
-          sender: true,
-        },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
+      orderBy: { startsAt: "desc" },
+    }),
+  ]);
+
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    ...profile,
+    archiveStats: buildUserArchiveStats(archiveEvents, userId),
+  };
+}
+
+export async function getFaqPageData() {
+  try {
+    const content = await db.sitePageContent.findUnique({
+      where: { id: SITE_CONTENT_ID },
+    });
+
+    return {
+      participationRulesMarkdown:
+        content?.participationRulesMarkdown ?? DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+      lineupDetailsMarkdown: content?.lineupDetailsMarkdown ?? DEFAULT_LINEUP_DETAILS_MARKDOWN,
+      lineupVideoUrls: parseVideoUrls(content?.lineupVideoUrlsJson),
+    };
+  } catch {
+    return {
+      participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+      lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
+      lineupVideoUrls: [],
+    };
+  }
 }

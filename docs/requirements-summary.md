@@ -9,7 +9,7 @@ The PDF and the follow-up text overlap, but the newer textual brief was treated 
 - Telegram is the primary and required authentication identity.
 - Telegram username is the main public identifier for collaboration and invites.
 - Admins can create and configure events, open and close registration, moderate songs and participants, manage bans, and publish a final setlist.
-- Users can propose songs from a controlled catalog, request missing songs, claim multiple seats on a song, invite registered users, and leave seats while the board is open.
+- Users can propose songs from live song search, request missing songs, claim multiple seats on a song, invite registered users, and leave seats while the board is open.
 - Event rules include max set duration, max tracks per user, lineup configuration, playback support, and registration closing time.
 - Admins maintain a registry of known groups whose songs should rank below organically assembled bands during selection.
 - The final setlist has two sections: main set and backlog, with manual admin editing after algorithmic recommendation.

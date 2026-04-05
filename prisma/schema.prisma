@@ -151,7 +151,6 @@ model Song {
   slug            String               @unique
   title           String
   artistId        String
-  defaultTuning   String?
   durationSeconds Int?
   notes           String?              @db.Text
   createdAt       DateTime             @default(now())
@@ -186,6 +185,7 @@ model Event {
   maxSetDurationMinutes   Int              @default(120)
   maxTracksPerUser        Int              @default(3)
   allowPlayback           Boolean          @default(true)
+  trackInfoFieldsJson     String?          @db.Text
   stageNotes              String?          @db.Text
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
@@ -205,6 +205,7 @@ model EventLineupSlot {
   key            String
   label          String
   seatCount      Int
+  allowOptional  Boolean     @default(true)
   displayOrder   Int
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -223,8 +224,8 @@ model Track {
   proposedById     String
   linkedGroupId    String?
   comment          String?       @db.Text
-  tuning           String?
   playbackRequired Boolean       @default(false)
+  trackInfoKeysJson String?      @db.Text
   state            TrackState    @default(ACTIVE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -249,6 +250,7 @@ model TrackSeat {
   seatIndex        Int
   label            String
   status           TrackSeatStatus @default(OPEN)
+  isOptional       Boolean         @default(false)
   claimedAt        DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -356,4 +358,13 @@ model EventEditLock {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([eventId, scope, expiresAt])
+}
+
+model SitePageContent {
+  id                         String   @id
+  participationRulesMarkdown String   @db.Text
+  lineupDetailsMarkdown      String   @db.Text
+  lineupVideoUrlsJson        String?  @db.Text
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }

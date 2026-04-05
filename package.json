@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "local": "node scripts/run-local.mjs",
+    "local:docker": "docker compose up --build",
+    "local:down": "node scripts/run-local.mjs down",
     "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
     "build": "next build",
     "start": "next start",
@@ -15,6 +18,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
+    "import:legacy-gigs": "tsx scripts/import-legacy-gigs.ts",
     "prepare": "prisma generate"
   },
   "dependencies": {
@@ -37,6 +41,7 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.54.2",
     "tailwind-merge": "^2.6.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -1,118 +1,243 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { getLocale } from "@/lib/i18n-server";
+import { getEventStatusLabel, pick } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
-import { Card } from "@/components/ui/card";
+import { BrandLogo } from "@/components/brand-logo";
+import { ArchiveStatsSection } from "@/components/archive-stats-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { events, publishedEvents } = await getHomePageData();
-  const user = await getCurrentUser();
+  const [{ events, publishedEvents, archiveStats }, user, locale] = await Promise.all([
+    getHomePageData(),
+    getCurrentUser(),
+    getLocale(),
+  ]);
+  const featuredEvent = events.find((event) => event.effectiveStatus === "OPEN") ?? events[0] ?? null;
 
   return (
-    <div className="space-y-10">
-      <section className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
-        <Card className="overflow-hidden bg-ink text-sand">
-          <div className="space-y-6">
-            <Badge className="bg-white/10 text-sand">Public Concert Workspace</Badge>
-            <div className="space-y-3">
-              <h1 className="font-display text-4xl font-semibold tracking-tight lg:text-6xl">
-                Build the next setlist with the whole band, not in a spreadsheet.
-              </h1>
-              <p className="max-w-2xl text-base text-sand/80">
-                Propose songs, claim stage positions, invite collaborators through Telegram and hand admins an explainable selection flow with backlog control.
+    <div className="space-y-8 text-sand">
+      <section className="space-y-6 border-b border-white/8 pb-8">
+        <div className="brand-stage overflow-hidden rounded-[2rem] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.38)] md:px-8 md:py-10">
+          <div className="mx-auto max-w-6xl space-y-7">
+            <div className="max-w-[820px]">
+              <BrandLogo className="w-full" priority variant="dark" />
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/56">
+                {pick(locale, {
+                  en: "Cyprus music community",
+                  ru: "Музыкальное коммьюнити Кипра",
+                })}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href={events[0] ? `/events/${events[0].slug}` : "/admin"}>
-                <Button variant="accent">Open active event</Button>
-              </Link>
-              <Link href={user ? "/profile" : "/profile"}>
-                <Button variant="secondary">Open my workspace</Button>
-              </Link>
+              <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.04em] text-sand md:text-6xl">
+                {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
+              </h1>
+              <p className="max-w-3xl text-base leading-7 text-white/80">
+                {pick(locale, {
+                  en: "A fast live board for the Cyprus music crowd: open the next gig, see what songs are already in motion and jump into the line-up without friction.",
+                  ru: "Живой борд для музыкального коммьюнити Кипра: открой ближайший гиг, быстро посмотри, какие песни уже в движении, и впишись в лайнап без лишней суеты.",
+                })}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link href={featuredEvent ? `/events/${featuredEvent.slug}` : "#gigs"}>
+                  <Button variant="primary">
+                    {pick(locale, { en: "Open next gig", ru: "Открыть ближайший гиг" })}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button variant="secondary">
+                    {user
+                      ? pick(locale, { en: "Open profile", ru: "Открыть профиль" })
+                      : pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <Card className="space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ember">
-            What ships in this version
-          </p>
-          <ul className="space-y-3 text-sm text-ink/80">
-            <li>Telegram authentication and invite delivery integration point</li>
-            <li>Per-event rules for set duration, slot limits, lineup and playback</li>
-            <li>Admin curation with lock ownership, backlog and publication flow</li>
-            <li>Coverage-first setlist algorithm with previous-gig filtering</li>
-          </ul>
-        </Card>
-      </section>
-
-      <section className="grid gap-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ember">
-              Events
+        <Card className="brand-shell border-gold/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%),radial-gradient(circle_at_top_right,rgba(185,0,22,0.14),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(255,179,0,0.12),transparent_24%),#191512]">
+          <div className="flex flex-wrap items-start gap-3">
+            <Badge className="border-gold/30 bg-gold/14 text-[#fff3cf]">BETA</Badge>
+            <p className="max-w-4xl text-sm leading-6 text-white/78">
+              {pick(locale, {
+                en: "The site is running in beta mode. Core flows are already live, but some edges may still change while we polish the experience with the community.",
+                ru: "Сайт работает в BETA-режиме. Основные сценарии уже доступны, но часть деталей ещё может меняться, пока мы дошлифовываем опыт вместе с коммьюнити.",
+              })}
             </p>
-            <h2 className="font-display text-3xl font-semibold">Current concert boards</h2>
           </div>
-          {user?.role === "ADMIN" ? (
-            <Link href="/admin">
-              <Button variant="secondary">Admin workspace</Button>
-            </Link>
-          ) : null}
-        </div>
-        <div className="grid gap-5 lg:grid-cols-2">
-          {events.map((event) => (
-            <Card key={event.id} className="space-y-5">
-              <div className="space-y-2">
-                <Badge>{event.effectiveStatus}</Badge>
-                <h3 className="font-display text-2xl font-semibold">{event.title}</h3>
-                <p className="text-sm text-ink/70">
-                  {formatDateTime(event.startsAt)} at {event.venueName ?? "Venue TBD"}
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-ink/50">Tracks</p>
-                  <p className="text-2xl font-semibold">{event.trackCount}</p>
-                </div>
-                <div>
-                  <p className="text-ink/50">Participants</p>
-                  <p className="text-2xl font-semibold">{event.participantCount}</p>
-                </div>
-                <div>
-                  <p className="text-ink/50">Set limit</p>
-                  <p className="text-2xl font-semibold">{event.maxSetDurationMinutes}m</p>
-                </div>
-              </div>
-              <Link href={`/events/${event.slug}`}>
-                <Button>Open board</Button>
-              </Link>
-            </Card>
-          ))}
-        </div>
+        </Card>
       </section>
 
-      <section className="grid gap-5">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ember">
-            Published
+      <section className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+            {pick(locale, { en: "Next up", ru: "Ближайший гиг" })}
           </p>
-          <h2 className="font-display text-3xl font-semibold">Recent released setlists</h2>
+          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+            {pick(locale, {
+              en: "What the next gig looks like right now",
+              ru: "Что сейчас происходит в ближайшем гиге",
+            })}
+          </h2>
+        </div>
+        <Card className="brand-shell border-white/10 p-0">
+          <div className="h-1 w-full stage-rule" />
+          <div className="space-y-4 p-5">
+            {featuredEvent ? (
+              <>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="border-blue/24 bg-blue/16 text-white">
+                      {getEventStatusLabel(featuredEvent.effectiveStatus, locale)}
+                    </Badge>
+                    <span className="text-sm text-white/58">
+                      {formatDateTime(featuredEvent.startsAt, locale)} ·{" "}
+                      {featuredEvent.venueName ??
+                        pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
+                    </span>
+                  </div>
+                  <h3 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
+                    {featuredEvent.title}
+                  </h3>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="brand-shell-soft rounded-xl p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      {pick(locale, { en: "Tracks proposed", ru: "Заявлено треков" })}
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-sand">{featuredEvent.trackCount}</p>
+                  </div>
+                  <div className="brand-shell-soft rounded-xl p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      {pick(locale, { en: "Tracks assembled", ru: "Собрано треков" })}
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-sand">
+                      {featuredEvent.completedTrackCount}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link href={`/events/${featuredEvent.slug}`}>
+                    <Button variant="secondary">
+                      {pick(locale, { en: "Go to gig board", ru: "Перейти к борду гига" })}
+                    </Button>
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm leading-6 text-white/68">
+                {pick(locale, {
+                  en: "Once the next gig is ready, this block becomes the fastest way into the live board.",
+                  ru: "Как только появится следующий гиг, этот блок станет самым быстрым входом в живой борд.",
+                })}
+              </p>
+            )}
+          </div>
+        </Card>
+      </section>
+
+      <section className="space-y-4" id="gigs">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+            {pick(locale, { en: "Gigs", ru: "Гиги" })}
+          </p>
+          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+            {pick(locale, { en: "Upcoming gig boards", ru: "Ближайшие гиги" })}
+          </h2>
+        </div>
+
+        {events.length === 0 ? (
+          <Card className="brand-shell">
+            <p className="text-sm leading-6 text-white/68">
+              {pick(locale, {
+                en: "No gigs yet. The next event will appear here as the public entry point into the live board.",
+                ru: "Пока нет гигов. Следующее событие появится здесь как главный публичный вход в живой борд.",
+              })}
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {events.map((event) => (
+              <Card className="brand-shell rounded-[1.5rem] border-white/10" key={event.id}>
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="border-blue/24 bg-blue/16 text-white">
+                        {getEventStatusLabel(event.effectiveStatus, locale)}
+                      </Badge>
+                      <span className="text-sm text-white/58">
+                        {formatDateTime(event.startsAt, locale)} ·{" "}
+                        {event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
+                      </span>
+                    </div>
+                    <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
+                      {event.title}
+                    </h3>
+                    <div className="flex flex-wrap gap-4 text-sm text-white/62">
+                      <span>
+                        {event.trackCount} {pick(locale, { en: "proposed", ru: "заявлено" })}
+                      </span>
+                      <span>
+                        {event.completedTrackCount} {pick(locale, { en: "assembled", ru: "собрано" })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <Link href={`/events/${event.slug}`}>
+                      <Button variant="secondary">
+                        {pick(locale, { en: "Open gig", ru: "Открыть гиг" })}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <ArchiveStatsSection locale={locale} stats={archiveStats} />
+
+      <section className="space-y-4 border-t border-white/8 pt-8">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+            {pick(locale, { en: "Published", ru: "Опубликовано" })}
+          </p>
+          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+            {pick(locale, { en: "Released setlists", ru: "Опубликованные сетлисты" })}
+          </h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {publishedEvents.map((event) => (
-            <Card key={event.id}>
-              <p className="text-sm uppercase tracking-[0.2em] text-moss">Published event</p>
-              <h3 className="mt-2 font-display text-2xl font-semibold">{event.title}</h3>
-              <p className="mt-3 text-sm text-ink/70">
-                {event.setlistItems.length} main-set tracks released on {formatDateTime(event.startsAt)}
+            <Card className="brand-shell rounded-[1.4rem] border-white/10" key={event.id}>
+              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
+                {event.title}
+              </h3>
+              <p className="text-sm leading-6 text-white/68">
+                {event.setlistItems.length}{" "}
+                {pick(locale, { en: "main-set tracks released for", ru: "треков мейн-сета для" })}{" "}
+                {formatDateTime(event.startsAt, locale)}.
               </p>
+              <Link href={`/events/${event.slug}`}>
+                <Button variant="secondary">
+                  {pick(locale, { en: "Open setlist", ru: "Открыть сетлист" })}
+                </Button>
+              </Link>
             </Card>
           ))}
         </div>

@@ -27,3 +27,19 @@ export function isEventOpen(
 ) {
   return getEffectiveEventStatus(event) === EventStatus.OPEN;
 }
+
+export function allowsClosedOptionalSeatRequests(
+  event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt" | "startsAt">,
+) {
+  const effectiveStatus = getEffectiveEventStatus(event);
+
+  if (event.startsAt <= new Date()) {
+    return false;
+  }
+
+  return (
+    effectiveStatus === EventStatus.CLOSED ||
+    effectiveStatus === EventStatus.CURATING ||
+    effectiveStatus === EventStatus.PUBLISHED
+  );
+}

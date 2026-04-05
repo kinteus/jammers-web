@@ -5,6 +5,7 @@ metadata:
 data:
   NODE_ENV: "production"
   NEXT_PUBLIC_APP_URL: "https://jammers.example.com"
+  NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: "the_jammers_bot"
   SESSION_COOKIE_NAME: "jammers_session"
   SESSION_TTL_HOURS: "168"
   ENABLE_DEV_AUTH: "false"

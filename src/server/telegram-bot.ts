@@ -1,17 +1,11 @@
 import { env } from "@/lib/env";
 
-export async function sendTelegramInviteMessage({
-  recipientTelegramId,
-  eventTitle,
-  songLabel,
-  seatLabel,
-  inviterLabel,
+async function sendTelegramMessage({
+  chatId,
+  text,
 }: {
-  recipientTelegramId: string | null | undefined;
-  eventTitle: string;
-  songLabel: string;
-  seatLabel: string;
-  inviterLabel: string;
+  chatId: string | null | undefined;
+  text: string;
 }) {
   if (!env.TELEGRAM_BOT_TOKEN) {
     return {
@@ -20,10 +14,10 @@ export async function sendTelegramInviteMessage({
     };
   }
 
-  if (!recipientTelegramId) {
+  if (!chatId) {
     return {
       status: "DELIVERY_FAILED" as const,
-      note: "Recipient has no linked Telegram account.",
+      note: "Telegram chat is not configured.",
     };
   }
 
@@ -35,8 +29,8 @@ export async function sendTelegramInviteMessage({
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        chat_id: recipientTelegramId,
-        text: `${inviterLabel} invited you to ${songLabel} (${seatLabel}) for ${eventTitle}. Open the app to accept or decline.`,
+        chat_id: chatId,
+        text,
       }),
       cache: "no-store",
     },
@@ -53,4 +47,73 @@ export async function sendTelegramInviteMessage({
     status: "PENDING" as const,
     note: "Invite was sent through Telegram.",
   };
+}
+
+export async function sendTelegramInviteMessage({
+  recipientTelegramId,
+  eventTitle,
+  songLabel,
+  seatLabel,
+  inviterLabel,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+  songLabel: string;
+  seatLabel: string;
+  inviterLabel: string;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    text: `${inviterLabel} invited you to ${songLabel} (${seatLabel}) for ${eventTitle}. Open the app to accept or decline.`,
+  });
+}
+
+export async function sendTelegramSeatApprovalRequestMessage({
+  recipientTelegramId,
+  eventTitle,
+  songLabel,
+  seatLabel,
+  requesterLabel,
+  targetLabel,
+  mode,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+  songLabel: string;
+  seatLabel: string;
+  requesterLabel: string;
+  targetLabel: string;
+  mode: "self" | "friend";
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    text:
+      mode === "self"
+        ? `${requesterLabel} wants to join the optional ${seatLabel} part on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`
+        : `${requesterLabel} suggested ${targetLabel} for the optional ${seatLabel} part on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`,
+  });
+}
+
+export async function sendTelegramFeedbackMessage({
+  fromLabel,
+  contactLabel,
+  message,
+}: {
+  fromLabel: string;
+  contactLabel: string | null;
+  message: string;
+}) {
+  return sendTelegramMessage({
+    chatId: env.TELEGRAM_FEEDBACK_CHAT_ID,
+    text: [
+      "New feedback from FAQ form",
+      "",
+      `From: ${fromLabel}`,
+      contactLabel ? `Contact: ${contactLabel}` : null,
+      "",
+      message,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
 }

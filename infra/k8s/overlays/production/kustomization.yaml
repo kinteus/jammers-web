@@ -1,0 +1,9 @@
+namespace: prod
+
+resources:
+  - ../../base
+
+patches:
+  - path: configmap-patch.yaml
+  - path: ingress-patch.yaml
+  - path: deployment-patch.yaml

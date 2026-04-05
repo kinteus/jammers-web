@@ -8,6 +8,7 @@ import {
 import { DEFAULT_LINEUP } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { serializeTrackInfoFields, serializeTrackInfoKeys, DEFAULT_TRACK_INFO_FIELDS } from "@/lib/track-info-flags";
 import { slugify } from "@/lib/utils";
 
 async function seedInstruments() {
@@ -44,9 +45,9 @@ async function seedSongs() {
   });
 
   const songs = [
-    { title: "Everlong", durationSeconds: 250, defaultTuning: "Standard" },
-    { title: "The Pretender", durationSeconds: 269, defaultTuning: "Drop D" },
-    { title: "Best of You", durationSeconds: 255, defaultTuning: "Drop D" },
+    { title: "Everlong", durationSeconds: 250 },
+    { title: "The Pretender", durationSeconds: 269 },
+    { title: "Best of You", durationSeconds: 255 },
   ];
 
   for (const song of songs) {
@@ -113,6 +114,7 @@ async function seedEvent() {
       maxSetDurationMinutes: 120,
       maxTracksPerUser: 3,
       allowPlayback: true,
+      trackInfoFieldsJson: serializeTrackInfoFields(DEFAULT_TRACK_INFO_FIELDS),
       stageNotes: "Acoustic treated room, 16 channels, no pyrotechnics.",
     },
   });
@@ -170,8 +172,8 @@ async function seedTrack(eventId: string, proposerId: string) {
       eventId,
       songId: song.id,
       proposedById: proposerId,
-      tuning: song.defaultTuning,
       playbackRequired: false,
+      trackInfoKeysJson: serializeTrackInfoKeys([]),
       comment: "Tempo-friendly opener with enough room for multiple singers.",
     },
   });

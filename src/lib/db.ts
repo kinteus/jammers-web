@@ -1,14 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 
+type AppPrismaClient = PrismaClient & {
+  sitePageContent: PrismaClient["sitePageContent"];
+};
+
 declare global {
-  var prisma: PrismaClient | undefined;
+  var prisma: AppPrismaClient | undefined;
 }
 
-export const db =
+export const db: AppPrismaClient =
   global.prisma ??
-  new PrismaClient({
+  (new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  }) as AppPrismaClient);
 
 if (process.env.NODE_ENV !== "production") {
   global.prisma = db;

@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-export function TelegramLoginWidget() {
+export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
   useEffect(() => {
     if (!containerRef.current || !botUsername) {

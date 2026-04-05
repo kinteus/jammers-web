@@ -4,10 +4,17 @@
 
 ```bash
 cp .env.example .env
-docker compose up --build
+npm run local
 ```
 
 This starts PostgreSQL and the app on `http://localhost:3000`.
+If Docker Compose is unavailable in your environment, the same command falls back to `npm run dev`.
+
+To stop the local stack when Compose is being used:
+
+```bash
+npm run local:down
+```
 
 ## Option 2: Native development
 
@@ -31,6 +38,7 @@ npm run dev
 
 - For production-like testing, configure `TELEGRAM_BOT_TOKEN` and `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`.
 - For local development only, keep `ENABLE_DEV_AUTH=true` and sign in through `/profile`.
+- For full production-style Telegram setup, follow [docs/TELEGRAM_AUTH_SETUP.md](/Users/maksimnaumov/jammers-web/docs/TELEGRAM_AUTH_SETUP.md).
 
 ## Recommended smoke checks
 

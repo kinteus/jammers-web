@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jammers-web-config
+data:
+  NEXT_PUBLIC_APP_URL: "https://thejammers.org"
+  NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: "the_jammers_bot"
+  ENABLE_DEV_AUTH: "false"
+  DEFAULT_ADMIN_USERNAME: "kinteus"

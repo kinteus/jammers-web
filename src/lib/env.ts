@@ -12,7 +12,8 @@ const rawSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
-  TELEGRAM_AUTH_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(86400),
+  TELEGRAM_FEEDBACK_CHAT_ID: z.string().optional(),
+  TELEGRAM_AUTH_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(600),
   ENABLE_DEV_AUTH: z.string().optional(),
   DEFAULT_ADMIN_USERNAME: z.string().default("kinteus"),
 });
