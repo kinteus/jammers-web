@@ -1,5 +1,8 @@
 resources:
   - configmap.yaml
+  - postgres-pvc.yaml
+  - postgres-service.yaml
+  - postgres-deployment.yaml
   - service.yaml
   - deployment.yaml
   - ingress.yaml

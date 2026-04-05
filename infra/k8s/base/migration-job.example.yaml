@@ -23,8 +23,8 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: potgres-secret
-                  key: POSTGRES_DATABASE_URL
+                  name: jammers-web-db
+                  key: DATABASE_URL
           envFrom:
             - configMapRef:
                 name: jammers-web-config

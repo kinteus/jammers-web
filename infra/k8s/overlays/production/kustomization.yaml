@@ -7,3 +7,4 @@ patches:
   - path: configmap-patch.yaml
   - path: ingress-patch.yaml
   - path: deployment-patch.yaml
+  - path: hpa-patch.yaml
