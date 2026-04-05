@@ -12,3 +12,12 @@ spec:
       secretName: jammers-next-gig-ingress-tls
   rules:
     - host: thejammers.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jammers-web
+                port:
+                  number: 80
