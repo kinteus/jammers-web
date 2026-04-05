@@ -7,14 +7,17 @@ RUN npm ci
 
 FROM node:22-alpine AS builder
 WORKDIR /app
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/jammers
+ARG SESSION_SECRET=ci-local-session-secret
+ARG ENABLE_DEV_AUTH=true
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=your_bot_username
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=$NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate
-RUN npm run build
+RUN DATABASE_URL="$DATABASE_URL" npx prisma generate
+RUN DATABASE_URL="$DATABASE_URL" SESSION_SECRET="$SESSION_SECRET" ENABLE_DEV_AUTH="$ENABLE_DEV_AUTH" npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

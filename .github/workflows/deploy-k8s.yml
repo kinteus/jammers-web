@@ -78,6 +78,9 @@ jobs:
           file: ./Dockerfile
           push: true
           build-args: |
+            DATABASE_URL=postgresql://postgres:postgres@localhost:5432/jammers
+            SESSION_SECRET=ci-local-session-secret
+            ENABLE_DEV_AUTH=true
             NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
             NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
           tags: |
