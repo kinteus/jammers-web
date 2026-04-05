@@ -12,6 +12,13 @@ spec:
         - name: migrate
           image: ghcr.io/kinteus/jammers-web:latest
           command: ["sh", "-c", "npx prisma migrate deploy"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
           env:
             - name: DATABASE_URL
               valueFrom:
