@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/i18n";
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
 import { getEventTrackInfoFields } from "@/lib/track-info-flags";
+import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/utils";
 import { createTrackAction, requestSongCatalogAction } from "@/server/actions";
 import { getEventWorkspace } from "@/server/query-data";
@@ -38,6 +40,52 @@ type EventPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export async function generateMetadata({ params }: Pick<EventPageProps, "params">): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await getEventWorkspace(slug);
+
+  if (!event) {
+    return {
+      title: "Event Not Found",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const dateLabel = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(event.startsAt));
+  const venueLabel = event.venueName ? ` at ${event.venueName}` : "";
+  const description =
+    event.description?.trim() ||
+    `${event.title}${venueLabel} on ${dateLabel}. See the live board, current line-up, and published setlist details.`;
+
+  return {
+    title: event.title,
+    description,
+    alternates: {
+      canonical: `/events/${event.slug}`,
+    },
+    openGraph: {
+      type: "article",
+      title: event.title,
+      description,
+      url: `/events/${event.slug}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: event.title,
+      description,
+    },
+  };
+}
 
 function getRoleShortages(
   tracks: Array<{
@@ -129,6 +177,33 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const roleOptions = roleFamilyOrder.filter((family) =>
     event.lineupSlots.some((slot) => getRoleFamilyKey(slot.label, slot.key) === family),
   );
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "MusicEvent",
+    name: event.title,
+    description: event.description ?? undefined,
+    startDate: new Date(event.startsAt).toISOString(),
+    eventStatus: `https://schema.org/${
+      effectiveStatus === "PUBLISHED"
+        ? "EventCompleted"
+        : effectiveStatus === "CLOSED"
+          ? "EventPostponed"
+          : "EventScheduled"
+    }`,
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    url: `${env.NEXT_PUBLIC_APP_URL}/events/${event.slug}`,
+    location: event.venueName
+      ? {
+          "@type": "Place",
+          name: event.venueName,
+        }
+      : undefined,
+    organizer: {
+      "@type": "Organization",
+      name: "The Jammers",
+      url: env.NEXT_PUBLIC_APP_URL,
+    },
+  };
 
   const visibleTracks = event.tracks.filter((track) => {
     const matchesSearch =
@@ -195,6 +270,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
 
   return (
     <div className="space-y-8 text-sand">
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        type="application/ld+json"
+      />
       {notice === "track-created" ? (
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {

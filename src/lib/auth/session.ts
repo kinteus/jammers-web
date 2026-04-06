@@ -32,6 +32,10 @@ export async function createSession(userId: string) {
   const headerStore = await headers();
   const cookieStore = await cookies();
 
+  await db.authSession.deleteMany({
+    where: { userId },
+  });
+
   await db.authSession.create({
     data: {
       tokenHash,

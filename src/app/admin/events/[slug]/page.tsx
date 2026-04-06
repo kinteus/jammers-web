@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 
@@ -25,6 +26,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Admin Event",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 type AdminEventPageProps = {
   params: Promise<{ slug: string }>;

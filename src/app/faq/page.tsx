@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { MessageCircleMore, ShieldCheck, Video } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -13,6 +14,15 @@ import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "FAQ",
+  description:
+    "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+  alternates: {
+    canonical: "/faq",
+  },
+};
 
 type FaqPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

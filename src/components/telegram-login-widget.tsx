@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { MessageCircleMore } from "lucide-react";
+
 import type { TelegramAuthPayload } from "@/lib/auth/telegram";
 
 type TelegramAuthPayloadRecord = Record<
@@ -56,6 +58,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
           ok: boolean;
           error?: string;
           redirectTo?: string;
+          cacheBuster?: number;
         };
 
         if (!response.ok || !result.ok || !result.redirectTo) {
@@ -63,7 +66,11 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
         }
 
         setMessage("Signed in. Redirecting...");
-        window.location.assign(result.redirectTo);
+        const redirectUrl = new URL(result.redirectTo, window.location.origin);
+        if (result.cacheBuster) {
+          redirectUrl.searchParams.set("auth", String(result.cacheBuster));
+        }
+        window.location.replace(redirectUrl.toString());
       } catch (error) {
         setStatus("error");
         setMessage(
@@ -77,6 +84,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.setAttribute("data-telegram-login", botUsername);
     script.setAttribute("data-size", "large");
+    script.setAttribute("data-radius", "12");
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
     script.setAttribute("data-request-access", "write");
     containerRef.current.appendChild(script);
@@ -97,8 +105,15 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      <div ref={containerRef} />
+    <div className="telegram-login-shell space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex items-start gap-3 text-sm text-white/70">
+        <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+        <p>
+          Telegram handles identity confirmation in its own secure flow. After approval, this page
+          will refresh automatically and open your profile.
+        </p>
+      </div>
+      <div className="telegram-login-widget-frame" ref={containerRef} />
       {status !== "idle" && message ? (
         <p
           className={

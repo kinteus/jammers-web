@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
+
 type ItunesSongResult = {
   trackId: number;
   trackName: string;
@@ -11,6 +13,24 @@ type ItunesSongResult = {
 };
 
 export async function GET(request: Request) {
+  const rateLimit = consumeRateLimit({
+    key: `song-search:${getClientIpFromHeaders(request.headers)}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { results: [], error: "Too many search requests. Please slow down a bit." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("query")?.trim();
 

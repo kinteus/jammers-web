@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createSession } from "@/lib/auth/session";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { env } from "@/lib/env";
+import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
 type TelegramPayloadRecord = Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>;
@@ -32,28 +33,44 @@ async function completeTelegramAuth(
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const payload = Object.fromEntries(searchParams.entries());
   const requestedReturnTo = searchParams.get("returnTo");
 
-  try {
-    const { returnTo } = await completeTelegramAuth(payload, requestedReturnTo);
-
-    return NextResponse.redirect(new URL(returnTo, env.NEXT_PUBLIC_APP_URL));
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "telegram-auth-failed";
-    const code =
-      message === "telegram-auth-claim-required" || message === "telegram-auth-conflict"
-        ? "claim-required"
-        : "failed";
-    return NextResponse.redirect(
-      new URL(`/profile?authError=${encodeURIComponent(code)}`, env.NEXT_PUBLIC_APP_URL),
-    );
-  }
+  return NextResponse.redirect(
+    new URL(
+      `${getSafeReturnTo(requestedReturnTo)}${requestedReturnTo?.includes("?") ? "&" : "?"}authError=retry`,
+      env.NEXT_PUBLIC_APP_URL,
+    ),
+    {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    },
+  );
 }
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = consumeRateLimit({
+      key: `telegram-auth:${getClientIpFromHeaders(request.headers)}`,
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Too many Telegram sign-in attempts. Please try again in a few minutes.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+          },
+        },
+      );
+    }
+
     const body = (await request.json()) as {
       payload?: TelegramPayloadRecord;
       returnTo?: string;
@@ -67,6 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       redirectTo: returnTo,
+      cacheBuster: Date.now(),
     });
   } catch (error) {
     const message =

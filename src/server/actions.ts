@@ -11,7 +11,9 @@ import {
   UserRole,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -34,6 +36,7 @@ import {
 } from "@/lib/track-invite-meta";
 import { buildSetlistRecommendation } from "@/lib/domain/setlist-algorithm";
 import { env } from "@/lib/env";
+import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
 import {
   parseTrackInfoFieldsInput,
   serializeTrackInfoFields,
@@ -84,6 +87,37 @@ function redirectToEventError(eventSlug: string | undefined, error: string): nev
   }
 
   throw new Error(error);
+}
+
+const eventStatusSchema = z.nativeEnum(EventStatus);
+const setlistSectionSchema = z.nativeEnum(SetlistSection);
+const lineupSlotSchema = z.object({
+  key: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(120),
+  seatCount: z.number().int().min(1).max(24),
+  allowOptional: z.boolean().optional(),
+});
+
+function parseLineupJson(value: string) {
+  if (!value.trim()) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  return z.array(lineupSlotSchema).parse(parsed);
+}
+
+async function assertServerActionRateLimit(key: string, limit: number, windowMs: number) {
+  const headerStore = await headers();
+  const result = consumeRateLimit({
+    key: `${key}:${getClientIpFromHeaders(headerStore)}`,
+    limit,
+    windowMs,
+  });
+
+  if (!result.allowed) {
+    throw new Error("Too many requests. Please wait a moment and try again.");
+  }
 }
 
 function assertEventAllowsChangesOrRedirect(
@@ -530,6 +564,8 @@ export async function updateFaqContentAction(formData: FormData) {
 }
 
 export async function sendFaqFeedbackAction(formData: FormData) {
+  await assertServerActionRateLimit("faq-feedback", 5, 10 * 60 * 1000);
+
   const currentUser = await getCurrentUser();
   const name = getString(formData, "name");
   const contact = getString(formData, "contact");
@@ -1067,16 +1103,7 @@ export async function createEventAction(formData: FormData) {
     },
   });
 
-  const lineupPayload = getString(formData, "lineupJson");
-  const lineup =
-    lineupPayload.length > 0
-      ? (JSON.parse(lineupPayload) as Array<{
-          key: string;
-          label: string;
-          seatCount: number;
-          allowOptional?: boolean;
-        }>)
-      : [];
+  const lineup = parseLineupJson(getString(formData, "lineupJson"));
 
   for (const [index, slot] of lineup.entries()) {
     await db.eventLineupSlot.create({
@@ -1135,12 +1162,7 @@ export async function updateEventAction(formData: FormData) {
 
   const lineupPayload = getString(formData, "lineupJson");
   if (lineupPayload && event.tracks.length === 0) {
-    const lineup = JSON.parse(lineupPayload) as Array<{
-      key: string;
-      label: string;
-      seatCount: number;
-      allowOptional?: boolean;
-    }>;
+    const lineup = parseLineupJson(lineupPayload);
 
     await db.eventLineupSlot.deleteMany({ where: { eventId } });
     for (const [index, slot] of lineup.entries()) {
@@ -1163,7 +1185,7 @@ export async function updateEventAction(formData: FormData) {
 export async function updateEventStatusAction(formData: FormData) {
   const admin = await requireAdmin();
   const eventId = getString(formData, "eventId");
-  const status = getString(formData, "status") as EventStatus;
+  const status = eventStatusSchema.parse(getString(formData, "status"));
   const eventSlug = getString(formData, "eventSlug");
   if (status === EventStatus.CURATING || status === EventStatus.PUBLISHED) {
     await assertLockOwnership(eventId, admin.id);
@@ -1560,7 +1582,7 @@ export async function moveSetlistItemAction(formData: FormData) {
   const eventSlug = getString(formData, "eventSlug");
   await assertLockOwnership(eventId, admin.id);
   const itemId = getString(formData, "itemId");
-  const section = getString(formData, "section") as SetlistSection;
+  const section = setlistSectionSchema.parse(getString(formData, "section"));
   const orderIndex = getInt(formData, "orderIndex", 1);
   const items = await db.setlistItem.findMany({
     where: { eventId },

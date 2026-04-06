@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -24,6 +25,18 @@ import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Profile",
+  description: "Sign in with Telegram to manage your invites, instruments, and current songs.",
+  alternates: {
+    canonical: "/profile",
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 type ProfileWorkspace = NonNullable<Awaited<ReturnType<typeof getProfileWorkspace>>>;
 type ProfileTrackSeat = ProfileWorkspace["trackSeats"][number]["track"]["seats"][number];
@@ -74,7 +87,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const instruments = await db.instrument.findMany({
     orderBy: { name: "asc" },
   });
-  const hasAuthError = typeof params.authError === "string";
+  const authError = typeof params.authError === "string" ? params.authError : null;
 
   if (!user) {
     return (
@@ -113,11 +126,17 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               </div>
             ))}
           </div>
-          {hasAuthError ? (
+          {authError ? (
             <p className="rounded-md bg-ember/10 p-3 text-sm text-ember">
               {pick(locale, {
-                en: "Telegram sign-in failed. Please try again.",
-                ru: "Не удалось войти через Telegram. Попробуй ещё раз.",
+                en:
+                  authError === "retry"
+                    ? "Please complete sign-in from the Telegram button on this page and try again."
+                    : "Telegram sign-in failed. Please try again.",
+                ru:
+                  authError === "retry"
+                    ? "Заверши вход через кнопку Telegram на этой странице и попробуй ещё раз."
+                    : "Не удалось войти через Telegram. Попробуй ещё раз.",
               })}
             </p>
           ) : null}

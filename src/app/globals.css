@@ -149,6 +149,17 @@ details > summary::-webkit-details-marker {
     linear-gradient(180deg, rgba(28, 28, 28, 0.9), rgba(28, 28, 28, 0.98));
 }
 
+.telegram-login-widget-frame {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: center;
+}
+
+.telegram-login-widget-frame iframe {
+  max-width: 100%;
+}
+
 .ui-tooltip {
   position: relative;
 }

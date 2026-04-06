@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -14,6 +15,21 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Live Gig Boards",
+  description:
+    "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "The Jammers",
+    description:
+      "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
+    url: "/",
+  },
+};
 
 export default async function HomePage() {
   const [{ events, publishedEvents, archiveStats }, user, locale] = await Promise.all([
