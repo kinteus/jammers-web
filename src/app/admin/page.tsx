@@ -1,22 +1,26 @@
 import Link from "next/link";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
-import { getFaqPageData } from "@/server/query-data";
 import {
   DEFAULT_TRACK_INFO_FIELDS,
   formatTrackInfoFieldsForTextarea,
 } from "@/lib/track-info-flags";
+import { env } from "@/lib/env";
+import { formatVideoUrlsForTextarea } from "@/lib/site-content";
 import {
   createCatalogSongAction,
   createEventAction,
   createKnownGroupAction,
+  grantAdminRoleAction,
+  revokeAdminRoleAction,
   setBanAction,
   setRatingAction,
   updateFaqContentAction,
 } from "@/server/actions";
-import { formatVideoUrlsForTextarea } from "@/lib/site-content";
-import { getAdminDashboardData } from "@/server/query-data";
+import { isSuperAdminUser } from "@/server/auth-guards";
+import { getAdminDashboardData, getFaqPageData } from "@/server/query-data";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +48,15 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const defaultLineup = JSON.stringify(getDefaultLineupInput(), null, 2);
   const defaultTrackInfoFields = formatTrackInfoFieldsForTextarea(DEFAULT_TRACK_INFO_FIELDS);
   const notice = typeof params.notice === "string" ? params.notice : null;
+  const canManageAdmins = isSuperAdminUser(user);
+  const adminUsers = data.users
+    .filter((member) => member.role === "ADMIN")
+    .sort((left, right) => {
+      const leftName = left.telegramUsername ?? left.fullName ?? "";
+      const rightName = right.telegramUsername ?? right.fullName ?? "";
+      return leftName.localeCompare(rightName);
+    });
+  const primaryAdminUsername = normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME);
 
   return (
     <div className="space-y-8 text-sand">
@@ -278,6 +291,71 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               Signed-in users are identified by their Telegram handle automatically; guests can leave
               their own contact details manually.
             </p>
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        <Card className="space-y-4">
+          <Badge>Admin access</Badge>
+          <div className="grid gap-6 lg:grid-cols-[0.85fr,1.15fr]">
+            <div className="space-y-3">
+              <h2 className="font-display text-3xl font-semibold">Current admins</h2>
+              <p className="text-sm text-ink/70">
+                Admin access opens moderation, event setup and curation tools.
+              </p>
+              <div className="grid gap-3">
+                {adminUsers.map((member) => {
+                  const username = member.telegramUsername ?? member.fullName ?? "unknown";
+                  const isPrimaryAdmin =
+                    normalizeTelegramUsername(member.telegramUsername) === primaryAdminUsername;
+
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink/10 p-4"
+                    >
+                      <div>
+                        <p className="font-semibold">@{username}</p>
+                        <p className="mt-1 text-sm text-ink/60">
+                          {isPrimaryAdmin ? "Primary admin" : "Admin"}
+                        </p>
+                      </div>
+                      {canManageAdmins && !isPrimaryAdmin ? (
+                        <form action={revokeAdminRoleAction}>
+                          <input name="telegramUsername" type="hidden" value={username} />
+                          <Button size="sm" type="submit" variant="ghost">
+                            Remove admin
+                          </Button>
+                        </form>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-display text-2xl font-semibold">Manage admin list</h3>
+              {canManageAdmins ? (
+                <form action={grantAdminRoleAction} className="space-y-3">
+                  <p className="text-sm text-ink/70">
+                    Only @{primaryAdminUsername} can promote or demote admins.
+                  </p>
+                  <input
+                    className="w-full px-4 py-3"
+                    name="telegramUsername"
+                    placeholder="telegram username"
+                    required
+                  />
+                  <Button type="submit">Grant admin access</Button>
+                </form>
+              ) : (
+                <div className="rounded-2xl border border-ink/10 p-4 text-sm text-ink/70">
+                  Admin list changes are reserved for the primary admin.
+                </div>
+              )}
+            </div>
           </div>
         </Card>
       </section>

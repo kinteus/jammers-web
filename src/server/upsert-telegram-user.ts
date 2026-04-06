@@ -10,13 +10,18 @@ type TelegramIdentity = {
 
 export async function upsertTelegramUser(identity: TelegramIdentity) {
   const normalizedUsername = normalizeTelegramUsername(identity.telegramUsername);
-  const existingByTelegramId = await db.user.findUnique({
-    where: { telegramId: identity.telegramId },
+  const existing = await db.user.findFirst({
+    where: {
+      OR: [
+        { telegramId: identity.telegramId },
+        ...(normalizedUsername ? [{ telegramUsername: normalizedUsername }] : []),
+      ],
+    },
   });
 
-  if (existingByTelegramId) {
+  if (existing) {
     return db.user.update({
-      where: { id: existingByTelegramId.id },
+      where: { id: existing.id },
       data: {
         telegramId: identity.telegramId,
         telegramUsername: normalizedUsername,
@@ -24,20 +29,6 @@ export async function upsertTelegramUser(identity: TelegramIdentity) {
         avatarUrl: identity.avatarUrl,
       },
     });
-  }
-
-  const existingByUsername = normalizedUsername
-    ? await db.user.findUnique({
-        where: { telegramUsername: normalizedUsername },
-      })
-    : null;
-
-  if (existingByUsername) {
-    if (existingByUsername.telegramId) {
-      throw new Error("telegram-auth-conflict");
-    }
-
-    throw new Error("telegram-auth-claim-required");
   }
 
   return db.user.create({

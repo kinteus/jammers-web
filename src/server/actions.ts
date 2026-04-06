@@ -47,7 +47,7 @@ import {
   serializeVideoUrls,
 } from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
-import { requireAdmin, requireUser } from "@/server/auth-guards";
+import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
   sendTelegramInviteMessage,
@@ -435,6 +435,42 @@ export async function updateProfileAction(formData: FormData) {
   ]);
 
   revalidateAll(["/profile", "/"]);
+}
+
+export async function grantAdminRoleAction(formData: FormData) {
+  await requireSuperAdmin();
+
+  const telegramUsername = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+  if (!telegramUsername) {
+    throw new Error("Telegram username is required.");
+  }
+
+  await db.user.update({
+    where: { telegramUsername },
+    data: { role: UserRole.ADMIN },
+  });
+
+  revalidateAll(["/admin", "/profile"]);
+}
+
+export async function revokeAdminRoleAction(formData: FormData) {
+  await requireSuperAdmin();
+
+  const telegramUsername = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+  if (!telegramUsername) {
+    throw new Error("Telegram username is required.");
+  }
+
+  if (telegramUsername === normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME)) {
+    throw new Error("The primary admin cannot lose admin access.");
+  }
+
+  await db.user.update({
+    where: { telegramUsername },
+    data: { role: UserRole.USER },
+  });
+
+  revalidateAll(["/admin", "/profile"]);
 }
 
 export async function requestSongCatalogAction(formData: FormData) {
