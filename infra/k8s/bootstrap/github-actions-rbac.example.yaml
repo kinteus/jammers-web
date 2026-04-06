@@ -11,7 +11,7 @@ metadata:
   namespace: prod
 rules:
   - apiGroups: [""]
-    resources: ["configmaps", "services", "pods", "pods/log", "secrets"]
+    resources: ["configmaps", "services", "pods", "pods/log", "secrets", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets"]
