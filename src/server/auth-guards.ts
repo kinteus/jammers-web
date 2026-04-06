@@ -3,9 +3,8 @@
 import { UserRole } from "@prisma/client";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { env } from "@/lib/env";
 import { hasActiveBan } from "@/lib/permissions";
-import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
+import { isSuperAdminUser } from "@/lib/auth/admin-access";
 
 export async function requireUser() {
   const user = await getCurrentUser();
@@ -29,13 +28,6 @@ export async function requireAdmin() {
   }
 
   return user;
-}
-
-export function isSuperAdminUser(user: { telegramUsername: string | null } | null | undefined) {
-  return (
-    normalizeTelegramUsername(user?.telegramUsername) ===
-    normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME)
-  );
 }
 
 export async function requireSuperAdmin() {

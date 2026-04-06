@@ -9,6 +9,7 @@ import {
 } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
 import { formatVideoUrlsForTextarea } from "@/lib/site-content";
+import { isSuperAdminUser } from "@/lib/auth/admin-access";
 import {
   createCatalogSongAction,
   createEventAction,
@@ -19,7 +20,6 @@ import {
   setRatingAction,
   updateFaqContentAction,
 } from "@/server/actions";
-import { isSuperAdminUser } from "@/server/auth-guards";
 import { getAdminDashboardData, getFaqPageData } from "@/server/query-data";
 
 import { Badge } from "@/components/ui/badge";
