@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { TelegramAuthPayload } from "@/lib/auth/telegram";
 
-type TelegramAuthPayload = Record<string, string>;
+type TelegramAuthPayloadRecord = Record<
+  string,
+  TelegramAuthPayload[keyof TelegramAuthPayload]
+>;
 
 declare global {
   interface Window {
-    onTelegramAuth?: (payload: TelegramAuthPayload) => Promise<void>;
+    onTelegramAuth?: (payload: TelegramAuthPayloadRecord) => Promise<void>;
   }
 }
 
@@ -32,7 +36,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
 
     containerRef.current.innerHTML = "";
 
-    window.onTelegramAuth = async (payload: TelegramAuthPayload) => {
+    window.onTelegramAuth = async (payload: TelegramAuthPayloadRecord) => {
       setStatus("loading");
       setMessage("Signing you in...");
 

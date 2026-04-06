@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { createSession } from "@/lib/auth/session";
-import { verifyTelegramAuth } from "@/lib/auth/telegram";
+import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { env } from "@/lib/env";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
-type TelegramPayloadRecord = Record<string, string>;
+type TelegramPayloadRecord = Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>;
 
 function getSafeReturnTo(value: string | null | undefined) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {

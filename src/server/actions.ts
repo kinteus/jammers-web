@@ -16,7 +16,7 @@ import { redirect } from "next/navigation";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
-import { verifyTelegramAuth } from "@/lib/auth/telegram";
+import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
@@ -370,7 +370,9 @@ export async function signOutAction() {
   revalidateAll(["/", "/admin", "/profile"]);
 }
 
-export async function telegramSignInAction(payload: Record<string, string>) {
+export async function telegramSignInAction(
+  payload: Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>,
+) {
   const verified = verifyTelegramAuth(payload as never);
   const user = await upsertTelegramUser(verified);
 

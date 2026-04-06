@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { verifyTelegramAuth } from "@/lib/auth/telegram";
 
-function signPayload(payload: Record<string, string>, botToken: string) {
+function signPayload(payload: Record<string, string | number>, botToken: string) {
   const secret = crypto.createHash("sha256").update(botToken).digest();
   const dataCheckString = Object.keys(payload)
     .sort()
@@ -23,6 +23,25 @@ describe("verifyTelegramAuth", () => {
       first_name: "Anna",
       id: "12345678",
       photo_url: "https://example.com/a.jpg",
+      username: "anna_drums",
+    };
+
+    const result = verifyTelegramAuth({
+      ...payload,
+      hash: signPayload(payload, process.env.TELEGRAM_BOT_TOKEN),
+    });
+
+    expect(result.telegramId).toBe("12345678");
+    expect(result.telegramUsername).toBe("anna_drums");
+  });
+
+  it("accepts numeric fields from the Telegram widget", () => {
+    process.env.TELEGRAM_BOT_TOKEN = "123456:test-token";
+
+    const payload = {
+      auth_date: Math.floor(Date.now() / 1000),
+      first_name: "Anna",
+      id: 12345678,
       username: "anna_drums",
     };
 

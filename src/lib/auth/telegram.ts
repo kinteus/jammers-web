@@ -2,21 +2,27 @@ import crypto from "node:crypto";
 
 import { env } from "@/lib/env";
 
+type TelegramAuthValue = string | number | null | undefined;
+
 export type TelegramAuthPayload = {
-  id: string;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: string;
-  hash: string;
+  id: TelegramAuthValue;
+  first_name?: TelegramAuthValue;
+  last_name?: TelegramAuthValue;
+  username?: TelegramAuthValue;
+  photo_url?: TelegramAuthValue;
+  auth_date: TelegramAuthValue;
+  hash: TelegramAuthValue;
 };
 
-function buildDataCheckString(payload: Record<string, string>) {
+function stringifyTelegramValue(value: TelegramAuthValue) {
+  return typeof value === "string" ? value : value == null ? null : String(value);
+}
+
+function buildDataCheckString(payload: Record<string, TelegramAuthValue>) {
   return Object.keys(payload)
-    .filter((key) => key !== "hash" && payload[key])
+    .filter((key) => key !== "hash" && payload[key] != null && payload[key] !== "")
     .sort()
-    .map((key) => `${key}=${payload[key]}`)
+    .map((key) => `${key}=${stringifyTelegramValue(payload[key])}`)
     .join("\n");
 }
 
@@ -48,16 +54,20 @@ export function verifyTelegramAuth(payload: TelegramAuthPayload) {
     .digest("hex");
 
   const computed = Buffer.from(computedHash, "hex");
-  const received = Buffer.from(payload.hash, "hex");
+  const receivedHash = stringifyTelegramValue(payload.hash);
+  const received = Buffer.from(receivedHash ?? "", "hex");
 
   if (computed.length !== received.length || !crypto.timingSafeEqual(computed, received)) {
     throw new Error("Invalid Telegram payload signature.");
   }
 
   return {
-    telegramId: payload.id,
-    telegramUsername: payload.username,
-    fullName: [payload.first_name, payload.last_name].filter(Boolean).join(" ") || null,
-    avatarUrl: payload.photo_url ?? null,
+    telegramId: String(payload.id),
+    telegramUsername: stringifyTelegramValue(payload.username),
+    fullName:
+      [stringifyTelegramValue(payload.first_name), stringifyTelegramValue(payload.last_name)]
+        .filter((value): value is string => Boolean(value))
+        .join(" ") || null,
+    avatarUrl: stringifyTelegramValue(payload.photo_url),
   };
 }
