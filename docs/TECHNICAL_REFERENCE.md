@@ -78,9 +78,11 @@ At a high level the system interacts with:
 ### Public pages
 
 - `/`
-  Home page, public overview, event discovery.
+  Home page, public overview, newcomer onboarding, event discovery, and published setlist entry points.
+- `/faq`
+  Public FAQ, quick-start guidance, and product feedback form.
 - `/events/[slug]`
-  Public event board and musician workspace.
+  Public event board and musician workspace with board guide and filter state.
 
 ### User page
 
@@ -112,6 +114,7 @@ Route components live in `src/app`.
 Important route files:
 
 - [src/app/page.tsx](/Users/maksimnaumov/jammers-web/src/app/page.tsx)
+- [src/app/faq/page.tsx](/Users/maksimnaumov/jammers-web/src/app/faq/page.tsx)
 - [src/app/profile/page.tsx](/Users/maksimnaumov/jammers-web/src/app/profile/page.tsx)
 - [src/app/events/[slug]/page.tsx](/Users/maksimnaumov/jammers-web/src/app/events/[slug]/page.tsx)
 - [src/app/admin/page.tsx](/Users/maksimnaumov/jammers-web/src/app/admin/page.tsx)
@@ -172,8 +175,10 @@ These modules are the main place to evolve business rules without bloating page 
 
 Recent product-specific components include:
 
+- [src/components/event-board-guide.tsx](/Users/maksimnaumov/jammers-web/src/components/event-board-guide.tsx)
 - [src/components/song-search-field.tsx](/Users/maksimnaumov/jammers-web/src/components/song-search-field.tsx)
 - [src/components/seat-planner-field.tsx](/Users/maksimnaumov/jammers-web/src/components/seat-planner-field.tsx)
+- [src/components/track-board-filters.tsx](/Users/maksimnaumov/jammers-web/src/components/track-board-filters.tsx)
 - [src/components/track-proposal-composer.tsx](/Users/maksimnaumov/jammers-web/src/components/track-proposal-composer.tsx)
 - [src/components/track-board-table.tsx](/Users/maksimnaumov/jammers-web/src/components/track-board-table.tsx)
 - [src/components/site-header.tsx](/Users/maksimnaumov/jammers-web/src/components/site-header.tsx)
@@ -268,6 +273,8 @@ The UI may show an effective status derived from:
 - runtime conditions.
 
 This allows timer-based closure to be reflected correctly without waiting for a manual admin click.
+
+For structured data, non-published closed boards are emitted as scheduled events rather than postponed events. This keeps search-engine semantics aligned with the real product meaning: registration may be closed while the event itself is still happening as planned.
 
 ## Mutation protection
 
@@ -407,6 +414,14 @@ The board intentionally avoids a card-per-seat information architecture in favor
 - denser cells,
 - spreadsheet familiarity,
 - improved readability on large event boards.
+
+Recent UX additions in the production UI include:
+
+- newcomer onboarding and next-gig guidance on `/`,
+- page-specific FAQ metadata and localized fallback content,
+- a dedicated board-guide component on event pages,
+- automatically applying board search filters,
+- actionable empty states on `/profile`.
 
 ## Environment and configuration
 

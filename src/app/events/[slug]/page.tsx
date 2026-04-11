@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 import { ArrowRight, Clock3, LogIn } from "lucide-react";
 
@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain/event-status";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   getEventStatusLabel,
   getRoleFamilyLabel,
@@ -20,7 +21,7 @@ import {
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
 import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import {
   createTrackAction,
   requestSongCatalogAction,
@@ -30,10 +31,12 @@ import { getEventWorkspace } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
 import { EventBoardGuide } from "@/components/event-board-guide";
+import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
 import { TrackProposalComposer } from "@/components/track-proposal-composer";
 import { TrackProposalDialog } from "@/components/track-proposal-dialog";
+import { EventRegistrationCountdown } from "@/components/event-registration-countdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,7 +51,24 @@ type EventPageProps = {
 
 export async function generateMetadata({ params }: Pick<EventPageProps, "params">): Promise<Metadata> {
   const { slug } = await params;
-  const event = await getEventWorkspace(slug);
+  let event = null;
+
+  try {
+    event = await getEventWorkspace(slug);
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return {
+        title: "Event Temporarily Unavailable",
+        description: "The event board is temporarily unavailable while the database connection is being restored.",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    throw error;
+  }
 
   if (!event) {
     return {
@@ -76,13 +96,13 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
     title: event.title,
     description,
     alternates: {
-      canonical: `/events/${event.slug}`,
+      canonical: `/events/${event.id}`,
     },
     openGraph: {
       type: "article",
       title: event.title,
       description,
-      url: `/events/${event.slug}`,
+      url: `/events/${event.id}`,
     },
     twitter: {
       card: "summary_large_image",
@@ -144,17 +164,165 @@ function filterLabel(locale: Locale, view: "all" | "open" | "mine") {
   return pick(locale, { en: "Songs already proposed", ru: "Песни, уже предложенные в гиг" });
 }
 
+function getFloatingFeedback({
+  error,
+  locale,
+  notice,
+}: {
+  error: string | null;
+  locale: Locale;
+  notice: string | null;
+}) {
+  if (notice === "seat-claimed") {
+    return {
+      tone: "success" as const,
+      title: pick(locale, { en: "You're in", ru: "Ты в лайнапе" }),
+      description: pick(locale, {
+        en: "The seat was claimed and the board has been updated.",
+        ru: "Место занято, борд уже обновлён.",
+      }),
+    };
+  }
+
+  if (notice === "opt-request-sent") {
+    return {
+      tone: "success" as const,
+      title: pick(locale, { en: "Request sent", ru: "Запрос отправлен" }),
+      description: pick(locale, {
+        en: "The track proposer will review your request.",
+        ru: "Автор трека увидит и рассмотрит твой запрос.",
+      }),
+    };
+  }
+
+  if (notice === "opt-request-saved") {
+    return {
+      tone: "success" as const,
+      title: pick(locale, { en: "Saved", ru: "Сохранено" }),
+      description: pick(locale, {
+        en: "Your request is saved and visible to the track proposer.",
+        ru: "Твой запрос сохранён и виден автору трека.",
+      }),
+    };
+  }
+
+  if (error === "seat-occupied") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Seat already taken", ru: "Место уже занято" }),
+      description: pick(locale, {
+        en: "Someone claimed this position first. Pick another open seat or refresh the board.",
+        ru: "Кто-то занял это место раньше. Выбери другое открытое место или обнови борд.",
+      }),
+    };
+  }
+
+  if (error === "seat-unavailable") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Seat unavailable", ru: "Место недоступно" }),
+      description: pick(locale, {
+        en: "This position is currently disabled in the arrangement.",
+        ru: "Эта позиция сейчас выключена в аранжировке.",
+      }),
+    };
+  }
+
+  if (error === "track-limit") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      description: pick(locale, {
+        en: "Leave one of your current songs before joining another one in this gig.",
+        ru: "Сначала выпишись из одной из текущих песен, а потом вписывайся в новую.",
+      }),
+    };
+  }
+
+  if (error === "track-exists") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Song already on the board", ru: "Песня уже есть на борде" }),
+      description: pick(locale, {
+        en: "This song has already been proposed for the current gig.",
+        ru: "Эта песня уже заявлена в текущий гиг.",
+      }),
+    };
+  }
+
+  if (error === "event-locked") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Gig locked", ru: "Гиг закрыт" }),
+      description: pick(locale, {
+        en: "Participant changes are closed for this gig right now.",
+        ru: "Сейчас этот гиг закрыт для изменений участников.",
+      }),
+    };
+  }
+
+  if (error === "opt-request-exists") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Request already pending", ru: "Запрос уже отправлен" }),
+      description: pick(locale, {
+        en: "There is already a pending request for this optional seat.",
+        ru: "Для этого optional-места уже есть ожидающий запрос.",
+      }),
+    };
+  }
+
+  if (error === "duplicate-role-family") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Already on this role", ru: "Эта роль уже занята тобой" }),
+      description: pick(locale, {
+        en: "You can join the same song multiple times only with different instrument families.",
+        ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
+      }),
+    };
+  }
+
+  return null;
+}
+
 export default async function EventPage({ params, searchParams }: EventPageProps) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
-  const [event, user, locale] = await Promise.all([
-    getEventWorkspace(slug),
-    getCurrentUser(),
-    getLocale(),
-  ]);
+  let event;
+  let user;
+  let locale;
+
+  try {
+    [event, user, locale] = await Promise.all([
+      getEventWorkspace(slug),
+      getCurrentUser(),
+      getLocale(),
+    ]);
+  } catch (error) {
+    locale = await getLocale();
+
+    if (!isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
+    return (
+      <DatabaseUnavailableState
+        locale={locale}
+        title={pick(locale, {
+          en: "This gig can't load right now",
+          ru: "Сейчас этот гиг не загружается",
+        })}
+      />
+    );
+  }
 
   if (!event) {
     notFound();
+  }
+
+  if (slug !== event.id) {
+    redirect(`/events/${event.id}`);
   }
 
   const effectiveStatus = getEffectiveEventStatus(event);
@@ -178,6 +346,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       : requestedView === "open"
         ? "open"
         : "all";
+  const floatingFeedback = getFloatingFeedback({ error, locale, notice });
 
   const roleOptions = roleFamilyOrder.filter((family) =>
     event.lineupSlots.some((slot) => getRoleFamilyKey(slot.label, slot.key) === family),
@@ -192,7 +361,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       effectiveStatus === "PUBLISHED" ? "EventCompleted" : "EventScheduled"
     }`,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    url: `${env.NEXT_PUBLIC_APP_URL}/events/${event.slug}`,
+    url: `${env.NEXT_PUBLIC_APP_URL}/events/${event.id}`,
     location: event.venueName
       ? {
           "@type": "Place",
@@ -269,6 +438,9 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const allowClosedOptionalRequests = allowsClosedOptionalSeatRequests(event);
   const trackInfoFields = getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback);
   const isAdmin = user?.role === "ADMIN";
+  const registrationOpensSoon =
+    effectiveStatus === "DRAFT" &&
+    Boolean(event.registrationOpensAt && event.registrationOpensAt > new Date());
 
   return (
     <div className="space-y-8 text-sand">
@@ -294,66 +466,25 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         </div>
       ) : null}
 
-      {notice === "seat-claimed" ? (
-        <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "Seat taken. You're in the line-up now.",
-            ru: "Место занято. Ты теперь в лайнапе.",
-          })}
-        </div>
-      ) : null}
-
-      {notice === "opt-request-sent" ? (
-        <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "Request sent to the track proposer. The line-up will update after approval.",
-            ru: "Запрос отправлен автору трека. Лайнап обновится после одобрения.",
-          })}
-        </div>
-      ) : null}
-
-      {notice === "opt-request-saved" ? (
-        <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "The request is saved. The track author will still see it in the app.",
-            ru: "Запрос сохранён. Автор трека всё равно увидит его в приложении.",
-          })}
-        </div>
-      ) : null}
-
-      {error === "track-exists" ? (
-        <div className="rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "This song is already on the current gig board.",
-            ru: "Эта песня уже есть на текущем борде.",
-          })}
-        </div>
-      ) : null}
-
-      {error === "event-locked" ? (
-        <div className="rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "This gig is locked for participant changes right now.",
-            ru: "Этот гиг сейчас закрыт для изменений участников.",
-          })}
-        </div>
-      ) : null}
-
-      {error === "opt-request-exists" ? (
-        <div className="rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "There is already a pending request for this optional seat.",
-            ru: "Для этого optional-места уже есть ожидающий запрос.",
-          })}
-        </div>
-      ) : null}
-
-      {error === "duplicate-role-family" ? (
-        <div className="rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-sm text-white">
-          {pick(locale, {
-            en: "You can join the same song multiple times only with different instrument types.",
-            ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
-          })}
+      {floatingFeedback ? (
+        <div className="pointer-events-none fixed right-4 top-24 z-[90] w-[min(calc(100vw-2rem),26rem)]">
+          <div
+            className={cn(
+              "rounded-2xl border px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
+              floatingFeedback.tone === "success"
+                ? "border-blue/40 bg-blue/18 text-white"
+                : "border-red/40 bg-red/16 text-white",
+            )}
+            role="status"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
+              {floatingFeedback.tone === "success"
+                ? pick(locale, { en: "Update", ru: "Обновление" })
+                : pick(locale, { en: "Heads up", ru: "Внимание" })}
+            </p>
+            <p className="mt-1 font-semibold text-sand">{floatingFeedback.title}</p>
+            <p className="mt-1 text-sm leading-6 text-white/82">{floatingFeedback.description}</p>
+          </div>
         </div>
       ) : null}
 
@@ -369,6 +500,14 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   {pick(locale, {
                     en: "Fill the board before adding songs",
                     ru: "Сначала закрывай борд, потом добавляй песни",
+                  })}
+                </Badge>
+              ) : null}
+              {registrationOpensSoon ? (
+                <Badge className="border-gold/28 bg-gold/14 text-white">
+                  {pick(locale, {
+                    en: "Registration opens soon",
+                    ru: "Скоро старт набора",
                   })}
                 </Badge>
               ) : null}
@@ -429,7 +568,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 </a>
               </Button>
               {user ? (
-                <Link href={`/events/${slug}?view=mine`}>
+                <Link href={`/events/${event.id}?view=mine`}>
                   <Button variant="secondary">
                     {pick(locale, { en: "My songs", ru: "Мои песни" })}
                   </Button>
@@ -445,6 +584,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             </div>
 
             <div className="flex flex-wrap gap-4 text-sm text-white/58">
+              {event.registrationOpensAt ? (
+                <span>
+                  {pick(locale, { en: "Registration opens:", ru: "Регистрация открывается:" })}{" "}
+                  {formatDateTime(event.registrationOpensAt, locale)}
+                </span>
+              ) : null}
               <span>
                 {pick(locale, { en: "Registration closes:", ru: "Регистрация закрывается:" })}{" "}
                 {event.registrationClosesAt
@@ -476,7 +621,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
                     <form action={updateEventStatusAction} key={status}>
                       <input name="eventId" type="hidden" value={event.id} />
-                      <input name="eventSlug" type="hidden" value={event.slug} />
+                      <input name="eventSlug" type="hidden" value={event.id} />
                       <input name="status" type="hidden" value={status} />
                       <Button
                         size="sm"
@@ -541,7 +686,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 <TrackProposalDialog locale={locale}>
                   <form action={createTrackAction} className="space-y-5">
                     <input name="eventId" type="hidden" value={event.id} />
-                    <input name="eventSlug" type="hidden" value={event.slug} />
+                    <input name="eventSlug" type="hidden" value={event.id} />
                     <TrackProposalComposer
                       lineupSlots={event.lineupSlots}
                       locale={locale}
@@ -606,7 +751,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         ) : (
           <TrackBoardTable
             allowClosedOptionalRequests={allowClosedOptionalRequests}
-            eventSlug={event.slug}
+            eventSlug={event.id}
             isOpen={effectiveStatus === "OPEN"}
             lineupSlots={event.lineupSlots}
             locale={locale}
@@ -752,7 +897,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           </div>
           <Card className="brand-shell">
             <form action={requestSongCatalogAction} className="grid gap-4 lg:grid-cols-2">
-              <input name="eventSlug" type="hidden" value={event.slug} />
+              <input name="eventSlug" type="hidden" value={event.id} />
               <label className="block space-y-2 text-sm text-sand">
                 <span>{pick(locale, { en: "Artist", ru: "Артист" })}</span>
                 <input className="w-full px-4 py-3" name="artistName" required />
@@ -779,7 +924,30 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         </section>
       ) : null}
 
-      {effectiveStatus !== "OPEN" ? (
+      {registrationOpensSoon && event.registrationOpensAt ? (
+        <Card className="brand-shell space-y-4 border-gold/18 bg-gold/[0.06]">
+          <Badge className="border-gold/26 bg-gold/14 text-white">
+            {pick(locale, { en: "Registration countdown", ru: "Обратный отсчёт набора" })}
+          </Badge>
+          <div className="flex items-start gap-3">
+            <Clock3 className="mt-1 h-5 w-5 text-gold" />
+            <div className="space-y-2">
+              <p className="max-w-3xl text-sm leading-6 text-white/74">
+                {pick(locale, {
+                  en: "This gig is already visible, but song proposals and seat claims stay locked until registration starts.",
+                  ru: "Этот гиг уже виден на борде, но добавление песен и вписка в партии откроются только со стартом регистрации.",
+                })}
+              </p>
+              <p className="text-lg font-semibold text-sand">
+                {pick(locale, { en: "Starts in:", ru: "Старт через:" })}{" "}
+                <EventRegistrationCountdown locale={locale} target={event.registrationOpensAt} />
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {effectiveStatus !== "OPEN" && !registrationOpensSoon ? (
         <Card className="brand-shell space-y-3">
           <Badge className="border-white/10 bg-transparent text-white/62">
             {pick(locale, { en: "Board status", ru: "Статус борда" })}
@@ -787,10 +955,15 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           <div className="flex items-start gap-3">
             <Clock3 className="mt-1 h-5 w-5 text-blue" />
             <p className="max-w-3xl text-sm leading-6 text-white/68">
-              {pick(locale, {
-                en: "This gig is no longer editable, so the page shifts into inspection mode: review the proposed songs, the final line-up state and, when published, the released order.",
-                ru: "Этот гиг больше нельзя редактировать, поэтому страница переходит в режим просмотра: можно изучить предложенные песни, финальный лайнап и, если сет уже опубликован, итоговый порядок.",
-              })}
+              {effectiveStatus === "CLOSED" || effectiveStatus === "CURATING"
+                ? pick(locale, {
+                    en: "Registration is closed for this gig. The board is now in review mode while admins lock the final set.",
+                    ru: "Набор в этот гиг уже закрыт. Борд перешёл в режим просмотра, пока админы собирают финальный сет.",
+                  })
+                : pick(locale, {
+                    en: "This gig is no longer editable, so the page shifts into inspection mode: review the proposed songs, the final line-up state and, when published, the released order.",
+                    ru: "Этот гиг больше нельзя редактировать, поэтому страница переходит в режим просмотра: можно изучить предложенные песни, финальный лайнап и, если сет уже опубликован, итоговый порядок.",
+                  })}
             </p>
           </div>
         </Card>

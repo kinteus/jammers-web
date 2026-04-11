@@ -22,7 +22,10 @@ import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
+import { assertEventRegistrationWindow } from "@/lib/domain/event-registration";
+import { DEFAULT_MAX_SET_TRACK_COUNT, getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+import { getEffectiveEventStatus } from "@/lib/domain/event-status";
 import { getRoleFamilyKey } from "@/lib/role-families";
 import {
   assertEventAllowsChanges,
@@ -55,8 +58,10 @@ import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guar
 import {
   sendTelegramFeedbackMessage,
   sendTelegramInviteMessage,
+  sendTelegramPublishedSetMessage,
   sendTelegramSeatApprovalRequestMessage,
 } from "@/server/telegram-bot";
+import { buildPublishedSetNotifications } from "@/server/published-set-notifications";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
 function pathBundle(eventSlug?: string) {
@@ -88,6 +93,10 @@ function redirectToEventError(eventSlug: string | undefined, error: string): nev
   }
 
   throw new Error(error);
+}
+
+function redirectClaimFailure(eventSlug: string | undefined, error: string): never {
+  redirectToEventError(eventSlug, error);
 }
 
 const eventStatusSchema = z.nativeEnum(EventStatus);
@@ -137,12 +146,14 @@ function assertEventAllowsChangesOrRedirect(
 }
 
 async function createClosedOptionalSeatRequest({
+  redirectOnComplete = true,
   seat,
   eventSlug,
   requester,
   targetUser,
   mode,
 }: {
+  redirectOnComplete?: boolean;
   seat: Awaited<ReturnType<typeof db.trackSeat.findUniqueOrThrow>> & {
     lineupSlot: {
       key: string;
@@ -190,14 +201,23 @@ async function createClosedOptionalSeatRequest({
   const targetMessageLabel = targetUser.telegramUsername
     ? `@${targetUser.telegramUsername}`
     : targetUser.fullName ?? "A musician";
-  await assertCanClaimRoleFamilyForTrack({
-    eventSlug,
-    excludeSeatId: seat.id,
-    seatLabel: seat.label,
-    seatLineupKey: seat.lineupSlot.key,
-    trackId: seat.trackId,
-    userId: targetUser.id,
-  });
+  try {
+    await assertCanClaimRoleFamilyForTrack({
+      eventSlug,
+      excludeSeatId: seat.id,
+      redirectOnError: redirectOnComplete,
+      seatLabel: seat.label,
+      seatLineupKey: seat.lineupSlot.key,
+      trackId: seat.trackId,
+      userId: targetUser.id,
+    });
+  } catch (error) {
+    if (!redirectOnComplete && error instanceof Error && error.message === "duplicate-role-family") {
+      return { ok: false as const, error: "duplicate-role-family" as const };
+    }
+
+    throw error;
+  }
   const pendingRequests = await db.trackInvite.findMany({
     where: {
       seatId: seat.id,
@@ -216,7 +236,11 @@ async function createClosedOptionalSeatRequest({
   });
 
   if (duplicateRequest) {
-    redirect(buildEventRedirectUrl(eventSlug, { error: "opt-request-exists" }));
+    if (redirectOnComplete) {
+      redirect(buildEventRedirectUrl(eventSlug, { error: "opt-request-exists" }));
+    }
+
+    return { ok: false as const, error: "opt-request-exists" as const };
   }
 
   const delivery = await sendTelegramSeatApprovalRequestMessage({
@@ -248,14 +272,20 @@ async function createClosedOptionalSeatRequest({
   });
 
   revalidateAll(pathBundle(eventSlug));
-  redirect(
-    buildEventRedirectUrl(eventSlug, {
-      notice:
-        delivery.status === "DELIVERY_FAILED"
-          ? "opt-request-saved"
-          : "opt-request-sent",
-    }),
-  );
+  const notice: "opt-request-saved" | "opt-request-sent" =
+    delivery.status === "DELIVERY_FAILED"
+      ? "opt-request-saved"
+      : "opt-request-sent";
+
+  if (redirectOnComplete) {
+    redirect(
+      buildEventRedirectUrl(eventSlug, {
+        notice,
+      }),
+    );
+  }
+
+  return { ok: true as const, notice };
 }
 
 function getString(formData: FormData, key: string) {
@@ -270,6 +300,31 @@ function getBoolean(formData: FormData, key: string) {
 function getInt(formData: FormData, key: string, fallback = 0) {
   const value = Number(getString(formData, key));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function getConfiguredMaxSetTrackCount(formData: FormData, fallback: number) {
+  const rawValue =
+    getInt(formData, "maxSetTrackCount", 0) || getInt(formData, "maxSetDurationMinutes", 0);
+
+  if (rawValue <= 0) {
+    return getEffectiveMaxSetTrackCount(fallback);
+  }
+
+  return Math.max(1, Math.round(rawValue));
+}
+
+function parseDateTimeInput(value: string, label: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${label} is invalid.`);
+  }
+
+  return date;
+}
+
+function getDate(formData: FormData, key: string, label: string) {
+  return parseDateTimeInput(getString(formData, key), label);
 }
 
 function parseInstrumentIds(formData: FormData) {
@@ -315,6 +370,7 @@ function throwDuplicateRoleFamilyError(eventSlug?: string): never {
 async function assertCanClaimRoleFamilyForTrack({
   eventSlug,
   excludeSeatId,
+  redirectOnError = true,
   seatLabel,
   seatLineupKey,
   trackId,
@@ -322,6 +378,7 @@ async function assertCanClaimRoleFamilyForTrack({
 }: {
   eventSlug?: string;
   excludeSeatId?: string;
+  redirectOnError?: boolean;
   seatLabel: string;
   seatLineupKey: string;
   trackId: string;
@@ -350,8 +407,140 @@ async function assertCanClaimRoleFamilyForTrack({
   );
 
   if (alreadyHasFamilySeat) {
-    throwDuplicateRoleFamilyError(eventSlug);
+    if (redirectOnError) {
+      throwDuplicateRoleFamilyError(eventSlug);
+    }
+
+    throw new Error("duplicate-role-family");
   }
+}
+
+type ClaimSeatResult =
+  | { ok: true; notice: "seat-claimed" | "opt-request-sent" | "opt-request-saved"; seatId: string }
+  | { ok: false; error: string };
+
+type ReleaseSeatResult =
+  | { ok: true; notice: "seat-released"; seatId: string }
+  | { ok: false; error: string };
+
+async function runClaimSeat({
+  eventSlug,
+  seatId,
+  user,
+}: {
+  eventSlug: string;
+  seatId: string;
+  user: Awaited<ReturnType<typeof requireUser>>;
+}): Promise<ClaimSeatResult> {
+  const seat = await db.trackSeat.findUniqueOrThrow({
+    where: { id: seatId },
+    include: {
+      lineupSlot: {
+        select: {
+          key: true,
+        },
+      },
+      track: {
+        include: {
+          event: true,
+          song: {
+            include: { artist: true },
+          },
+          proposedBy: true,
+        },
+      },
+    },
+  });
+
+  if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
+    if (user.id !== seat.track.proposedById && user.role !== UserRole.ADMIN) {
+      const requestResult = await createClosedOptionalSeatRequest({
+        redirectOnComplete: false,
+        seat,
+        eventSlug,
+        requester: user,
+        targetUser: user,
+        mode: "self",
+      });
+
+      if (!requestResult.ok) {
+        return { ok: false, error: requestResult.error };
+      }
+
+      return {
+        ok: true,
+        notice: requestResult.notice,
+        seatId: seat.id,
+      };
+    }
+  } else if (getEffectiveEventStatus(seat.track.event) !== EventStatus.OPEN) {
+    return { ok: false, error: "event-locked" };
+  }
+
+  if (seat.status === TrackSeatStatus.UNAVAILABLE) {
+    return { ok: false, error: "seat-unavailable" };
+  }
+  if (seat.userId) {
+    return { ok: false, error: "seat-occupied" };
+  }
+
+  const alreadyOnTrack = await db.trackSeat.count({
+    where: {
+      userId: user.id,
+      trackId: seat.trackId,
+      status: TrackSeatStatus.CLAIMED,
+    },
+  });
+
+  if (!alreadyOnTrack) {
+    const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
+    if (joinedCount >= seat.track.event.maxTracksPerUser) {
+      return { ok: false, error: "track-limit" };
+    }
+  }
+
+  try {
+    await assertCanClaimRoleFamilyForTrack({
+      eventSlug,
+      excludeSeatId: seat.id,
+      redirectOnError: false,
+      seatLabel: seat.label,
+      seatLineupKey: seat.lineupSlot.key,
+      trackId: seat.trackId,
+      userId: user.id,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "duplicate-role-family") {
+      return { ok: false, error: "duplicate-role-family" };
+    }
+
+    throw error;
+  }
+
+  const claimResult = await db.trackSeat.updateMany({
+    where: {
+      id: seat.id,
+      userId: null,
+      status: TrackSeatStatus.OPEN,
+    },
+    data: {
+      userId: user.id,
+      status: TrackSeatStatus.CLAIMED,
+      claimedAt: new Date(),
+    },
+  });
+
+  if (claimResult.count === 0) {
+    return { ok: false, error: "seat-occupied" };
+  }
+
+  revalidateAll(pathBundle(eventSlug));
+
+  return {
+    ok: true,
+    notice: "seat-claimed",
+    seatId: seat.id,
+  };
 }
 
 async function createDefaultTrackSeats(trackId: string, eventId: string) {
@@ -783,82 +972,57 @@ export async function claimSeatAction(formData: FormData) {
   const user = await requireUser();
   const seatId = getString(formData, "seatId");
   const eventSlug = getString(formData, "eventSlug");
-  const seat = await db.trackSeat.findUniqueOrThrow({
-    where: { id: seatId },
-    include: {
-      lineupSlot: {
-        select: {
-          key: true,
-        },
-      },
-      track: {
-        include: {
-          event: true,
-          song: {
-            include: { artist: true },
-          },
-          proposedBy: true,
-        },
-      },
-    },
-  });
-
-  if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
-    if (user.id === seat.track.proposedById || user.role === UserRole.ADMIN) {
-      assertSeatClaimable(seat);
-    } else {
-      await createClosedOptionalSeatRequest({
-        seat,
-        eventSlug,
-        requester: user,
-        targetUser: user,
-        mode: "self",
-      });
-      return;
-    }
-  } else {
-    assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
-  }
-
-  assertSeatClaimable(seat);
-
-  const alreadyOnTrack = await db.trackSeat.count({
-    where: {
-      userId: user.id,
-      trackId: seat.trackId,
-      status: TrackSeatStatus.CLAIMED,
-    },
-  });
-
-  if (!alreadyOnTrack) {
-    const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
-    assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
-  }
-  await assertCanClaimRoleFamilyForTrack({
+  const result = await runClaimSeat({
     eventSlug,
-    excludeSeatId: seat.id,
-    seatLabel: seat.label,
-    seatLineupKey: seat.lineupSlot.key,
-    trackId: seat.trackId,
-    userId: user.id,
+    seatId,
+    user,
   });
 
-  await db.trackSeat.update({
-    where: { id: seat.id },
-    data: {
-      userId: user.id,
-      status: TrackSeatStatus.CLAIMED,
-      claimedAt: new Date(),
-    },
-  });
+  if (!result.ok) {
+    redirectClaimFailure(eventSlug, result.error);
+  }
 
-  revalidateAll(pathBundle(eventSlug));
+  redirect(buildEventRedirectUrl(eventSlug, { notice: result.notice }));
+}
+
+export async function claimSeatInlineAction(formData: FormData): Promise<ClaimSeatResult> {
+  const user = await requireUser();
+  const seatId = getString(formData, "seatId");
+  const eventSlug = getString(formData, "eventSlug");
+
+  return runClaimSeat({
+    eventSlug,
+    seatId,
+    user,
+  });
 }
 
 export async function releaseSeatAction(formData: FormData) {
   const user = await requireUser();
   const seatId = getString(formData, "seatId");
   const eventSlug = getString(formData, "eventSlug");
+  const result = await runReleaseSeat({
+    eventSlug,
+    seatId,
+    user,
+  });
+
+  if (!result.ok) {
+    redirectToEventError(eventSlug, result.error);
+  }
+
+  redirect(buildEventRedirectUrl(eventSlug, { notice: result.notice }));
+}
+
+async function runReleaseSeat({
+  eventSlug,
+  seatId,
+  user,
+}: {
+  eventSlug: string;
+  seatId: string;
+  user: Awaited<ReturnType<typeof requireUser>>;
+}): Promise<ReleaseSeatResult> {
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -868,13 +1032,18 @@ export async function releaseSeatAction(formData: FormData) {
     },
   });
 
-  assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
+  if (getEffectiveEventStatus(seat.track.event) !== EventStatus.OPEN) {
+    return { ok: false, error: "event-locked" };
+  }
   if (seat.userId !== user.id && seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    throw new Error("You cannot remove this participant.");
+    return { ok: false, error: "release-not-allowed" };
   }
 
-  await db.trackSeat.update({
-    where: { id: seatId },
+  const releaseResult = await db.trackSeat.updateMany({
+    where: {
+      id: seatId,
+      status: TrackSeatStatus.CLAIMED,
+    },
     data: {
       userId: null,
       status: TrackSeatStatus.OPEN,
@@ -882,7 +1051,24 @@ export async function releaseSeatAction(formData: FormData) {
     },
   });
 
+  if (releaseResult.count === 0) {
+    return { ok: false, error: "seat-open" };
+  }
+
   revalidateAll(pathBundle(eventSlug));
+  return { ok: true, notice: "seat-released", seatId };
+}
+
+export async function releaseSeatInlineAction(formData: FormData): Promise<ReleaseSeatResult> {
+  const user = await requireUser();
+  const seatId = getString(formData, "seatId");
+  const eventSlug = getString(formData, "eventSlug");
+
+  return runReleaseSeat({
+    eventSlug,
+    seatId,
+    user,
+  });
 }
 
 export async function markSeatUnavailableAction(formData: FormData) {
@@ -1212,8 +1398,14 @@ export async function createEventAction(formData: FormData) {
   const title = getString(formData, "title");
   const slugBase = slugify(title);
   const slug = `${slugBase}-${Math.random().toString(16).slice(2, 6)}`;
-  const startsAt = new Date(getString(formData, "startsAt"));
-  const closesAt = new Date(getString(formData, "registrationClosesAt"));
+  const startsAt = getDate(formData, "startsAt", "Starts at");
+  const opensAt = getDate(formData, "registrationOpensAt", "Registration opens at");
+  const closesAt = getDate(formData, "registrationClosesAt", "Registration closes at");
+  assertEventRegistrationWindow({
+    registrationClosesAt: closesAt,
+    registrationOpensAt: opensAt,
+    startsAt,
+  });
   const event = await db.event.create({
     data: {
       slug,
@@ -1222,10 +1414,13 @@ export async function createEventAction(formData: FormData) {
       venueName: getString(formData, "venueName") || null,
       venueMapUrl: getString(formData, "venueMapUrl") || null,
       startsAt,
-      registrationOpensAt: new Date(),
+      registrationOpensAt: opensAt,
       registrationClosesAt: closesAt,
       status: EventStatus.DRAFT,
-      maxSetDurationMinutes: getInt(formData, "maxSetDurationMinutes", 120),
+      maxSetDurationMinutes: getConfiguredMaxSetTrackCount(
+        formData,
+        DEFAULT_MAX_SET_TRACK_COUNT,
+      ),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", 3),
       allowPlayback: getBoolean(formData, "allowPlayback"),
       trackInfoFieldsJson: serializeTrackInfoFields(
@@ -1259,7 +1454,8 @@ export async function createEventAction(formData: FormData) {
     },
   });
 
-  revalidateAll(["/", "/admin"]);
+  revalidateAll(["/", "/admin", `/events/${event.id}`, `/admin/events/${event.id}`]);
+  redirect(`/admin/events/${event.id}`);
 }
 
 export async function updateEventAction(formData: FormData) {
@@ -1267,6 +1463,14 @@ export async function updateEventAction(formData: FormData) {
   const eventId = getString(formData, "eventId");
   const eventSlug = getString(formData, "eventSlug");
   await assertLockOwnership(eventId, admin.id);
+  const startsAt = getDate(formData, "startsAt", "Starts at");
+  const opensAt = getDate(formData, "registrationOpensAt", "Registration opens at");
+  const closesAt = getDate(formData, "registrationClosesAt", "Registration closes at");
+  assertEventRegistrationWindow({
+    registrationClosesAt: closesAt,
+    registrationOpensAt: opensAt,
+    startsAt,
+  });
 
   const event = await db.event.findUniqueOrThrow({
     where: { id: eventId },
@@ -1280,9 +1484,13 @@ export async function updateEventAction(formData: FormData) {
       description: getString(formData, "description") || null,
       venueName: getString(formData, "venueName") || null,
       venueMapUrl: getString(formData, "venueMapUrl") || null,
-      startsAt: new Date(getString(formData, "startsAt")),
-      registrationClosesAt: new Date(getString(formData, "registrationClosesAt")),
-      maxSetDurationMinutes: getInt(formData, "maxSetDurationMinutes", event.maxSetDurationMinutes),
+      startsAt,
+      registrationOpensAt: opensAt,
+      registrationClosesAt: closesAt,
+      maxSetDurationMinutes: getConfiguredMaxSetTrackCount(
+        formData,
+        event.maxSetDurationMinutes,
+      ),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", event.maxTracksPerUser),
       allowPlayback: getBoolean(formData, "allowPlayback"),
       trackInfoFieldsJson: serializeTrackInfoFields(
@@ -1328,6 +1536,57 @@ export async function updateEventStatusAction(formData: FormData) {
     data: { status },
   });
   revalidateAll(pathBundle(eventSlug));
+}
+
+export async function deleteEventAction(formData: FormData) {
+  await requireAdmin();
+  const eventId = getString(formData, "eventId");
+  const eventSlug = getString(formData, "eventSlug");
+
+  await db.$transaction(async (tx) => {
+    await tx.trackInvite.deleteMany({
+      where: {
+        track: {
+          eventId,
+        },
+      },
+    });
+
+    await tx.trackSeat.deleteMany({
+      where: {
+        track: {
+          eventId,
+        },
+      },
+    });
+
+    await tx.setlistItem.deleteMany({
+      where: { eventId },
+    });
+
+    await tx.selectionRun.deleteMany({
+      where: { eventId },
+    });
+
+    await tx.eventEditLock.deleteMany({
+      where: { eventId },
+    });
+
+    await tx.track.deleteMany({
+      where: { eventId },
+    });
+
+    await tx.eventLineupSlot.deleteMany({
+      where: { eventId },
+    });
+
+    await tx.event.delete({
+      where: { id: eventId },
+    });
+  });
+
+  revalidateAll(["/", "/admin", `/events/${eventSlug}`, `/admin/events/${eventSlug}`]);
+  redirect("/admin?notice=event-deleted");
 }
 
 export async function createCatalogSongAction(formData: FormData) {
@@ -1646,7 +1905,6 @@ export async function runSelectionAction(formData: FormData) {
       songId: track.songId,
       songTitle: track.song.title,
       artistName: track.song.artist.name,
-      durationSeconds: track.song.durationSeconds,
       participantIds,
       filledSeatRatio: requiredSeatCount > 0 ? requiredClaimed / requiredSeatCount : 1,
       createdAt: track.createdAt,
@@ -1655,7 +1913,7 @@ export async function runSelectionAction(formData: FormData) {
   });
 
   const recommendation = buildSetlistRecommendation({
-    maxSetDurationMinutes: event.maxSetDurationMinutes,
+    maxSetTrackCount: getEffectiveMaxSetTrackCount(event.maxSetDurationMinutes),
     previousConcertSongIds: new Set(
       previousEvent?.setlistItems.map((item) => item.track.songId) ?? [],
     ),
@@ -1785,16 +2043,123 @@ export async function moveSetlistItemAction(formData: FormData) {
   revalidateAll(pathBundle(eventSlug));
 }
 
+export async function reorderSetlistSectionAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const eventId = getString(formData, "eventId");
+  const eventSlug = getString(formData, "eventSlug");
+  const section = setlistSectionSchema.parse(getString(formData, "section"));
+  const itemIds = JSON.parse(getString(formData, "itemIds")) as string[];
+
+  if (!Array.isArray(itemIds) || itemIds.length === 0) {
+    throw new Error("Setlist order payload is required.");
+  }
+
+  await assertLockOwnership(eventId, admin.id);
+
+  const sectionItems = await db.setlistItem.findMany({
+    where: {
+      eventId,
+      section,
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      orderIndex: "asc",
+    },
+  });
+
+  if (sectionItems.length !== itemIds.length) {
+    throw new Error("Setlist order is out of date. Refresh and try again.");
+  }
+
+  const knownIds = new Set(sectionItems.map((item) => item.id));
+  if (itemIds.some((id) => !knownIds.has(id))) {
+    throw new Error("Setlist order contains unknown items.");
+  }
+
+  await db.$transaction(
+    itemIds.map((itemId, index) =>
+      db.setlistItem.update({
+        where: { id: itemId },
+        data: {
+          orderIndex: index + 1,
+          editedById: admin.id,
+        },
+      }),
+    ),
+  );
+
+  revalidateAll(pathBundle(eventSlug));
+}
+
 export async function publishSetlistAction(formData: FormData) {
   const admin = await requireAdmin();
   const eventId = getString(formData, "eventId");
+  const eventSlug = getString(formData, "eventSlug");
   await assertLockOwnership(eventId, admin.id);
+
+  const event = await db.event.findUniqueOrThrow({
+    where: { id: eventId },
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      setlistItems: {
+        where: {
+          section: SetlistSection.MAIN,
+        },
+        orderBy: {
+          orderIndex: "asc",
+        },
+        include: {
+          track: {
+            include: {
+              song: {
+                include: {
+                  artist: true,
+                },
+              },
+              seats: {
+                where: {
+                  status: TrackSeatStatus.CLAIMED,
+                  userId: {
+                    not: null,
+                  },
+                },
+                include: {
+                  user: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
   await db.event.update({
     where: { id: eventId },
     data: { status: EventStatus.PUBLISHED },
   });
-  revalidateAll(pathBundle(getString(formData, "eventSlug")));
+  const notifications = buildPublishedSetNotifications({
+    eventStartsAt: event.startsAt,
+    eventTitle: event.title,
+    setlistItems: event.setlistItems,
+  });
+
+  await Promise.allSettled(
+    notifications.map((notification) =>
+      sendTelegramPublishedSetMessage({
+        recipientTelegramId: notification.recipientTelegramId,
+        eventStartsAt: notification.eventStartsAt,
+        eventTitle: notification.eventTitle,
+        songs: notification.songs,
+      }),
+    ),
+  );
+
+  revalidateAll(pathBundle(eventSlug));
 }
 
 export async function sortSetlistByDrummerAction(formData: FormData) {

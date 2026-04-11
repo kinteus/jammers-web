@@ -6,14 +6,15 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { formatDateTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
-import { BrandLogo } from "@/components/brand-logo";
 import { ArchiveStatsSection } from "@/components/archive-stats-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +34,36 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const [{ events, publishedEvents, archiveStats }, user, locale] = await Promise.all([
-    getHomePageData(),
-    getCurrentUser(),
-    getLocale(),
-  ]);
+  let events;
+  let publishedEvents;
+  let archiveStats;
+  let user;
+  let locale;
+
+  try {
+    [{ events, publishedEvents, archiveStats }, user, locale] = await Promise.all([
+      getHomePageData(),
+      getCurrentUser(),
+      getLocale(),
+    ]);
+  } catch (error) {
+    locale = await getLocale();
+
+    if (!isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
+    return (
+      <DatabaseUnavailableState
+        locale={locale}
+        title={pick(locale, {
+          en: "The live board is temporarily unavailable",
+          ru: "Живой борд временно недоступен",
+        })}
+      />
+    );
+  }
+
   const now = Date.now();
   const featuredEvent =
     events
@@ -80,13 +106,39 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8 text-sand">
+      <section className="space-y-4">
+        <Card className="brand-stage overflow-hidden border-gold/24 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_28%),radial-gradient(circle_at_top_left,rgba(255,179,0,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(185,0,22,0.14),transparent_28%),#17120f] shadow-[0_22px_70px_rgba(0,0,0,0.34)]">
+          <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-start md:justify-between md:px-6">
+            <div className="space-y-3">
+              <Badge className="border-gold/30 bg-gold/16 text-[#fff3cf]">BETA</Badge>
+              <div className="space-y-2">
+                <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand md:text-4xl">
+                  {pick(locale, {
+                    en: "The platform is live, but still evolving fast",
+                    ru: "Платформа уже живая, но всё ещё быстро эволюционирует",
+                  })}
+                </h2>
+                <p className="max-w-4xl text-sm leading-6 text-white/82 md:text-base">
+                  {pick(locale, {
+                    en: "Core flows are already usable for real gigs. Expect interface refinements, small workflow shifts, and quick improvements as we tighten the product with the community.",
+                    ru: "Основные сценарии уже можно использовать для реальных гигов. При этом интерфейс, отдельные шаги и мелкие workflow-решения ещё будут быстро улучшаться по мере шлифовки продукта вместе с коммьюнити.",
+                  })}
+                </p>
+              </div>
+            </div>
+            <div className="brand-shell-soft min-w-[220px] rounded-2xl px-4 py-4 text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "If something feels unclear or rough, the FAQ feedback form goes straight to the team.",
+                ru: "Если что-то выглядит сыро или непонятно, форма обратной связи в FAQ сразу уходит команде.",
+              })}
+            </div>
+          </div>
+        </Card>
+      </section>
+
       <section className="space-y-6 border-b border-white/8 pb-8">
         <div className="brand-stage overflow-hidden rounded-[2rem] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.38)] md:px-8 md:py-10">
-          <div className="mx-auto max-w-6xl space-y-7">
-            <div className="max-w-[820px]">
-              <BrandLogo className="w-full" priority variant="dark" />
-            </div>
-
+          <div className="mx-auto flex max-w-6xl flex-col items-center space-y-7 text-center">
             <div className="space-y-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/56">
                 {pick(locale, {
@@ -94,17 +146,17 @@ export default async function HomePage() {
                   ru: "Музыкальное коммьюнити Кипра",
                 })}
               </p>
-              <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.04em] text-sand md:text-6xl">
+              <h1 className="font-display text-5xl font-semibold uppercase tracking-[0.04em] text-sand md:text-7xl">
                 {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
               </h1>
-              <p className="max-w-3xl text-base leading-7 text-white/80">
+              <p className="mx-auto max-w-3xl text-base leading-7 text-white/80">
                 {pick(locale, {
                   en: "A fast live board for the Cyprus music crowd: open the next gig, see what songs are already in motion and jump into the line-up without friction.",
                   ru: "Живой борд для музыкального коммьюнити Кипра: открой ближайший гиг, быстро посмотри, какие песни уже в движении, и впишись в лайнап без лишней суеты.",
                 })}
               </p>
-              <div className="flex flex-wrap gap-3">
-                <Link href={featuredEvent ? `/events/${featuredEvent.slug}` : "#gigs"}>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link href={featuredEvent ? `/events/${featuredEvent.id}` : "#gigs"}>
                   <Button variant="primary">
                     {pick(locale, { en: "Go to next gig", ru: "Открыть ближайший гиг" })}
                     <ArrowRight className="ml-2 h-4 w-4" />
@@ -122,17 +174,6 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <Card className="brand-shell border-gold/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%),radial-gradient(circle_at_top_right,rgba(185,0,22,0.14),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(255,179,0,0.12),transparent_24%),#191512]">
-          <div className="flex flex-wrap items-start gap-3">
-            <Badge className="border-gold/30 bg-gold/14 text-[#fff3cf]">BETA</Badge>
-            <p className="max-w-4xl text-sm leading-6 text-white/78">
-              {pick(locale, {
-                en: "The site is running in beta mode. Core flows are already live, but some edges may still change while we polish the experience with the community.",
-                ru: "Сайт работает в BETA-режиме. Основные сценарии уже доступны, но часть деталей ещё может меняться, пока мы дошлифовываем опыт вместе с коммьюнити.",
-              })}
-            </p>
-          </div>
-        </Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -213,7 +254,7 @@ export default async function HomePage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link href={`/events/${featuredEvent.slug}`}>
+                <Link href={`/events/${featuredEvent.id}`}>
                   <Button variant="secondary">
                     {pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
                   </Button>
@@ -353,7 +394,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <Link href={`/events/${event.slug}`}>
+                    <Link href={`/events/${event.id}`}>
                       <Button variant="secondary">
                         {pick(locale, { en: "Open gig", ru: "Открыть гиг" })}
                         <ArrowRight className="ml-2 h-4 w-4" />
@@ -378,22 +419,28 @@ export default async function HomePage() {
             {pick(locale, { en: "Released setlists", ru: "Опубликованные сетлисты" })}
           </h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-3">
           {publishedEvents.map((event) => (
-            <Card className="brand-shell rounded-[1.4rem] border-white/10" key={event.id}>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {event.title}
-              </h3>
-              <p className="text-sm leading-6 text-white/68">
-                {event.setlistItems.length}{" "}
-                {pick(locale, { en: "main-set tracks released for", ru: "треков мейн-сета для" })}{" "}
-                {formatDateTime(event.startsAt, locale)}.
-              </p>
-              <Link href={`/events/${event.slug}`}>
-                <Button variant="secondary">
-                  {pick(locale, { en: "Open setlist", ru: "Открыть сетлист" })}
-                </Button>
-              </Link>
+            <Card className="brand-shell rounded-[1.25rem] border-white/10 px-5 py-4" key={event.id}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1.5">
+                  <h3 className="font-display text-xl font-semibold uppercase tracking-[0.03em] text-sand">
+                    {event.title}
+                  </h3>
+                  <div className="flex flex-wrap gap-3 text-sm text-white/66">
+                    <span>
+                      {event.setlistItems.length}{" "}
+                      {pick(locale, { en: "main-set tracks", ru: "треков мейн-сета" })}
+                    </span>
+                    <span>{formatDateTime(event.startsAt, locale)}</span>
+                  </div>
+                </div>
+                <Link href={`/events/${event.id}`}>
+                  <Button variant="secondary">
+                    {pick(locale, { en: "Open setlist", ru: "Открыть сетлист" })}
+                  </Button>
+                </Link>
+              </div>
             </Card>
           ))}
         </div>

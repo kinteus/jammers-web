@@ -6,7 +6,7 @@ import { buildSetlistRecommendation } from "@/lib/domain/setlist-algorithm";
 describe("buildSetlistRecommendation", () => {
   it("maximizes unique participant coverage before filling the remainder", () => {
     const result = buildSetlistRecommendation({
-      maxSetDurationMinutes: 8,
+      maxSetTrackCount: 2,
       previousConcertSongIds: new Set(),
       candidates: [
         {
@@ -14,7 +14,6 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-a",
           songTitle: "A",
           artistName: "Artist",
-          durationSeconds: 240,
           participantIds: ["u1", "u2"],
           filledSeatRatio: 0.7,
           createdAt: new Date("2026-01-01T10:00:00Z"),
@@ -25,7 +24,6 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-b",
           songTitle: "B",
           artistName: "Artist",
-          durationSeconds: 240,
           participantIds: ["u3", "u4"],
           filledSeatRatio: 0.6,
           createdAt: new Date("2026-01-01T10:01:00Z"),
@@ -36,7 +34,6 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-c",
           songTitle: "C",
           artistName: "Artist",
-          durationSeconds: 240,
           participantIds: ["u1", "u2", "u3"],
           filledSeatRatio: 1,
           createdAt: new Date("2026-01-01T10:02:00Z"),
@@ -53,7 +50,7 @@ describe("buildSetlistRecommendation", () => {
 
   it("rejects songs that were played in the previous concert", () => {
     const result = buildSetlistRecommendation({
-      maxSetDurationMinutes: 10,
+      maxSetTrackCount: 2,
       previousConcertSongIds: new Set(["song-repeat"]),
       candidates: [
         {
@@ -61,7 +58,6 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-repeat",
           songTitle: "Repeat",
           artistName: "Artist",
-          durationSeconds: 200,
           participantIds: ["u1"],
           filledSeatRatio: 0.5,
           createdAt: new Date("2026-01-01T10:00:00Z"),

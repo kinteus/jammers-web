@@ -68,6 +68,7 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 
 - Reframed the hero around the real user path.
 - Added an explicit 3-step journey.
+- Added a dedicated "what needs attention right now" block for the next gig.
 - Reworked event cards to emphasize songs, open seats and tracks still needing players.
 - Made published setlists clearly openable.
 - Added supporting explanation for what happens after opening a concert.
@@ -93,6 +94,8 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Reordered the page so songs and board review come before proposal.
 - Added "songs first" framing and filters for `all`, `need players`, and `mine`.
 - Added top-of-page shortage summaries and direct links into actionable songs.
+- Added a dedicated board guide and "best next move" explanation.
+- Switched board search to update automatically while typing.
 - Added guest sign-in prompts when the board is open.
 - Gated missing-song requests to the correct user state.
 
@@ -158,6 +161,7 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Reframed the profile as a dashboard.
 - Added summary metrics and clearer quick actions.
 - Added direct links back to the relevant event boards.
+- Added explicit next-step guidance and actionable empty states when the musician has no current activity yet.
 - Split visible identity from the sign-out control in the global header.
 
 ### Recommended next layer

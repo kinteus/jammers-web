@@ -6,6 +6,7 @@ import { signOutAction } from "@/server/actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type SiteHeaderProps = {
   locale: Locale;
@@ -17,6 +18,9 @@ type SiteHeaderProps = {
 };
 
 export function SiteHeader({ locale, user }: SiteHeaderProps) {
+  const navLinkClass =
+    "inline-block text-sm font-semibold text-white/82 transition duration-200 hover:text-gold active:translate-y-0.5 active:text-white";
+
   return (
     <header className="header-stage sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur">
       <div className="h-1 w-full stage-rule" />
@@ -27,22 +31,22 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
 
         <nav className="flex flex-wrap items-center justify-end gap-4">
           <LocaleSwitcher locale={locale} />
-          <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/">
-            {pick(locale, { en: "Gigs", ru: "Гиги" })}
+          <Link className={navLinkClass} href="/">
+            {pick(locale, { en: "Home", ru: "Главная" })}
           </Link>
-          <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/#published">
+          <Link className={navLinkClass} href="/#published">
             {pick(locale, { en: "Setlists", ru: "Сетлисты" })}
           </Link>
-          <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/faq">
+          <Link className={navLinkClass} href="/faq">
             {pick(locale, { en: "FAQ", ru: "FAQ" })}
           </Link>
           {user ? (
             <>
-              <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/profile">
+              <Link className={navLinkClass} href="/profile">
                 {pick(locale, { en: "Profile", ru: "Профиль" })}
               </Link>
               {user.role === "ADMIN" ? (
-                <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/admin">
+                <Link className={navLinkClass} href="/admin">
                   Admin
                 </Link>
               ) : null}
@@ -52,9 +56,15 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
                   : user.fullName ?? pick(locale, { en: "Signed in", ru: "В системе" })}
               </span>
               <form action={signOutAction}>
-                <Button className="border-white/18 bg-white/8 text-white hover:border-gold/28 hover:bg-white/12" size="sm" type="submit" variant="secondary">
+                <SubmitButton
+                  className="border-white/18 bg-white/8 text-white hover:border-gold/28 hover:bg-white/12"
+                  pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
+                  size="sm"
+                  type="submit"
+                  variant="secondary"
+                >
                   {pick(locale, { en: "Sign out", ru: "Выйти" })}
-                </Button>
+                </SubmitButton>
               </form>
             </>
           ) : (

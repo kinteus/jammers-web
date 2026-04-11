@@ -66,11 +66,13 @@ An admin can do everything a musician can, plus:
 The current application exposes the following main surfaces:
 
 - `/`
-  Public home page with current events and recently published events.
+  Public home page with current events, newcomer onboarding, next-gig shortage framing, and recently published setlists.
+- `/faq`
+  Public operating guide with quick-start rules, board semantics, and product feedback routing.
 - `/profile`
-  Telegram sign-in, local development sign-in, profile editing, invite inbox, and personal playing view.
+  Telegram sign-in, local development sign-in, profile editing, invite inbox, personal playing view, and next-step empty states.
 - `/events/[slug]`
-  Public event board and musician collaboration workspace.
+  Public event board and musician collaboration workspace with board guide and filterable song list.
 - `/admin`
   Admin dashboard for global operations.
 - `/admin/events/[slug]`
@@ -183,6 +185,18 @@ It must be disabled in production.
 
 ## 2. Musician profile
 
+The profile is intentionally a musician dashboard before it becomes a settings form.
+
+At the top, the page shows:
+
+- current activity summary metrics,
+- pending invites,
+- optional-seat requests waiting on approval,
+- songs where the user is already participating,
+- profile settings further down the page.
+
+If the user has no active invites, no outgoing requests, and no current songs, the page now shows an explicit "next step" card that sends them back to live gigs or to the FAQ instead of leaving them in a dead-end empty state.
+
 Authenticated users can edit:
 
 - Telegram username
@@ -203,6 +217,7 @@ The public event page shows:
 - date and venue,
 - current effective registration status,
 - board summary metrics,
+- an explicit board guide that explains the seat colors and the right next move,
 - registration rules,
 - lineup summary,
 - board explanation,
@@ -210,7 +225,8 @@ The public event page shows:
 - board table,
 - published setlist once the event is published.
 
-The page supports a `mine=1` filter, allowing a user to focus only on songs where they are already participating.
+The page supports a `view=mine` filter, allowing a user to focus only on songs where they are already participating.
+Board filtering is designed to feel low-friction: search updates automatically while the user types instead of requiring a separate apply step.
 
 ## 4. Proposing a song
 
@@ -352,6 +368,8 @@ This gives musicians a simple personal “what am I playing?” overview.
 
 The event board is intentionally table-first and mirrors the long-used spreadsheet workflow.
 
+The page is also intentionally "songs first". Users are pushed to review what already exists and fill missing roles before the proposal composer takes over attention.
+
 ### Layout
 
 - one row per track,
@@ -388,6 +406,13 @@ Current action patterns include:
 - `Invite`
 
 The table is optimized for quick scan, not for large card-style micro-layouts.
+
+In addition to the table itself, the surrounding board UI surfaces:
+
+- shortage summaries,
+- a board legend,
+- a "best next move" block,
+- filters for all songs, shortage-heavy songs, and the viewer's own songs.
 
 ## 13. Published setlist view
 

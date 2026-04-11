@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 
 function getSessionSecret() {
   if (
@@ -80,45 +81,53 @@ export async function getSessionUser() {
     return null;
   }
 
-  const session = await db.authSession.findUnique({
-    where: {
-      tokenHash: hashToken(rawToken),
-    },
-    include: {
-      user: {
-        include: {
-          instruments: {
-            include: {
-              instrument: true,
+  try {
+    const session = await db.authSession.findUnique({
+      where: {
+        tokenHash: hashToken(rawToken),
+      },
+      include: {
+        user: {
+          include: {
+            instruments: {
+              include: {
+                instrument: true,
+              },
             },
-          },
-          bans: {
-            where: {
-              OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+            bans: {
+              where: {
+                OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
             },
-            orderBy: {
-              createdAt: "desc",
-            },
-            take: 1,
           },
         },
       },
-    },
-  });
+    });
 
-  if (!session || session.expiresAt <= new Date()) {
-    if (session) {
-      await db.authSession.delete({
-        where: { id: session.id },
-      });
+    if (!session || session.expiresAt <= new Date()) {
+      if (session) {
+        await db.authSession.delete({
+          where: { id: session.id },
+        });
+      }
+      return null;
     }
-    return null;
+
+    await db.authSession.update({
+      where: { id: session.id },
+      data: { lastSeenAt: new Date() },
+    });
+
+    return session.user;
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return null;
+    }
+
+    throw error;
   }
-
-  await db.authSession.update({
-    where: { id: session.id },
-    data: { lastSeenAt: new Date() },
-  });
-
-  return session.user;
 }

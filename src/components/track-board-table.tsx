@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { TrackSeatStatus, type UserRole } from "@prisma/client";
 import { ExternalLink, FileText, LogOut, Minus, Send, UserPlus } from "lucide-react";
 
@@ -11,10 +14,12 @@ import { cn } from "@/lib/utils";
 
 import {
   cancelTrackAction,
-  claimSeatAction,
+  claimSeatInlineAction,
   inviteToSeatAction,
-  releaseSeatAction,
+  releaseSeatInlineAction,
 } from "@/server/actions";
+
+import { Loader } from "@/components/ui/loader";
 
 type BoardUser = {
   id: string;
@@ -75,6 +80,12 @@ type SeatRequestEntry = {
   requesterLabel: string;
   targetLabel: string;
   mode: "self" | "friend";
+};
+
+type BoardFeedback = {
+  description: string;
+  title: string;
+  tone: "error" | "success";
 };
 
 function groupColumns(columns: ReturnType<typeof expandSeatColumns>) {
@@ -152,7 +163,7 @@ function cellClass(status: TrackSeatStatus, isOptional: boolean) {
 
 function iconButtonClass(variant: "primary" | "secondary" = "secondary") {
   return cn(
-    "ui-tooltip ui-tooltip-bottom inline-flex h-6 w-6 items-center justify-center rounded-sm border border-transparent transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/25 hover:-translate-y-0.5",
+    "ui-tooltip inline-flex h-6 w-6 items-center justify-center rounded-sm border border-transparent transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/25 hover:-translate-y-0.5",
     variant === "primary" && "border-gold/50 bg-gold text-ink hover:bg-gold/90",
     variant === "secondary" && "text-white/62 hover:border-white/10 hover:bg-white/10 hover:text-white",
   );
@@ -195,6 +206,183 @@ function getSeatRequests(seat: BoardTrack["seats"][number]): SeatRequestEntry[] 
       mode: meta.mode,
     };
   });
+}
+
+function ClaimSeatButton({
+  className,
+  disabled = false,
+  isPending = false,
+  onClick,
+  label,
+  title,
+  variant = "icon",
+}: {
+  className: string;
+  disabled?: boolean;
+  isPending?: boolean;
+  onClick: () => void;
+  label: string;
+  title: string;
+  variant?: "icon" | "text";
+}) {
+  return (
+    <button
+      aria-label={title}
+      className={cn(className, isPending && "cursor-wait")}
+      data-tip={label}
+      disabled={disabled || isPending}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick();
+      }}
+      title={title}
+      type="button"
+    >
+      {isPending ? (
+        variant === "icon" ? (
+          <Loader className="text-current" />
+        ) : (
+          <>
+            <Loader className="text-current" />
+            <span>{label}</span>
+          </>
+        )
+      ) : variant === "icon" ? (
+        <UserPlus className="h-3.5 w-3.5" />
+      ) : (
+        label
+      )}
+    </button>
+  );
+}
+
+function buildClaimFeedback(
+  locale: Locale,
+  result:
+    | { ok: true; notice: "seat-claimed" | "opt-request-sent" | "opt-request-saved" }
+    | { ok: false; error: string },
+): BoardFeedback {
+  if (result.ok) {
+    if (result.notice === "opt-request-sent" || result.notice === "opt-request-saved") {
+      return {
+        tone: "success",
+        title:
+          result.notice === "opt-request-saved"
+            ? pick(locale, { en: "Request saved", ru: "Запрос сохранён" })
+            : pick(locale, { en: "Request sent", ru: "Запрос отправлен" }),
+        description: pick(locale, {
+          en:
+            result.notice === "opt-request-saved"
+              ? "The request is saved locally and still visible to the track proposer."
+              : "The track proposer will review your request.",
+          ru:
+            result.notice === "opt-request-saved"
+              ? "Запрос сохранён локально и всё равно будет виден автору трека."
+              : "Автор трека увидит и рассмотрит твой запрос.",
+        }),
+      };
+    }
+
+    return {
+      tone: "success",
+      title: pick(locale, { en: "You're in", ru: "Ты в лайнапе" }),
+      description: pick(locale, {
+        en: "The seat was claimed and the board updated instantly.",
+        ru: "Место занято, борд обновился сразу.",
+      }),
+    };
+  }
+
+  if (result.error === "seat-occupied") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Seat already taken", ru: "Место уже занято" }),
+      description: pick(locale, {
+        en: "Someone joined this position first. Pick another open seat.",
+        ru: "Кто-то занял это место раньше. Выбери другое открытое место.",
+      }),
+    };
+  }
+
+  if (result.error === "seat-unavailable") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Seat unavailable", ru: "Место недоступно" }),
+      description: pick(locale, {
+        en: "This position is disabled in the current arrangement.",
+        ru: "Эта позиция выключена в текущей аранжировке.",
+      }),
+    };
+  }
+
+  if (result.error === "track-limit") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      description: pick(locale, {
+        en: "Leave one of your current songs before joining another one.",
+        ru: "Сначала выпишись из одной из текущих песен, потом вписывайся в новую.",
+      }),
+    };
+  }
+
+  if (result.error === "duplicate-role-family") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Already on this role", ru: "Эта роль уже занята тобой" }),
+      description: pick(locale, {
+        en: "You can join the same song multiple times only with different instrument families.",
+        ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
+      }),
+    };
+  }
+
+  if (result.error === "event-locked") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Gig locked", ru: "Гиг закрыт" }),
+      description: pick(locale, {
+        en: "Participant changes are closed for this gig right now.",
+        ru: "Сейчас этот гиг закрыт для изменений участников.",
+      }),
+    };
+  }
+
+  return {
+    tone: "error",
+    title: pick(locale, { en: "Could not join", ru: "Не получилось вписаться" }),
+    description: pick(locale, {
+      en: "Please try again in a moment.",
+      ru: "Попробуй ещё раз через пару секунд.",
+    }),
+  };
+}
+
+function applyOptimisticClaim({
+  currentTracks,
+  seatId,
+  user,
+}: {
+  currentTracks: BoardTrack[];
+  seatId: string;
+  user: NonNullable<BoardUser>;
+}) {
+  return currentTracks.map((track) => ({
+    ...track,
+    seats: track.seats.map((seat) =>
+      seat.id === seatId
+        ? {
+            ...seat,
+            status: TrackSeatStatus.CLAIMED,
+            userId: user.id,
+            user: {
+              telegramUsername: user.telegramUsername,
+              fullName: user.fullName,
+            },
+          }
+        : seat,
+    ),
+  }));
 }
 
 function SeatRequestsControl({
@@ -342,12 +530,164 @@ export function TrackBoardTable({
   user: BoardUser;
   isOpen: boolean;
 }) {
+  const [currentTracks, setCurrentTracks] = useState(tracks);
+  const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<BoardFeedback | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
 
+  useEffect(() => {
+    setCurrentTracks(tracks);
+  }, [tracks]);
+
+  useEffect(() => {
+    if (!feedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [feedback]);
+
+  async function handleClaimSeat({
+    isRequestOnly,
+    seatId,
+  }: {
+    isRequestOnly: boolean;
+    seatId: string;
+  }) {
+    if (!user || pendingSeatId) {
+      return;
+    }
+
+    const previousTracks = currentTracks;
+
+    if (!isRequestOnly) {
+      setCurrentTracks((value) =>
+        applyOptimisticClaim({
+          currentTracks: value,
+          seatId,
+          user,
+        }),
+      );
+    }
+
+    setPendingSeatId(seatId);
+
+    const formData = new FormData();
+    formData.set("seatId", seatId);
+    formData.set("eventSlug", eventSlug);
+
+    const result = await claimSeatInlineAction(formData);
+
+    if (!result.ok && !isRequestOnly) {
+      setCurrentTracks(previousTracks);
+    }
+
+    setFeedback(buildClaimFeedback(locale, result));
+    setPendingSeatId(null);
+  }
+
+  async function handleReleaseSeat(seatId: string) {
+    if (!pendingSeatId) {
+      const previousTracks = currentTracks;
+
+      setCurrentTracks((value) =>
+        value.map((track) => ({
+          ...track,
+          seats: track.seats.map((seat) =>
+            seat.id === seatId
+              ? {
+                  ...seat,
+                  status: TrackSeatStatus.OPEN,
+                  userId: null,
+                  user: null,
+                }
+              : seat,
+          ),
+        })),
+      );
+      setPendingSeatId(seatId);
+
+      const formData = new FormData();
+      formData.set("seatId", seatId);
+      formData.set("eventSlug", eventSlug);
+
+      const result = await releaseSeatInlineAction(formData);
+
+      if (!result.ok) {
+        setCurrentTracks(previousTracks);
+        setFeedback(
+          result.error === "release-not-allowed"
+            ? {
+                tone: "error",
+                title: pick(locale, { en: "Can't release seat", ru: "Нельзя освободить место" }),
+                description: pick(locale, {
+                  en: "Only the player, proposer or admin can remove this participant.",
+                  ru: "Освобождать это место может только сам участник, автор трека или админ.",
+                }),
+              }
+            : result.error === "seat-open"
+              ? {
+                  tone: "error",
+                  title: pick(locale, { en: "Seat already open", ru: "Место уже свободно" }),
+                  description: pick(locale, {
+                    en: "This place was already released elsewhere.",
+                    ru: "Это место уже освободили в другом действии.",
+                  }),
+                }
+              : {
+                  tone: "error",
+                  title: pick(locale, { en: "Could not release seat", ru: "Не удалось освободить место" }),
+                  description: pick(locale, {
+                    en: "Please try again in a moment.",
+                    ru: "Попробуй ещё раз через пару секунд.",
+                  }),
+                },
+        );
+      } else {
+        setFeedback({
+          tone: "success",
+          title: pick(locale, { en: "Seat released", ru: "Место освобождено" }),
+          description: pick(locale, {
+            en: "The line-up updated right away.",
+            ru: "Лайнап обновился сразу.",
+          }),
+        });
+      }
+
+      setPendingSeatId(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
+      {feedback ? (
+        <div className="pointer-events-none fixed right-4 top-24 z-[95] w-[min(calc(100vw-2rem),24rem)]">
+          <div
+            className={cn(
+              "rounded-2xl border px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
+              feedback.tone === "success"
+                ? "border-blue/40 bg-blue/18 text-white"
+                : "border-red/40 bg-red/16 text-white",
+            )}
+            role="status"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
+              {feedback.tone === "success"
+                ? pick(locale, { en: "Update", ru: "Обновление" })
+                : pick(locale, { en: "Heads up", ru: "Внимание" })}
+            </p>
+            <p className="mt-1 font-semibold text-sand">{feedback.title}</p>
+            <p className="mt-1 text-sm leading-6 text-white/82">{feedback.description}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="brand-shell hidden overflow-visible rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
         <div className="h-1 w-full stage-rule" />
         <table className="w-full table-fixed border-separate border-spacing-0">
           <thead>
@@ -395,7 +735,7 @@ export function TrackBoardTable({
             </tr>
           </thead>
           <tbody>
-            {tracks.map((track, index) => {
+            {currentTracks.map((track, index) => {
               const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
               const completion = getTrackCompletionSummary(track.seats);
               const seatIndex = buildSeatIndex(track);
@@ -601,7 +941,7 @@ export function TrackBoardTable({
                                   })
                         }
                       >
-                        <div className="relative flex h-11 items-center justify-center px-0.5 py-0.5 transition">
+                        <div className="relative flex min-h-[3.7rem] flex-col justify-between px-1 py-1 transition">
                           <span
                             className={cn(
                               "absolute left-1.5 top-1.5 h-1.5 w-1.5 rounded-full",
@@ -611,75 +951,92 @@ export function TrackBoardTable({
 
                           {seat.status === TrackSeatStatus.OPEN ? (
                             <>
-                              {seat.isOptional ? (
-                                <span className="absolute left-1.5 bottom-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-gold/84">
-                                  OPT
-                                </span>
-                              ) : null}
-                              {canInvite ? (
-                                <div className="absolute right-1 top-1">
-                                  <InviteControl
-                                    allowClosedOptionalRequests={allowClosedOptionalRequests}
-                                    eventSlug={eventSlug}
-                                    locale={locale}
-                                    preferAbove={preferInviteAbove}
-                                    seat={seat}
-                                  />
+                              <div className="flex items-start justify-between gap-1.5 pl-2.5 pr-0.5">
+                                <div className="flex min-h-[1rem] items-center gap-1">
+                                  {seat.isOptional ? (
+                                    <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-gold/84">
+                                      OPT
+                                    </span>
+                                  ) : null}
+                                  {userHasPendingRequest ? (
+                                    <span className="rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white">
+                                      {pick(locale, { en: "Sent", ru: "Есть" })}
+                                    </span>
+                                  ) : null}
                                 </div>
-                              ) : null}
-                              {canClaim ? (
-                                <form action={claimSeatAction}>
-                                  <input name="seatId" type="hidden" value={seat.id} />
-                                  <input name="eventSlug" type="hidden" value={eventSlug} />
-                                  <button
-                                    aria-label={pick(locale, {
-                                      en: `Join ${seat.label}`,
-                                      ru: `Занять ${seat.label}`,
-                                    })}
-                                    className={iconButtonClass("primary")}
-                                    data-tip={pick(locale, {
-                                      en:
-                                        !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                          ? "Ask to join"
-                                          : seat.isOptional
-                                            ? "Join optional"
-                                            : "Join",
-                                      ru:
-                                        !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                          ? "Запросить место"
-                                          : seat.isOptional
-                                            ? "Вписаться optional"
-                                            : "Вписаться",
-                                    })}
-                                    title={pick(locale, {
-                                      en:
-                                        !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                          ? `Ask proposer to add you to ${seat.label}`
-                                          : seat.isOptional
-                                            ? `Join optional ${seat.label}`
-                                            : `Join ${seat.label}`,
-                                      ru:
-                                        !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                          ? `Попросить автора трека добавить тебя на ${seat.label}`
-                                          : seat.isOptional
-                                            ? `Вписаться на optional ${seat.label}`
-                                            : `Вписаться на ${seat.label}`,
-                                    })}
-                                    type="submit"
-                                  >
+
+                                <div className="flex items-center gap-1">
+                                  {seatRequests.length > 0 ? (
+                                    <SeatRequestsControl
+                                      locale={locale}
+                                      preferAbove={preferInviteAbove}
+                                      requests={seatRequests}
+                                    />
+                                  ) : null}
+                                  {canInvite ? (
+                                    <InviteControl
+                                      allowClosedOptionalRequests={allowClosedOptionalRequests}
+                                      eventSlug={eventSlug}
+                                      locale={locale}
+                                      preferAbove={preferInviteAbove}
+                                      seat={seat}
+                                    />
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-1 items-center justify-center">
+                                {canClaim ? (
+                                  <form>
+                                    <ClaimSeatButton
+                                      className={iconButtonClass("primary")}
+                                      disabled={pendingSeatId !== null && pendingSeatId !== seat.id}
+                                      isPending={pendingSeatId === seat.id}
+                                      label={pick(locale, {
+                                        en:
+                                          !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                            ? "Request spot"
+                                            : seat.isOptional
+                                              ? "Join optional"
+                                              : "Join",
+                                        ru:
+                                          !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                            ? "Запросить место"
+                                            : seat.isOptional
+                                              ? "Вписаться optional"
+                                              : "Вписаться",
+                                      })}
+                                      title={pick(locale, {
+                                        en:
+                                          !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                            ? `Ask proposer to add you to ${seat.label}`
+                                            : seat.isOptional
+                                              ? `Join optional ${seat.label}`
+                                              : `Join ${seat.label}`,
+                                        ru:
+                                          !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                            ? `Попросить автора трека добавить тебя на ${seat.label}`
+                                            : seat.isOptional
+                                              ? `Вписаться на optional ${seat.label}`
+                                              : `Вписаться на ${seat.label}`,
+                                      })}
+                                      onClick={() =>
+                                        void handleClaimSeat({
+                                          isRequestOnly:
+                                            !isOpen &&
+                                            allowClosedOptionalRequests &&
+                                            seat.isOptional,
+                                          seatId: seat.id,
+                                        })
+                                      }
+                                    />
+                                  </form>
+                                ) : (
+                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-white/32">
                                     <UserPlus className="h-3.5 w-3.5" />
-                                  </button>
-                                </form>
-                              ) : (
-                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-white/32">
-                                  <UserPlus className="h-3.5 w-3.5" />
-                                </span>
-                              )}
-                              {userHasPendingRequest ? (
-                                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white">
-                                  {pick(locale, { en: "Request sent", ru: "Запрос отправлен" })}
-                                </span>
-                              ) : null}
+                                  </span>
+                                )}
+                              </div>
                             </>
                           ) : seat.user ? (
                             <>
@@ -703,26 +1060,33 @@ export function TrackBoardTable({
                               )}
                               <div className="absolute right-1 top-1/2 -translate-y-1/2">
                                 {canManage ? (
-                                  <form action={releaseSeatAction}>
-                                    <input name="seatId" type="hidden" value={seat.id} />
-                                    <input name="eventSlug" type="hidden" value={eventSlug} />
+                                  <form>
                                     <button
                                       aria-label={pick(locale, {
                                         en: `Release ${seat.label}`,
                                         ru: `Освободить ${seat.label}`,
                                       })}
-                                      className={iconButtonClass()}
+                                      className={cn(iconButtonClass(), pendingSeatId === seat.id && "cursor-wait")}
                                       data-tip={pick(locale, {
                                         en: "Release",
                                         ru: "Освободить",
                                       })}
+                                      disabled={pendingSeatId !== null}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        void handleReleaseSeat(seat.id);
+                                      }}
                                       title={pick(locale, {
                                         en: `Release ${seat.label}`,
                                         ru: `Освободить ${seat.label}`,
                                       })}
-                                      type="submit"
+                                      type="button"
                                     >
-                                      <LogOut className="h-3.5 w-3.5" />
+                                      {pendingSeatId === seat.id ? (
+                                        <Loader className="text-current" />
+                                      ) : (
+                                        <LogOut className="h-3.5 w-3.5" />
+                                      )}
                                     </button>
                                   </form>
                                 ) : null}
@@ -736,16 +1100,6 @@ export function TrackBoardTable({
                               <Minus className="h-4 w-4" />
                             </span>
                           )}
-
-                          {seatRequests.length > 0 ? (
-                            <div className="absolute bottom-1 right-1">
-                              <SeatRequestsControl
-                                locale={locale}
-                                preferAbove={preferInviteAbove}
-                                requests={seatRequests}
-                              />
-                            </div>
-                          ) : null}
                         </div>
                       </td>
                     );
@@ -758,7 +1112,7 @@ export function TrackBoardTable({
       </div>
 
       <div className="space-y-3 md:hidden">
-        {tracks.map((track) => {
+        {currentTracks.map((track) => {
           const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
           const completion = getTrackCompletionSummary(track.seats);
           const activeTrackInfoLabels = trackInfoFields
@@ -949,21 +1303,37 @@ export function TrackBoardTable({
 
                         <div className="flex flex-wrap items-center gap-1.5">
                           {canClaim ? (
-                            <form action={claimSeatAction}>
-                              <input name="seatId" type="hidden" value={seat.id} />
-                              <input name="eventSlug" type="hidden" value={eventSlug} />
-                              <button
-                                aria-label={pick(locale, {
-                                  en: `Join ${seat.label}`,
-                                  ru: `Занять ${seat.label}`,
+                            <form>
+                              <ClaimSeatButton
+                                className="inline-flex items-center gap-1 rounded-sm border border-gold/40 bg-gold px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink transition hover:bg-gold/90 disabled:opacity-70"
+                                disabled={pendingSeatId !== null && pendingSeatId !== seat.id}
+                                isPending={pendingSeatId === seat.id}
+                                label={
+                                  !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                    ? pick(locale, { en: "Request spot", ru: "Запросить место" })
+                                    : pick(locale, { en: "Join", ru: "Вписаться" })
+                                }
+                                title={pick(locale, {
+                                  en:
+                                    !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                      ? `Ask proposer to add you to ${seat.label}`
+                                      : `Join ${seat.label}`,
+                                  ru:
+                                    !isOpen && allowClosedOptionalRequests && seat.isOptional
+                                      ? `Попросить автора трека добавить тебя на ${seat.label}`
+                                      : `Вписаться на ${seat.label}`,
                                 })}
-                                className="rounded-sm border border-gold/40 bg-gold px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink transition hover:bg-gold/90"
-                                type="submit"
-                              >
-                                {!isOpen && allowClosedOptionalRequests && seat.isOptional
-                                  ? pick(locale, { en: "Request spot", ru: "Запросить место" })
-                                  : pick(locale, { en: "Join", ru: "Вписаться" })}
-                              </button>
+                                onClick={() =>
+                                  void handleClaimSeat({
+                                    isRequestOnly:
+                                      !isOpen &&
+                                      allowClosedOptionalRequests &&
+                                      seat.isOptional,
+                                    seatId: seat.id,
+                                  })
+                                }
+                                variant="text"
+                              />
                             </form>
                           ) : null}
 
@@ -983,20 +1353,34 @@ export function TrackBoardTable({
                           ) : null}
 
                           {canManage && seat.status === TrackSeatStatus.CLAIMED ? (
-                            <form action={releaseSeatAction}>
-                              <input name="seatId" type="hidden" value={seat.id} />
-                              <input name="eventSlug" type="hidden" value={eventSlug} />
+                            <form>
                               <button
                                 aria-label={pick(locale, {
                                   en: `Release ${seat.label}`,
                                   ru: `Освободить ${seat.label}`,
                                 })}
-                                className="rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14"
-                                type="submit"
+                                className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14 disabled:opacity-70"
+                                disabled={pendingSeatId !== null}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  void handleReleaseSeat(seat.id);
+                                }}
+                                type="button"
                               >
-                                {isSelfSeat
-                                  ? pick(locale, { en: "Leave", ru: "Выписаться" })
-                                  : pick(locale, { en: "Release", ru: "Освободить" })}
+                                {pendingSeatId === seat.id ? (
+                                  <>
+                                    <Loader className="text-current" />
+                                    <span>
+                                      {isSelfSeat
+                                        ? pick(locale, { en: "Leaving", ru: "Выписываем" })
+                                        : pick(locale, { en: "Releasing", ru: "Освобождаем" })}
+                                    </span>
+                                  </>
+                                ) : (
+                                  isSelfSeat
+                                    ? pick(locale, { en: "Leave", ru: "Выписаться" })
+                                    : pick(locale, { en: "Release", ru: "Освободить" })
+                                )}
                               </button>
                             </form>
                           ) : null}

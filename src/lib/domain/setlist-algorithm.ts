@@ -5,7 +5,6 @@ type CandidateTrack = {
   songId: string;
   songTitle: string;
   artistName: string;
-  durationSeconds: number | null;
   participantIds: string[];
   filledSeatRatio: number;
   createdAt: Date;
@@ -13,7 +12,7 @@ type CandidateTrack = {
 };
 
 export type SelectionInput = {
-  maxSetDurationMinutes: number;
+  maxSetTrackCount: number;
   previousConcertSongIds: Set<string>;
   candidates: CandidateTrack[];
 };
@@ -33,36 +32,29 @@ export type SelectionResult = {
   coverageCount: number;
 };
 
-const FALLBACK_DURATION_SECONDS = 4 * 60;
-
 function marginalScore(track: CandidateTrack, coveredUsers: Set<string>) {
   const newParticipants = track.participantIds.filter((id) => !coveredUsers.has(id));
-  const duration = track.durationSeconds ?? FALLBACK_DURATION_SECONDS;
   const coverageGain = newParticipants.length * 100;
   const fullnessBonus = Math.round(track.filledSeatRatio * 25);
   const organicBonus = track.matchedKnownGroupName ? -30 : 12;
-  const densityBonus = Math.round((coverageGain + fullnessBonus) / Math.max(duration, 1));
 
   return {
-    value: coverageGain + fullnessBonus + organicBonus + densityBonus,
+    value: coverageGain + fullnessBonus + organicBonus,
     newParticipants,
   };
 }
 
 export function buildSetlistRecommendation({
-  maxSetDurationMinutes,
+  maxSetTrackCount,
   previousConcertSongIds,
   candidates,
 }: SelectionInput): SelectionResult {
-  const durationBudgetSeconds = maxSetDurationMinutes * 60;
   const selected: SelectionResult["selected"] = [];
   const backlog: SelectionResult["backlog"] = [];
   const remaining = [...candidates].filter(
     (candidate) => !previousConcertSongIds.has(candidate.songId) && candidate.participantIds.length > 0,
   );
   const coveredUsers = new Set<string>();
-  let totalDuration = 0;
-
   while (remaining.length > 0) {
     remaining.sort((left, right) => {
       if (Boolean(left.matchedKnownGroupName) !== Boolean(right.matchedKnownGroupName)) {
@@ -84,11 +76,9 @@ export function buildSetlistRecommendation({
       break;
     }
 
-    const duration = next.durationSeconds ?? FALLBACK_DURATION_SECONDS;
     const { newParticipants } = marginalScore(next, coveredUsers);
 
-    if (totalDuration + duration <= durationBudgetSeconds) {
-      totalDuration += duration;
+    if (selected.length < maxSetTrackCount) {
       newParticipants.forEach((id) => coveredUsers.add(id));
       selected.push({
         trackId: next.id,
@@ -107,7 +97,7 @@ export function buildSetlistRecommendation({
       backlog.push({
         trackId: next.id,
         section: SetlistSection.BACKLOG,
-        reasons: ["Skipped because it would exceed the configured set duration budget."],
+        reasons: ["Skipped because it would exceed the configured main-set song limit."],
       });
     }
   }

@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
+import { Loader } from "@/components/ui/loader";
 import { Button, type ButtonProps } from "@/components/ui/button";
 
 export function SubmitButton({
@@ -13,7 +14,14 @@ export function SubmitButton({
 
   return (
     <Button aria-busy={pending} disabled={pending || props.disabled} {...props}>
-      {pending ? pendingLabel : children}
+      {pending ? (
+        <>
+          <Loader className="text-white" />
+          <span>{pendingLabel}</span>
+        </>
+      ) : (
+        children
+      )}
     </Button>
   );
 }

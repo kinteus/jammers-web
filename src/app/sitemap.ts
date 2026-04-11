@@ -7,12 +7,12 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = env.NEXT_PUBLIC_APP_URL;
-  let events: Array<{ slug: string; updatedAt: Date }> = [];
+  let events: Array<{ id: string; updatedAt: Date }> = [];
 
   try {
     events = await db.event.findMany({
       select: {
-        slug: true,
+        id: true,
         updatedAt: true,
       },
       orderBy: {
@@ -37,7 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     ...events.map((event) => ({
-      url: `${baseUrl}/events/${event.slug}`,
+      url: `${baseUrl}/events/${event.id}`,
       lastModified: event.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.8,

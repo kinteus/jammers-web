@@ -14,6 +14,67 @@ import {
 } from "@/lib/site-content";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 
+function getEventWorkspaceInclude() {
+  return {
+    lineupSlots: {
+      include: { instrument: true },
+      orderBy: { displayOrder: "asc" as const },
+    },
+    tracks: {
+      where: { state: "ACTIVE" as const },
+      include: {
+        song: {
+          include: { artist: true },
+        },
+        proposedBy: true,
+        seats: {
+          include: {
+            user: true,
+            lineupSlot: true,
+            invites: {
+              where: {
+                status: "PENDING" as const,
+              },
+              include: {
+                recipient: true,
+                sender: true,
+              },
+            },
+          },
+          orderBy: [{ lineupSlot: { displayOrder: "asc" as const } }, { seatIndex: "asc" as const }],
+        },
+      },
+      orderBy: { createdAt: "asc" as const },
+    },
+    setlistItems: {
+      include: {
+        track: {
+          include: {
+            song: {
+              include: { artist: true },
+            },
+            seats: {
+              include: {
+                user: true,
+                lineupSlot: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ section: "asc" as const }, { orderIndex: "asc" as const }],
+    },
+    selectionRuns: {
+      orderBy: { createdAt: "desc" as const },
+      take: 1,
+    },
+    editLocks: {
+      where: { expiresAt: { gt: new Date() } },
+      include: { user: true },
+    },
+  };
+}
+
 async function syncDateDrivenEventStatuses() {
   const now = new Date();
   const events = await db.event.findMany({
@@ -73,7 +134,7 @@ export async function getHomePageData() {
           },
         },
       },
-      orderBy: { startsAt: "asc" },
+      orderBy: { startsAt: "desc" },
     }),
     db.event.findMany({
       where: {
@@ -124,66 +185,18 @@ export async function getHomePageData() {
 
 export async function getEventWorkspace(slug: string) {
   await syncDateDrivenEventStatuses();
+  const directMatch = await db.event.findUnique({
+    where: { id: slug },
+    include: getEventWorkspaceInclude(),
+  });
+
+  if (directMatch) {
+    return directMatch;
+  }
+
   return db.event.findUnique({
     where: { slug },
-    include: {
-      lineupSlots: {
-        include: { instrument: true },
-        orderBy: { displayOrder: "asc" },
-      },
-      tracks: {
-        where: { state: "ACTIVE" },
-        include: {
-          song: {
-            include: { artist: true },
-          },
-          proposedBy: true,
-          seats: {
-            include: {
-              user: true,
-              lineupSlot: true,
-              invites: {
-                where: {
-                  status: "PENDING",
-                },
-                include: {
-                  recipient: true,
-                  sender: true,
-                },
-              },
-            },
-            orderBy: [{ lineupSlot: { displayOrder: "asc" } }, { seatIndex: "asc" }],
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-      setlistItems: {
-        include: {
-          track: {
-            include: {
-              song: {
-                include: { artist: true },
-              },
-              seats: {
-                include: {
-                  user: true,
-                  lineupSlot: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: [{ section: "asc" }, { orderIndex: "asc" }],
-      },
-      selectionRuns: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-      editLocks: {
-        where: { expiresAt: { gt: new Date() } },
-        include: { user: true },
-      },
-    },
+    include: getEventWorkspaceInclude(),
   });
 }
 
@@ -191,7 +204,7 @@ export async function getAdminDashboardData() {
   await syncDateDrivenEventStatuses();
   const [events, users, songRequests, groups, artists] = await Promise.all([
     db.event.findMany({
-      orderBy: { startsAt: "asc" },
+      orderBy: { startsAt: "desc" },
       include: {
         lineupSlots: true,
         tracks: {

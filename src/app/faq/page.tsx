@@ -4,10 +4,12 @@ import { MessageCircleMore, ShieldCheck, Video } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { extractYoutubeId, resolveFaqMarkdown } from "@/lib/site-content";
 import { sendFaqFeedbackAction } from "@/server/actions";
 import { getFaqPageData } from "@/server/query-data";
 
+import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { MarkdownContent } from "@/components/markdown-content";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -42,7 +44,28 @@ type FaqPageProps = {
 
 export default async function FaqPage({ searchParams }: FaqPageProps) {
   const params = await searchParams;
-  const [faq, locale, user] = await Promise.all([getFaqPageData(), getLocale(), getCurrentUser()]);
+  const locale = await getLocale();
+  let faq;
+  let user;
+
+  try {
+    [faq, user] = await Promise.all([getFaqPageData(), getCurrentUser()]);
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
+    return (
+      <DatabaseUnavailableState
+        locale={locale}
+        title={pick(locale, {
+          en: "FAQ content can't load right now",
+          ru: "Сейчас FAQ не загружается",
+        })}
+      />
+    );
+  }
+
   const notice = typeof params.notice === "string" ? params.notice : null;
   const error = typeof params.error === "string" ? params.error : null;
   const participationRulesMarkdown = resolveFaqMarkdown({
@@ -80,7 +103,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
   ];
 
   return (
-    <div className="space-y-8 text-sand">
+    <div className="mx-auto max-w-6xl space-y-8 text-sand">
       <section className="space-y-4 border-b border-white/8 pb-8">
         <Badge>FAQ</Badge>
         <div className="space-y-2">
@@ -96,7 +119,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid items-stretch gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="brand-shell space-y-4">
           <div className="space-y-2">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
@@ -180,7 +203,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </div>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+      <section className="grid items-start gap-6 xl:grid-cols-[1fr_1fr]">
         <Card className="brand-shell space-y-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-gold" />

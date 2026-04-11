@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
 import { formatDateTime } from "@/lib/utils";
 import {
@@ -17,6 +18,7 @@ import {
 import { getProfileWorkspace } from "@/server/query-data";
 
 import { ProfileArchiveStats } from "@/components/profile-archive-stats";
+import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { InstrumentToken } from "@/components/instrument-token";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
 import { Badge } from "@/components/ui/badge";
@@ -81,12 +83,13 @@ type ProfilePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function getInstrumentDisplayLabel(name: string) {
+  return name === "Sax" ? "Other" : name;
+}
+
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
-  const instruments = await db.instrument.findMany({
-    orderBy: { name: "asc" },
-  });
   const authError = typeof params.authError === "string" ? params.authError : null;
 
   if (!user) {
@@ -192,7 +195,32 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     );
   }
 
-  const profile = await getProfileWorkspace(user.id);
+  let profile;
+  let instruments;
+
+  try {
+    [profile, instruments] = await Promise.all([
+      getProfileWorkspace(user.id),
+      db.instrument.findMany({
+        orderBy: { name: "asc" },
+      }),
+    ]);
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
+    return (
+      <DatabaseUnavailableState
+        locale={locale}
+        title={pick(locale, {
+          en: "Your profile can't load right now",
+          ru: "Сейчас профиль не загружается",
+        })}
+      />
+    );
+  }
+
   if (!profile) {
     redirect("/");
   }
@@ -351,7 +379,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     <form action={respondToInviteAction}>
                       <input name="inviteId" type="hidden" value={invite.id} />
                       <input name="decision" type="hidden" value="accept" />
-                      <input name="eventSlug" type="hidden" value={invite.track.event.slug} />
+                      <input name="eventSlug" type="hidden" value={invite.track.event.id} />
                       <SubmitButton pendingLabel={pick(locale, { en: "Saving...", ru: "Сохраняем..." })} size="sm" type="submit">
                         {requestMeta
                           ? pick(locale, { en: "Approve", ru: "Одобрить" })
@@ -361,12 +389,12 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     <form action={respondToInviteAction}>
                       <input name="inviteId" type="hidden" value={invite.id} />
                       <input name="decision" type="hidden" value="decline" />
-                      <input name="eventSlug" type="hidden" value={invite.track.event.slug} />
+                      <input name="eventSlug" type="hidden" value={invite.track.event.id} />
                       <SubmitButton pendingLabel={pick(locale, { en: "Saving...", ru: "Сохраняем..." })} size="sm" type="submit" variant="secondary">
                         {pick(locale, { en: "Decline", ru: "Отклонить" })}
                       </SubmitButton>
                     </form>
-                    <Link href={`/events/${invite.track.event.slug}`}>
+                    <Link href={`/events/${invite.track.event.id}`}>
                       <Button size="sm" type="button" variant="ghost">
                         {pick(locale, { en: "Open board", ru: "Открыть борд" })}
                       </Button>
@@ -437,7 +465,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     })}
                   </p>
                   <div className="mt-4">
-                    <Link href={`/events/${invite.track.event.slug}#track-board`}>
+                    <Link href={`/events/${invite.track.event.id}#track-board`}>
                       <Button size="sm" type="button" variant="ghost">
                         {pick(locale, { en: "Open board", ru: "Открыть борд" })}
                       </Button>
@@ -495,7 +523,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     .join(", ")}
                 </p>
                 <div className="mt-4">
-                  <Link href={`/events/${entry.track.event.slug}?view=mine#track-board`}>
+                  <Link href={`/events/${entry.track.event.id}?view=mine#track-board`}>
                     <Button size="sm" variant="secondary">
                       {pick(locale, { en: "Open on board", ru: "Открыть на борде" })}
                     </Button>
@@ -574,7 +602,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     <InstrumentToken
                       className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08]"
                       compact
-                      label={instrument.name}
+                      label={getInstrumentDisplayLabel(instrument.name)}
                       locale={locale}
                       meta={pick(locale, {
                         en: "Tap to include in your main kit",

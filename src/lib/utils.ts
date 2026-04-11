@@ -26,3 +26,24 @@ export function slugify(value: string) {
 
   return slug || "item";
 }
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+export function buildSlugLookupCandidates(value: string) {
+  const decoded = safeDecodeURIComponent(value);
+  const candidates = [
+    value,
+    decoded,
+    value.normalize("NFC"),
+    decoded.normalize("NFC"),
+    slugify(decoded),
+  ].filter(Boolean);
+
+  return [...new Set(candidates)];
+}

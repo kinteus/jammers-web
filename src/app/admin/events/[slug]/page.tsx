@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 
 import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import { getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+import { pick } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n-server";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   formatTrackInfoFieldsForTextarea,
   getEventTrackInfoFields,
@@ -12,19 +17,22 @@ import {
   adminAssignSeatAction,
   adminClearSeatAction,
   cancelTrackAction,
-  moveSetlistItemAction,
+  deleteEventAction,
   publishSetlistAction,
   runSelectionAction,
   sortSetlistByDrummerAction,
   updateEventAction,
   updateEventStatusAction,
 } from "@/server/actions";
+import { isDatabaseAvailable } from "@/server/database-health";
 import { requireAdmin } from "@/server/auth-guards";
 import { getEventWorkspace } from "@/server/query-data";
 
+import { AdminSetlistStack } from "@/components/admin-setlist-stack";
+import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +48,75 @@ type AdminEventPageProps = {
   params: Promise<{ slug: string }>;
 };
 
+function buildLineupSummary(
+  seats: {
+    isOptional: boolean;
+    label: string;
+    user: { fullName: string | null; telegramUsername: string | null } | null;
+  }[],
+) {
+  const occupied = seats
+    .filter((seat) => seat.user)
+    .map(
+      (seat) =>
+        `${seat.label}: @${seat.user?.telegramUsername ?? seat.user?.fullName ?? "unknown"}`,
+    );
+
+  return occupied.length > 0 ? occupied.join(", ") : "No players assigned yet.";
+}
+
 export default async function AdminEventPage({ params }: AdminEventPageProps) {
   const { slug } = await params;
-  await requireAdmin();
-  const event = await getEventWorkspace(slug);
+  const locale = await getLocale();
+
+  try {
+    await requireAdmin();
+  } catch {
+    if (!(await isDatabaseAvailable())) {
+      return (
+        <DatabaseUnavailableState
+          locale={locale}
+          title={pick(locale, {
+            en: "This admin event view can't load right now",
+            ru: "Сейчас админский экран гига не загружается",
+          })}
+        />
+      );
+    }
+
+    return (
+      <Card className="brand-shell">
+        <p className="text-sm text-ember">Admin access required.</p>
+      </Card>
+    );
+  }
+
+  let event;
+
+  try {
+    event = await getEventWorkspace(slug);
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
+    return (
+      <DatabaseUnavailableState
+        locale={locale}
+        title={pick(locale, {
+          en: "This admin event view can't load right now",
+          ru: "Сейчас админский экран гига не загружается",
+        })}
+      />
+    );
+  }
 
   if (!event) {
     notFound();
+  }
+
+  if (slug !== event.id) {
+    redirect(`/admin/events/${event.id}`);
   }
 
   const activeLock = event.editLocks[0] ?? null;
@@ -64,6 +134,26 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
     getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback),
   );
   const effectiveStatus = getEffectiveEventStatus(event);
+  const mainSetItems = event.setlistItems
+    .filter((item) => item.section === "MAIN")
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+    .map((item) => ({
+      id: item.id,
+      orderIndex: item.orderIndex,
+      title: item.track.song.title,
+      artistName: item.track.song.artist.name,
+      lineupSummary: buildLineupSummary(item.track.seats),
+    }));
+  const backlogItems = event.setlistItems
+    .filter((item) => item.section === "BACKLOG")
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+    .map((item) => ({
+      id: item.id,
+      orderIndex: item.orderIndex,
+      title: item.track.song.title,
+      artistName: item.track.song.artist.name,
+      lineupSummary: buildLineupSummary(item.track.seats),
+    }));
 
   return (
     <div className="space-y-8">
@@ -73,7 +163,7 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
           <h1 className="font-display text-4xl font-semibold">{event.title}</h1>
           <form action={updateEventAction} className="grid gap-4 md:grid-cols-2">
             <input name="eventId" type="hidden" value={event.id} />
-            <input name="eventSlug" type="hidden" value={event.slug} />
+            <input name="eventSlug" type="hidden" value={event.id} />
             <label className="space-y-2 text-sm md:col-span-2">
               <span>Title</span>
               <input className="w-full px-4 py-3" defaultValue={event.title} name="title" required />
@@ -88,6 +178,17 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
                 className="w-full px-4 py-3"
                 defaultValue={new Date(event.startsAt).toISOString().slice(0, 16)}
                 name="startsAt"
+                required
+                type="datetime-local"
+              />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span>Registration opens at</span>
+              <input
+                className="w-full px-4 py-3"
+                defaultValue={event.registrationOpensAt?.toISOString().slice(0, 16) ?? ""}
+                name="registrationOpensAt"
+                required
                 type="datetime-local"
               />
             </label>
@@ -97,6 +198,7 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
                 className="w-full px-4 py-3"
                 defaultValue={event.registrationClosesAt?.toISOString().slice(0, 16) ?? ""}
                 name="registrationClosesAt"
+                required
                 type="datetime-local"
               />
             </label>
@@ -109,11 +211,12 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
               <input className="w-full px-4 py-3" defaultValue={event.venueMapUrl ?? ""} name="venueMapUrl" />
             </label>
             <label className="space-y-2 text-sm">
-              <span>Set duration</span>
+              <span>Max main-set songs</span>
               <input
                 className="w-full px-4 py-3"
-                defaultValue={event.maxSetDurationMinutes}
-                name="maxSetDurationMinutes"
+                defaultValue={getEffectiveMaxSetTrackCount(event.maxSetDurationMinutes)}
+                min={1}
+                name="maxSetTrackCount"
                 type="number"
               />
             </label>
@@ -154,9 +257,9 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
                 be treated as optional in track proposals.
               </p>
             </label>
-            <Button className="md:col-span-2" type="submit">
+            <SubmitButton className="md:col-span-2" pendingLabel="Saving event..." type="submit">
               Save event settings
-            </Button>
+            </SubmitButton>
           </form>
         </Card>
 
@@ -170,10 +273,10 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
             </p>
             <form action={acquireCurationLockAction}>
               <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.slug} />
-              <Button type="submit" variant="secondary">
+              <input name="eventSlug" type="hidden" value={event.id} />
+              <SubmitButton pendingLabel="Refreshing lock..." type="submit" variant="secondary">
                 Acquire or refresh lock
-              </Button>
+              </SubmitButton>
             </form>
           </Card>
 
@@ -195,15 +298,16 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
               {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
                 <form action={updateEventStatusAction} key={status}>
                   <input name="eventId" type="hidden" value={event.id} />
-                  <input name="eventSlug" type="hidden" value={event.slug} />
+                  <input name="eventSlug" type="hidden" value={event.id} />
                   <input name="status" type="hidden" value={status} />
-                  <Button
+                  <SubmitButton
+                    pendingLabel="Updating..."
                     size="sm"
                     type="submit"
                     variant={event.status === status ? "primary" : "secondary"}
                   >
                     {status}
-                  </Button>
+                  </SubmitButton>
                 </form>
               ))}
             </div>
@@ -216,22 +320,46 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
             </p>
             <form action={runSelectionAction}>
               <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.slug} />
-              <Button type="submit">Run selection algorithm</Button>
+              <input name="eventSlug" type="hidden" value={event.id} />
+              <SubmitButton pendingLabel="Running selection..." type="submit">
+                Run selection algorithm
+              </SubmitButton>
             </form>
             <form action={sortSetlistByDrummerAction}>
               <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.slug} />
-              <Button type="submit" variant="secondary">
+              <input name="eventSlug" type="hidden" value={event.id} />
+              <SubmitButton pendingLabel="Sorting..." type="submit" variant="secondary">
                 Sort main set by drummer
-              </Button>
+              </SubmitButton>
             </form>
             <form action={publishSetlistAction}>
               <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.slug} />
-              <Button type="submit" variant="accent">
+              <input name="eventSlug" type="hidden" value={event.id} />
+              <SubmitButton pendingLabel="Publishing..." type="submit" variant="accent">
                 Publish setlist
-              </Button>
+              </SubmitButton>
+            </form>
+          </Card>
+
+          <Card className="space-y-4 border-red/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%),radial-gradient(circle_at_top_right,rgba(185,0,22,0.18),transparent_24%),#171717]">
+            <Badge>Danger zone</Badge>
+            <div className="space-y-2">
+              <p className="font-display text-2xl font-semibold text-sand">Delete this gig</p>
+              <p className="text-sm leading-6 text-white/66">
+                This removes the public board, setlist, seats, invites and admin workspace for this event.
+              </p>
+            </div>
+            <form action={deleteEventAction}>
+              <input name="eventId" type="hidden" value={event.id} />
+              <input name="eventSlug" type="hidden" value={event.id} />
+              <SubmitButton
+                className="border-red/45 bg-red/12 text-white hover:border-red/65 hover:bg-red/18"
+                pendingLabel="Deleting gig..."
+                type="submit"
+                variant="secondary"
+              >
+                Delete gig
+              </SubmitButton>
             </form>
           </Card>
         </div>
@@ -240,124 +368,118 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
       <section className="grid gap-6 lg:grid-cols-2">
         <Card className="space-y-4">
           <Badge>Main set</Badge>
-          {event.setlistItems
-            .filter((item) => item.section === "MAIN")
-            .map((item) => (
-              <div key={item.id} className="rounded-2xl border border-ink/10 p-4">
-                <p className="font-semibold">
-                  {item.orderIndex}. {item.track.song.artist.name} - {item.track.song.title}
-                </p>
-                <p className="mt-1 text-sm text-ink/70">
-                  {item.track.seats
-                    .filter((seat) => seat.user)
-                    .map(
-                      (seat) =>
-                        `${seat.label}: @${seat.user?.telegramUsername ?? seat.user?.fullName}`,
-                    )
-                    .join(", ")}
-                </p>
-                <form action={moveSetlistItemAction} className="mt-4 grid gap-3 md:grid-cols-[1fr,120px,auto]">
-                  <input name="eventId" type="hidden" value={event.id} />
-                  <input name="eventSlug" type="hidden" value={event.slug} />
-                  <input name="itemId" type="hidden" value={item.id} />
-                  <select className="w-full px-4 py-3" defaultValue={item.section} name="section">
-                    <option value="MAIN">MAIN</option>
-                    <option value="BACKLOG">BACKLOG</option>
-                  </select>
-                  <input className="w-full px-4 py-3" defaultValue={item.orderIndex} name="orderIndex" type="number" />
-                  <Button size="sm" type="submit" variant="secondary">
-                    Move
-                  </Button>
-                </form>
-              </div>
-            ))}
+          <AdminSetlistStack
+            emptyLabel="Run the selection algorithm to generate the main set."
+            eventId={event.id}
+            eventSlug={event.id}
+            items={mainSetItems}
+            moveLabel="Send to backlog"
+            section="MAIN"
+            targetSection="BACKLOG"
+            title="Drag to reorder the running set"
+          />
         </Card>
 
         <Card className="space-y-4">
           <Badge>Backlog</Badge>
-          {event.setlistItems
-            .filter((item) => item.section === "BACKLOG")
-            .map((item) => (
-              <div key={item.id} className="rounded-2xl border border-ink/10 p-4">
-                <p className="font-semibold">
-                  {item.track.song.artist.name} - {item.track.song.title}
-                </p>
-                <form action={moveSetlistItemAction} className="mt-4 grid gap-3 md:grid-cols-[1fr,120px,auto]">
-                  <input name="eventId" type="hidden" value={event.id} />
-                  <input name="eventSlug" type="hidden" value={event.slug} />
-                  <input name="itemId" type="hidden" value={item.id} />
-                  <select className="w-full px-4 py-3" defaultValue={item.section} name="section">
-                    <option value="BACKLOG">BACKLOG</option>
-                    <option value="MAIN">MAIN</option>
-                  </select>
-                  <input className="w-full px-4 py-3" defaultValue={item.orderIndex} name="orderIndex" type="number" />
-                  <Button size="sm" type="submit" variant="secondary">
-                    Move
-                  </Button>
-                </form>
-              </div>
-            ))}
+          <AdminSetlistStack
+            emptyLabel="No backlog tracks yet."
+            eventId={event.id}
+            eventSlug={event.id}
+            items={backlogItems}
+            moveLabel="Move to main set"
+            section="BACKLOG"
+            targetSection="MAIN"
+            title="Backlog order"
+          />
         </Card>
       </section>
 
       <section className="space-y-4">
         <Badge>Track administration</Badge>
-        <div className="grid gap-5">
-          {event.tracks.map((track) => (
-            <Card key={track.id} className="space-y-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-display text-2xl font-semibold">
-                    {track.song.artist.name} - {track.song.title}
-                  </h2>
-                  <p className="text-sm text-ink/70">Proposed by @{track.proposedBy.telegramUsername}</p>
-                </div>
-                <form action={cancelTrackAction}>
-                  <input name="trackId" type="hidden" value={track.id} />
-                  <input name="eventSlug" type="hidden" value={event.slug} />
-                  <Button type="submit" variant="ghost">
-                    Cancel track
-                  </Button>
-                </form>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {track.seats.map((seat) => (
-                  <div key={seat.id} className="rounded-2xl border border-ink/10 bg-sand/60 p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{seat.label}</p>
-                      <Badge>{seat.status}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-ink/70">
-                      {seat.user ? `@${seat.user.telegramUsername}` : "Open"}
+        <div className="space-y-3">
+          {event.tracks.map((track) => {
+            const completion = getTrackCompletionSummary(track.seats);
+            const claimedCount = track.seats.filter((seat) => seat.status === TrackSeatStatus.CLAIMED).length;
+            const occupiedLineup = buildLineupSummary(track.seats);
+
+            return (
+              <details className="brand-shell overflow-hidden rounded-2xl border-white/10" key={track.id}>
+                <summary className="flex cursor-pointer flex-wrap items-start justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
+                      Proposed by @{track.proposedBy.telegramUsername}
                     </p>
-                    {seat.status !== TrackSeatStatus.CLAIMED ? (
-                      <form action={adminAssignSeatAction} className="mt-4 space-y-2">
-                        <input name="seatId" type="hidden" value={seat.id} />
-                        <input name="eventSlug" type="hidden" value={event.slug} />
-                        <input
-                          className="w-full px-3 py-2 text-sm"
-                          name="telegramUsername"
-                          placeholder="username"
-                        />
-                        <Button size="sm" type="submit" variant="secondary">
-                          Assign
-                        </Button>
-                      </form>
-                    ) : (
-                      <form action={adminClearSeatAction} className="mt-4">
-                        <input name="seatId" type="hidden" value={seat.id} />
-                        <input name="eventId" type="hidden" value={event.id} />
-                        <input name="eventSlug" type="hidden" value={event.slug} />
-                        <Button size="sm" type="submit" variant="secondary">
-                          Clear seat
-                        </Button>
-                      </form>
-                    )}
+                    <h2 className="font-display text-2xl font-semibold text-sand">
+                      {track.song.artist.name} - {track.song.title}
+                    </h2>
+                    <p className="text-sm leading-6 text-white/62">
+                      {claimedCount} filled · {completion.requiredOpen} required open · {track.seats.length} total seats
+                    </p>
                   </div>
-                ))}
-              </div>
-            </Card>
-          ))}
+                  <div className="max-w-[520px] text-sm leading-6 text-white/56">
+                    {occupiedLineup}
+                  </div>
+                </summary>
+
+                <div className="space-y-3 border-t border-white/10 px-5 py-5">
+                  <div className="flex flex-wrap justify-end gap-3">
+                    <form action={cancelTrackAction}>
+                      <input name="trackId" type="hidden" value={track.id} />
+                      <input name="eventSlug" type="hidden" value={event.id} />
+                      <SubmitButton pendingLabel="Canceling..." type="submit" variant="ghost">
+                        Cancel track
+                      </SubmitButton>
+                    </form>
+                  </div>
+
+                  <div className="space-y-2">
+                    {track.seats.map((seat) => (
+                      <div
+                        className="brand-shell-soft flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3"
+                        key={seat.id}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sand">{seat.label}</p>
+                            <Badge>{seat.status}</Badge>
+                            {seat.isOptional ? <Badge className="border-blue/24 bg-blue/16 text-white">OPT</Badge> : null}
+                          </div>
+                          <p className="text-sm text-white/62">
+                            {seat.user ? `@${seat.user.telegramUsername ?? seat.user.fullName}` : "Open"}
+                          </p>
+                        </div>
+
+                        {seat.status !== TrackSeatStatus.CLAIMED ? (
+                          <form action={adminAssignSeatAction} className="flex flex-wrap items-center gap-2">
+                            <input name="seatId" type="hidden" value={seat.id} />
+                            <input name="eventSlug" type="hidden" value={event.id} />
+                            <input
+                              className="w-[180px] px-3 py-2 text-sm"
+                              name="telegramUsername"
+                              placeholder="username"
+                            />
+                            <SubmitButton pendingLabel="Assigning..." size="sm" type="submit" variant="secondary">
+                              Assign
+                            </SubmitButton>
+                          </form>
+                        ) : (
+                          <form action={adminClearSeatAction}>
+                            <input name="seatId" type="hidden" value={seat.id} />
+                            <input name="eventId" type="hidden" value={event.id} />
+                            <input name="eventSlug" type="hidden" value={event.id} />
+                            <SubmitButton pendingLabel="Clearing..." size="sm" type="submit" variant="secondary">
+                              Clear seat
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            );
+          })}
         </div>
       </section>
     </div>

@@ -17,6 +17,7 @@ export function getEventStatusLabel(status: string, locale: Locale) {
     DRAFT: { en: "Draft", ru: "Черновик" },
     OPEN: { en: "Open", ru: "Открыт" },
     CLOSED: { en: "Closed", ru: "Закрыт" },
+    CURATING: { en: "Curating", ru: "Кураторский отбор" },
     PUBLISHED: { en: "Published", ru: "Опубликован" },
   };
 

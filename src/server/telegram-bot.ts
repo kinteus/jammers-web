@@ -21,9 +21,9 @@ async function sendTelegramMessage({
     };
   }
 
-  const response = await fetch(
-    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-    {
+  let response: Response;
+  try {
+    response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -33,8 +33,13 @@ async function sendTelegramMessage({
         text,
       }),
       cache: "no-store",
-    },
-  );
+    });
+  } catch (error) {
+    return {
+      status: "DELIVERY_FAILED" as const,
+      note: error instanceof Error ? error.message : "Telegram delivery failed.",
+    };
+  }
 
   if (!response.ok) {
     return {
@@ -47,6 +52,40 @@ async function sendTelegramMessage({
     status: "PENDING" as const,
     note: "Invite was sent through Telegram.",
   };
+}
+
+export function buildTelegramPublishedSetMessage({
+  eventStartsAt,
+  eventTitle,
+  songs,
+}: {
+  eventStartsAt: Date;
+  eventTitle: string;
+  songs: Array<{
+    orderIndex: number;
+    positions: string[];
+    songLabel: string;
+  }>;
+}) {
+  const dateLabel = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(eventStartsAt);
+
+  return [
+    `You're in the final set for ${eventTitle}.`,
+    `Gig start: ${dateLabel}`,
+    "",
+    "Your songs and parts:",
+    ...songs.map(
+      (song) => `${song.orderIndex}. ${song.songLabel} - ${song.positions.join(", ")}`,
+    ),
+    "",
+    "See you on stage.",
+  ].join("\n");
 }
 
 export async function sendTelegramInviteMessage({
@@ -115,5 +154,30 @@ export async function sendTelegramFeedbackMessage({
     ]
       .filter(Boolean)
       .join("\n"),
+  });
+}
+
+export async function sendTelegramPublishedSetMessage({
+  recipientTelegramId,
+  eventStartsAt,
+  eventTitle,
+  songs,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventStartsAt: Date;
+  eventTitle: string;
+  songs: Array<{
+    orderIndex: number;
+    positions: string[];
+    songLabel: string;
+  }>;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    text: buildTelegramPublishedSetMessage({
+      eventStartsAt,
+      eventTitle,
+      songs,
+    }),
   });
 }

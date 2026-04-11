@@ -8,6 +8,16 @@ import {
 } from "@/lib/domain/rules";
 
 describe("domain rules", () => {
+  it("blocks participation before registration opens even when the gig is already visible", () => {
+    expect(() =>
+      assertEventAllowsChanges({
+        status: EventStatus.DRAFT,
+        registrationClosesAt: new Date(Date.now() + 3_600_000),
+        registrationOpensAt: new Date(Date.now() + 60_000),
+      }),
+    ).toThrow(/locked/);
+  });
+
   it("blocks participation when event is closed", () => {
     expect(() =>
       assertEventAllowsChanges({

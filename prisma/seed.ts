@@ -19,7 +19,7 @@ async function seedInstruments() {
     "Vocals",
     "Keys",
     "Percussion",
-    "Sax",
+    "Other",
   ];
 
   for (const name of names) {
@@ -111,7 +111,7 @@ async function seedEvent() {
       registrationOpensAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
       registrationClosesAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 6),
       status: EventStatus.OPEN,
-      maxSetDurationMinutes: 120,
+      maxSetDurationMinutes: 24,
       maxTracksPerUser: 3,
       allowPlayback: true,
       trackInfoFieldsJson: serializeTrackInfoFields(DEFAULT_TRACK_INFO_FIELDS),
