@@ -95,6 +95,9 @@ export async function getEventWorkspace(slug: string) {
               user: true,
               lineupSlot: true,
               invites: {
+                where: {
+                  status: "PENDING",
+                },
                 include: {
                   recipient: true,
                   sender: true,
@@ -241,6 +244,29 @@ export async function getProfileWorkspace(userId: string) {
             },
             seat: true,
             sender: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        invitationsSent: {
+          where: {
+            status: "PENDING",
+            track: {
+              event: {
+                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+              },
+            },
+          },
+          include: {
+            track: {
+              include: {
+                event: true,
+                song: {
+                  include: { artist: true },
+                },
+              },
+            },
+            seat: true,
+            recipient: true,
           },
           orderBy: { createdAt: "desc" },
         },

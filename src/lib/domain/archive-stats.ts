@@ -72,7 +72,9 @@ export type UserArchiveStatsSummary = {
   songsOriginated: number;
   roleFamiliesCovered: number;
   signatureRole: RoleFamilyKey | null;
+  signatureRoleAppearances: number;
   favoriteArtist: string | null;
+  favoriteArtistAppearances: number;
   topCollaborators: ArchiveRankingItem[];
   timeline: Array<{
     year: string;
@@ -283,8 +285,10 @@ export function buildUserArchiveStats(
 
   const signatureRole =
     [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const signatureRoleAppearances = signatureRole ? (roleCounts.get(signatureRole) ?? 0) : 0;
   const favoriteArtist =
     [...artistCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const favoriteArtistAppearances = favoriteArtist ? (artistCounts.get(favoriteArtist) ?? 0) : 0;
   const latestGig =
     playedTracks
       .slice()
@@ -300,7 +304,9 @@ export function buildUserArchiveStats(
     songsOriginated: originatedTracks.length,
     roleFamiliesCovered: roleCounts.size,
     signatureRole,
+    signatureRoleAppearances,
     favoriteArtist,
+    favoriteArtistAppearances,
     topCollaborators: sortRanking(collaboratorCounts, 4),
     timeline: [...yearCounts.entries()]
       .map(([year, tracks]) => ({ year, tracks }))

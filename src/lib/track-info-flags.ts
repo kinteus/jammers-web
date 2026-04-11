@@ -8,7 +8,7 @@ export type TrackInfoField = {
 export const DEFAULT_TRACK_INFO_FIELDS: TrackInfoField[] = [
   {
     key: "playback",
-    label: "Наличие плейбэка",
+    label: "Плейбэк",
   },
 ];
 
@@ -109,4 +109,12 @@ export function getTrackInfoKeys(
   }
 
   return playbackRequired ? [PLAYBACK_KEY] : [];
+}
+
+export function getTrackInfoLabel(field: TrackInfoField, locale: "en" | "ru") {
+  if (field.key === PLAYBACK_KEY) {
+    return locale === "ru" ? "Плейбэк" : "Playback";
+  }
+
+  return field.label;
 }

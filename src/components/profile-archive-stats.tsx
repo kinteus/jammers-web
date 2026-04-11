@@ -89,14 +89,16 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "Signature role", ru: "Фирменная роль" })}:{" "}
                   <strong className="text-sand">
                     {stats.signatureRole
-                      ? getRoleFamilyLabel(stats.signatureRole, locale)
+                      ? `${getRoleFamilyLabel(stats.signatureRole, locale)} · ${stats.signatureRoleAppearances} ${pick(locale, { en: "times", ru: "раз" })}`
                       : pick(locale, { en: "Still taking shape", ru: "Ещё формируется" })}
                   </strong>
                 </li>
                 <li>
                   • {pick(locale, { en: "Favourite artist", ru: "Любимый артист" })}:{" "}
                   <strong className="text-sand">
-                    {stats.favoriteArtist ?? pick(locale, { en: "Still ahead", ru: "Ещё впереди" })}
+                    {stats.favoriteArtist
+                      ? `${stats.favoriteArtist} · ${stats.favoriteArtistAppearances} ${pick(locale, { en: "tracks", ru: "треков" })}`
+                      : pick(locale, { en: "Still ahead", ru: "Ещё впереди" })}
                   </strong>
                 </li>
                 <li>

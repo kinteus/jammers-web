@@ -5,7 +5,7 @@ import { CheckSquare, Disc3, Music2 } from "lucide-react";
 
 import type { LineupSlotLite } from "@/lib/event-board";
 import { pick, type Locale } from "@/lib/i18n";
-import type { TrackInfoField } from "@/lib/track-info-flags";
+import { getTrackInfoLabel, type TrackInfoField } from "@/lib/track-info-flags";
 
 import { SeatPlannerField } from "@/components/seat-planner-field";
 import {
@@ -70,7 +70,7 @@ export function TrackProposalComposer({
                         key={field.key}
                       >
                         <input name="trackInfoFlagKeys" type="checkbox" value={field.key} />
-                        {field.label}
+                        {getTrackInfoLabel(field, locale)}
                       </label>
                     ))}
                   </div>

@@ -25,7 +25,7 @@ export function getEventStatusLabel(status: string, locale: Locale) {
 
 export function getRoleFamilyLabel(role: RoleFamilyKey, locale: Locale) {
   const labels: Record<RoleFamilyKey, Record<Locale, string>> = {
-    rhythm: { en: "Rhythm", ru: "Ритм" },
+    rhythm: { en: "Drums", ru: "Барабаны" },
     guitars: { en: "Guitars", ru: "Гитары" },
     bass: { en: "Bass", ru: "Бас" },
     vocals: { en: "Vocals", ru: "Вокал" },

@@ -5,7 +5,8 @@ import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { expandSeatColumns, type LineupSlotLite } from "@/lib/event-board";
 import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
 import { getRoleFamilyKey } from "@/lib/role-families";
-import { getTrackInfoKeys, type TrackInfoField } from "@/lib/track-info-flags";
+import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
+import { getTrackInfoKeys, getTrackInfoLabel, type TrackInfoField } from "@/lib/track-info-flags";
 import { cn } from "@/lib/utils";
 
 import {
@@ -53,12 +54,27 @@ type BoardTrack = {
     invites: Array<{
       id: string;
       status: string;
+      deliveryNote: string | null;
+      senderId: string;
+      sender: {
+        telegramUsername: string | null;
+        fullName: string | null;
+      };
       recipient: {
         telegramUsername: string | null;
         fullName: string | null;
       };
     }>;
   }>;
+};
+
+type SeatRequestEntry = {
+  id: string;
+  kind: "request" | "invite";
+  requesterId: string;
+  requesterLabel: string;
+  targetLabel: string;
+  mode: "self" | "friend";
 };
 
 function groupColumns(columns: ReturnType<typeof expandSeatColumns>) {
@@ -148,6 +164,93 @@ function cellFrameClass() {
 
 function buildSeatIndex(track: BoardTrack) {
   return new Map(track.seats.map((seat) => [`${seat.lineupSlotId}:${seat.seatIndex}`, seat] as const));
+}
+
+function getSeatRequests(seat: BoardTrack["seats"][number]): SeatRequestEntry[] {
+  return seat.invites.map((invite) => {
+    const senderLabel = invite.sender.telegramUsername
+      ? `@${invite.sender.telegramUsername}`
+      : invite.sender.fullName ?? "Unknown";
+    const recipientLabel = invite.recipient.telegramUsername
+      ? `@${invite.recipient.telegramUsername}`
+      : invite.recipient.fullName ?? "Unknown";
+    const meta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
+    if (!meta) {
+      return {
+        id: invite.id,
+        kind: "invite",
+        requesterId: invite.senderId,
+        requesterLabel: senderLabel,
+        targetLabel: recipientLabel,
+        mode: "friend",
+      };
+    }
+
+    return {
+      id: invite.id,
+      kind: "request",
+      requesterId: meta.requesterId,
+      requesterLabel: meta.requesterLabel,
+      targetLabel: meta.targetLabel,
+      mode: meta.mode,
+    };
+  });
+}
+
+function SeatRequestsControl({
+  requests,
+  locale,
+  preferAbove = false,
+}: {
+  requests: SeatRequestEntry[];
+  locale: Locale;
+  preferAbove?: boolean;
+}) {
+  if (requests.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className="group/details relative">
+      <summary
+        className="list-none cursor-pointer rounded-full border border-white/14 bg-black/24 px-1.5 py-0.5 text-[9px] font-semibold text-white/88 transition hover:bg-black/35"
+        title={pick(locale, {
+          en: "Open pending requests",
+          ru: "Показать ожидающие запросы",
+        })}
+      >
+        {requests.length}
+      </summary>
+      <div
+        className={cn(
+          "absolute right-0 z-20 mt-1 w-56 space-y-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          preferAbove ? "bottom-6" : "top-5",
+        )}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/62">
+          {pick(locale, { en: "Pending seat activity", ru: "Ожидает по месту" })}
+        </p>
+        {requests.map((request) => (
+          <p className="text-[10px] leading-4 text-white/78" key={request.id}>
+            {request.kind === "invite"
+              ? pick(locale, {
+                  en: `${request.requesterLabel} invited ${request.targetLabel}`,
+                  ru: `${request.requesterLabel} пригласил(а) ${request.targetLabel}`,
+                })
+              : request.mode === "self"
+              ? pick(locale, {
+                  en: `${request.requesterLabel} asked to join`,
+                  ru: `${request.requesterLabel} запросил(а) место`,
+                })
+              : pick(locale, {
+                  en: `${request.requesterLabel} suggested ${request.targetLabel}`,
+                  ru: `${request.requesterLabel} предложил(а) ${request.targetLabel}`,
+                })}
+          </p>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 function InviteControl({
@@ -250,7 +353,7 @@ export function TrackBoardTable({
           <thead>
             <tr className="bg-[#1b1b1b] text-white">
               <th
-                className="sticky left-0 z-30 w-[21.5%] border-b border-r border-white/16 bg-[#1b1b1b] px-3 py-3 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
+                className="sticky left-0 z-30 w-[21.5%] border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
                 rowSpan={2}
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
@@ -264,7 +367,7 @@ export function TrackBoardTable({
                   colSpan={group.columns.length}
                   key={`${group.family}-${group.columns[0]?.seatKey ?? "group"}`}
                 >
-                  <div className="flex items-center gap-3 px-3 py-3">
+                  <div className="flex items-center gap-2 px-2 py-2">
                     <span>{getRoleFamilyLabel(group.family, locale)}</span>
                     <div className="h-px flex-1 bg-white/26" />
                   </div>
@@ -280,7 +383,7 @@ export function TrackBoardTable({
                 return (
                   <th
                     className={cn(
-                      "border-b border-r border-white/14 px-2 py-3 text-left text-[11px] font-semibold text-white/92",
+                      "border-b border-r border-white/14 px-1 py-2 text-left text-[11px] font-semibold text-white/92",
                       startsNewGroup && "border-l border-white/16",
                     )}
                     key={column.seatKey}
@@ -300,7 +403,7 @@ export function TrackBoardTable({
                 .filter((field) =>
                   getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
                 )
-                .map((field) => field.label);
+                .map((field) => getTrackInfoLabel(field, locale));
               const preferInviteAbove = index >= tracks.length - 2;
               const canManageTrack = Boolean(
                 isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
@@ -319,7 +422,7 @@ export function TrackBoardTable({
                 >
                   <td
                     className={cn(
-                      "sticky-song-cell sticky left-0 z-20 border-b border-r border-cloud px-3 py-2.5 align-top",
+                      "sticky-song-cell sticky left-0 z-20 border-b border-r border-cloud px-2 py-1.5 align-top",
                       "border-white/14",
                       rowBackground,
                     )}
@@ -439,7 +542,7 @@ export function TrackBoardTable({
 
                     if (!seat) {
                       return (
-                        <td className="border-b border-r border-white/12 px-1.5 py-1" key={column.seatKey} />
+                        <td className="border-b border-r border-white/12 px-0.5 py-0" key={column.seatKey} />
                       );
                     }
 
@@ -462,11 +565,19 @@ export function TrackBoardTable({
                           (user.role === "ADMIN" || track.proposedById === user.id)) ||
                           (allowClosedOptionalRequests && seat.isOptional)),
                     );
+                    const seatRequests = getSeatRequests(seat);
+                    const userHasPendingRequest = Boolean(
+                      user &&
+                        seatRequests.some(
+                          (request) =>
+                            request.kind === "request" && request.requesterId === user.id,
+                        ),
+                    );
 
                     return (
                       <td
                         className={cn(
-                          "group relative border-b border-r border-white/12 px-1.5 py-0.5 align-middle transition",
+                          "group relative border-b border-r border-white/12 px-0.5 py-0 align-middle transition",
                           cellClass(seat.status, seat.isOptional),
                           cellFrameClass(),
                         )}
@@ -490,7 +601,7 @@ export function TrackBoardTable({
                                   })
                         }
                       >
-                        <div className="relative flex h-12 items-center justify-center px-1 py-1 transition">
+                        <div className="relative flex h-11 items-center justify-center px-0.5 py-0.5 transition">
                           <span
                             className={cn(
                               "absolute left-1.5 top-1.5 h-1.5 w-1.5 rounded-full",
@@ -506,7 +617,7 @@ export function TrackBoardTable({
                                 </span>
                               ) : null}
                               {canInvite ? (
-                                <div className="absolute right-1 top-1 opacity-0 transition group-hover:opacity-100">
+                                <div className="absolute right-1 top-1">
                                   <InviteControl
                                     allowClosedOptionalRequests={allowClosedOptionalRequests}
                                     eventSlug={eventSlug}
@@ -564,12 +675,17 @@ export function TrackBoardTable({
                                   <UserPlus className="h-3.5 w-3.5" />
                                 </span>
                               )}
+                              {userHasPendingRequest ? (
+                                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white">
+                                  {pick(locale, { en: "Request sent", ru: "Запрос отправлен" })}
+                                </span>
+                              ) : null}
                             </>
                           ) : seat.user ? (
                             <>
                               {getTelegramProfileUrl(seat.user) ? (
                                 <a
-                                  className="max-w-full break-all px-5 text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                  className="max-w-full break-all px-2 text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                   href={getTelegramProfileUrl(seat.user) ?? undefined}
                                   rel="noreferrer"
                                   target="_blank"
@@ -579,13 +695,13 @@ export function TrackBoardTable({
                                 </a>
                               ) : (
                                 <span
-                                  className="max-w-full break-all px-5 text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                  className="max-w-full break-all px-2 text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
                                   title={formatPersonLabel(seat.user, locale)}
                                 >
                                   {formatPersonLabel(seat.user, locale)}
                                 </span>
                               )}
-                              <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition group-hover:opacity-100">
+                              <div className="absolute right-1 top-1/2 -translate-y-1/2">
                                 {canManage ? (
                                   <form action={releaseSeatAction}>
                                     <input name="seatId" type="hidden" value={seat.id} />
@@ -621,10 +737,14 @@ export function TrackBoardTable({
                             </span>
                           )}
 
-                          {seat.invites.length > 0 ? (
-                            <span className="absolute right-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black/22 px-1 text-[9px] font-semibold text-white">
-                              {seat.invites.length}
-                            </span>
+                          {seatRequests.length > 0 ? (
+                            <div className="absolute bottom-1 right-1">
+                              <SeatRequestsControl
+                                locale={locale}
+                                preferAbove={preferInviteAbove}
+                                requests={seatRequests}
+                              />
+                            </div>
                           ) : null}
                         </div>
                       </td>
@@ -645,7 +765,7 @@ export function TrackBoardTable({
             .filter((field) =>
               getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
             )
-            .map((field) => field.label);
+            .map((field) => getTrackInfoLabel(field, locale));
           const preferInviteAbove = tracks.length > 1;
           const canManageTrack = Boolean(
             isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
@@ -743,135 +863,154 @@ export function TrackBoardTable({
                   ) : null}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                {track.seats.map((seat) => {
-                  const canClaim = Boolean(
-                    user &&
-                      seat.status === TrackSeatStatus.OPEN &&
-                      (isOpen || (allowClosedOptionalRequests && seat.isOptional)),
-                  );
-                  const canManage = Boolean(
-                    isOpen &&
-                    user &&
-                      (user.role === "ADMIN" ||
-                        track.proposedById === user.id ||
-                        seat.userId === user.id),
-                  );
-                  const canInvite = Boolean(
-                    user &&
-                      seat.status === TrackSeatStatus.OPEN &&
-                      ((isOpen &&
-                        (user.role === "ADMIN" || track.proposedById === user.id)) ||
-                        (allowClosedOptionalRequests && seat.isOptional)),
-                  );
+                  {track.seats.map((seat) => {
+                    const canClaim = Boolean(
+                      user &&
+                        seat.status === TrackSeatStatus.OPEN &&
+                        (isOpen || (allowClosedOptionalRequests && seat.isOptional)),
+                    );
+                    const canManage = Boolean(
+                      isOpen &&
+                        user &&
+                        (user.role === "ADMIN" ||
+                          track.proposedById === user.id ||
+                          seat.userId === user.id),
+                    );
+                    const canInvite = Boolean(
+                      user &&
+                        seat.status === TrackSeatStatus.OPEN &&
+                        ((isOpen &&
+                          (user.role === "ADMIN" || track.proposedById === user.id)) ||
+                          (allowClosedOptionalRequests && seat.isOptional)),
+                    );
+                    const seatRequests = getSeatRequests(seat);
+                    const userHasPendingRequest = Boolean(
+                      user &&
+                        seatRequests.some(
+                          (request) =>
+                            request.kind === "request" && request.requesterId === user.id,
+                        ),
+                    );
+                    const isSelfSeat = Boolean(user && seat.userId === user.id);
 
-                  return (
-                    <div
-                      className={cn(
-                        "group flex items-center justify-between border px-2.5 py-2",
-                        cellClass(seat.status, seat.isOptional),
-                        cellFrameClass(),
-                      )}
-                      key={seat.id}
-                    >
-                      <div className="min-w-0 flex items-center gap-1.5">
-                        <span className={cn("h-2 w-2 shrink-0 rounded-full", statusDotClass(seat.status))} />
-                        {seat.user ? (
-                          getTelegramProfileUrl(seat.user) ? (
-                            <a
-                              className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
-                              href={getTelegramProfileUrl(seat.user) ?? undefined}
-                              rel="noreferrer"
-                              target="_blank"
-                              title={formatPersonLabel(seat.user, locale)}
-                            >
-                              {formatPersonLabel(seat.user, locale)}
-                            </a>
-                          ) : (
-                            <span
-                              className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand"
-                              title={formatPersonLabel(seat.user, locale)}
-                            >
-                              {formatPersonLabel(seat.user, locale)}
-                            </span>
-                          )
-                        ) : seat.status === TrackSeatStatus.UNAVAILABLE ? (
-                          <span
-                            className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center text-white/34"
-                            data-tip={pick(locale, { en: "Empty", ru: "Пусто" })}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-sand">
-                            {seat.isOptional ? `${seat.label} · OPT` : seat.label}
-                          </span>
+                    return (
+                      <div
+                        className={cn(
+                          "group space-y-2 border px-2.5 py-2",
+                          cellClass(seat.status, seat.isOptional),
+                          cellFrameClass(),
                         )}
+                        key={seat.id}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex items-center gap-1.5">
+                            <span className={cn("h-2 w-2 shrink-0 rounded-full", statusDotClass(seat.status))} />
+                            {seat.user ? (
+                              getTelegramProfileUrl(seat.user) ? (
+                                <a
+                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                  href={getTelegramProfileUrl(seat.user) ?? undefined}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                  title={formatPersonLabel(seat.user, locale)}
+                                >
+                                  {formatPersonLabel(seat.user, locale)}
+                                </a>
+                              ) : (
+                                <span
+                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                  title={formatPersonLabel(seat.user, locale)}
+                                >
+                                  {formatPersonLabel(seat.user, locale)}
+                                </span>
+                              )
+                            ) : seat.status === TrackSeatStatus.UNAVAILABLE ? (
+                              <span
+                                className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center text-white/34"
+                                data-tip={pick(locale, { en: "Empty", ru: "Пусто" })}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-sand">
+                                {seat.isOptional ? `${seat.label} · OPT` : seat.label}
+                              </span>
+                            )}
+                          </div>
+
+                          {seatRequests.length > 0 ? (
+                            <SeatRequestsControl
+                              locale={locale}
+                              preferAbove={preferInviteAbove}
+                              requests={seatRequests}
+                            />
+                          ) : null}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {canClaim ? (
+                            <form action={claimSeatAction}>
+                              <input name="seatId" type="hidden" value={seat.id} />
+                              <input name="eventSlug" type="hidden" value={eventSlug} />
+                              <button
+                                aria-label={pick(locale, {
+                                  en: `Join ${seat.label}`,
+                                  ru: `Занять ${seat.label}`,
+                                })}
+                                className="rounded-sm border border-gold/40 bg-gold px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink transition hover:bg-gold/90"
+                                type="submit"
+                              >
+                                {!isOpen && allowClosedOptionalRequests && seat.isOptional
+                                  ? pick(locale, { en: "Request spot", ru: "Запросить место" })
+                                  : pick(locale, { en: "Join", ru: "Вписаться" })}
+                              </button>
+                            </form>
+                          ) : null}
+
+                          {canInvite ? (
+                            <div className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-1.5 py-1">
+                              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/78">
+                                {pick(locale, { en: "Invite", ru: "Позвать" })}
+                              </span>
+                              <InviteControl
+                                allowClosedOptionalRequests={allowClosedOptionalRequests}
+                                eventSlug={eventSlug}
+                                locale={locale}
+                                preferAbove={preferInviteAbove}
+                                seat={seat}
+                              />
+                            </div>
+                          ) : null}
+
+                          {canManage && seat.status === TrackSeatStatus.CLAIMED ? (
+                            <form action={releaseSeatAction}>
+                              <input name="seatId" type="hidden" value={seat.id} />
+                              <input name="eventSlug" type="hidden" value={eventSlug} />
+                              <button
+                                aria-label={pick(locale, {
+                                  en: `Release ${seat.label}`,
+                                  ru: `Освободить ${seat.label}`,
+                                })}
+                                className="rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14"
+                                type="submit"
+                              >
+                                {isSelfSeat
+                                  ? pick(locale, { en: "Leave", ru: "Выписаться" })
+                                  : pick(locale, { en: "Release", ru: "Освободить" })}
+                              </button>
+                            </form>
+                          ) : null}
+
+                          {userHasPendingRequest ? (
+                            <span className="rounded-full border border-blue/30 bg-blue/16 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white">
+                              {pick(locale, { en: "Request sent", ru: "Запрос отправлен" })}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        {canClaim ? (
-                          <form action={claimSeatAction}>
-                            <input name="seatId" type="hidden" value={seat.id} />
-                            <input name="eventSlug" type="hidden" value={eventSlug} />
-                            <button
-                              aria-label={pick(locale, {
-                                en: `Join ${seat.label}`,
-                                ru: `Занять ${seat.label}`,
-                              })}
-                            className={iconButtonClass("primary")}
-                            data-tip={pick(locale, {
-                              en:
-                                !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                  ? "Ask to join"
-                                  : seat.isOptional
-                                    ? "Join optional"
-                                    : "Join",
-                              ru:
-                                !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                  ? "Запросить место"
-                                  : seat.isOptional
-                                    ? "Вписаться optional"
-                                    : "Вписаться",
-                            })}
-                            type="submit"
-                          >
-                            <UserPlus className="h-3.5 w-3.5" />
-                          </button>
-                        </form>
-                      ) : null}
-                      {canInvite ? (
-                        <InviteControl
-                          allowClosedOptionalRequests={allowClosedOptionalRequests}
-                          eventSlug={eventSlug}
-                          locale={locale}
-                          preferAbove={preferInviteAbove}
-                          seat={seat}
-                        />
-                      ) : null}
-                        {canManage && seat.status === TrackSeatStatus.CLAIMED ? (
-                          <form action={releaseSeatAction}>
-                            <input name="seatId" type="hidden" value={seat.id} />
-                            <input name="eventSlug" type="hidden" value={eventSlug} />
-                            <button
-                              aria-label={pick(locale, {
-                                en: `Release ${seat.label}`,
-                                ru: `Освободить ${seat.label}`,
-                              })}
-                              className={iconButtonClass()}
-                              data-tip={pick(locale, {
-                                en: "Release",
-                                ru: "Освободить",
-                              })}
-                              type="submit"
-                            >
-                              <LogOut className="h-3.5 w-3.5" />
-                            </button>
-                          </form>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
               </div>
             </details>
           );

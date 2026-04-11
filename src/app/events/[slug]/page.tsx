@@ -18,7 +18,7 @@ import {
   type Locale,
 } from "@/lib/i18n";
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
-import { getEventTrackInfoFields } from "@/lib/track-info-flags";
+import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/utils";
 import { createTrackAction, requestSongCatalogAction } from "@/server/actions";
@@ -346,6 +346,15 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         </div>
       ) : null}
 
+      {error === "duplicate-role-family" ? (
+        <div className="rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "You can join the same song multiple times only with different instrument types.",
+            ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
+          })}
+        </div>
+      ) : null}
+
       <section className="border-b border-white/8 pb-8">
         <div className="brand-stage rounded-[1.8rem] border border-white/10 px-6 py-6 shadow-[0_28px_80px_rgba(0,0,0,0.42)] md:px-7">
           <div className="space-y-5">
@@ -443,7 +452,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               {trackInfoFields.length > 0 ? (
                 <span>
                   {pick(locale, { en: "Extra flags:", ru: "Доп. флаги:" })}{" "}
-                  {trackInfoFields.map((field) => field.label).join(", ")}
+                  {trackInfoFields.map((field) => getTrackInfoLabel(field, locale)).join(", ")}
                 </span>
               ) : null}
             </div>

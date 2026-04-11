@@ -197,6 +197,19 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     redirect("/");
   }
   const currentSongs = buildGroupedCurrentSongs(profile.trackSeats);
+  const outgoingSeatRequests = profile.invitationsSent
+    .map((invite) => ({
+      invite,
+      requestMeta: parseClosedOptionalSeatRequestMeta(invite.deliveryNote),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is {
+        invite: (typeof profile.invitationsSent)[number];
+        requestMeta: NonNullable<ReturnType<typeof parseClosedOptionalSeatRequestMeta>>;
+      } => Boolean(entry.requestMeta),
+    );
 
   return (
     <div className="space-y-6 text-sand">
@@ -213,12 +226,18 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             })}
           </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <div className="brand-shell-soft rounded-xl px-5 py-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
               {pick(locale, { en: "Pending invites", ru: "Ожидают ответа" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{profile.invitations.length}</p>
+          </div>
+          <div className="brand-shell-soft rounded-xl px-5 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+              {pick(locale, { en: "Requests sent", ru: "Запросов отправлено" })}
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-sand">{outgoingSeatRequests.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
@@ -305,6 +324,70 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                       </SubmitButton>
                     </form>
                     <Link href={`/events/${invite.track.event.slug}`}>
+                      <Button size="sm" type="button" variant="ghost">
+                        {pick(locale, { en: "Open board", ru: "Открыть борд" })}
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red">
+            {pick(locale, { en: "Requests", ru: "Запросы" })}
+          </p>
+          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
+            {pick(locale, {
+              en: "Optional seat requests you've sent",
+              ru: "Отправленные тобой запросы на optional-места",
+            })}
+          </h2>
+        </div>
+        <Card className="brand-shell space-y-4">
+          {outgoingSeatRequests.length === 0 ? (
+            <p className="text-sm text-white/60">
+              {pick(locale, {
+                en: "No outgoing optional-seat requests right now.",
+                ru: "Сейчас нет исходящих запросов на optional-места.",
+              })}
+            </p>
+          ) : (
+            outgoingSeatRequests.map(({ invite, requestMeta }) => {
+              const recipientLabel = invite.recipient.telegramUsername
+                ? `@${invite.recipient.telegramUsername}`
+                : invite.recipient.fullName ?? pick(locale, { en: "track proposer", ru: "автор трека" });
+              const modeLabel =
+                requestMeta.mode === "self"
+                  ? pick(locale, {
+                      en: "you asked to join",
+                      ru: "ты запросил(а) место",
+                    })
+                  : pick(locale, {
+                      en: `${requestMeta.targetLabel} was suggested by you`,
+                      ru: `ты предложил(а) ${requestMeta.targetLabel}`,
+                    });
+
+              return (
+                <div className="border-b border-white/10 pb-4 last:border-b-0 last:pb-0" key={invite.id}>
+                  <p className="font-semibold text-sand">
+                    {invite.track.song.artist.name} - {invite.track.song.title}
+                  </p>
+                  <p className="mt-1 text-sm text-white/70">
+                    {modeLabel} · {invite.seat.label} · {invite.track.event.title}
+                  </p>
+                  <p className="mt-1 text-sm text-white/60">
+                    {pick(locale, {
+                      en: `Waiting for approval from ${recipientLabel}.`,
+                      ru: `Ожидает одобрения от ${recipientLabel}.`,
+                    })}
+                  </p>
+                  <div className="mt-4">
+                    <Link href={`/events/${invite.track.event.slug}#track-board`}>
                       <Button size="sm" type="button" variant="ghost">
                         {pick(locale, { en: "Open board", ru: "Открыть борд" })}
                       </Button>

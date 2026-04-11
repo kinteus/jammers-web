@@ -259,7 +259,7 @@ These reduce the amount of repetitive seat-by-seat interaction for common setups
 The proposer can also add:
 
 - notes for the band,
-- playback required flag if the event allows playback usage.
+- playback flag if the event allows playback usage.
 
 ### Validation rules during proposal
 
@@ -268,6 +268,7 @@ The backend enforces:
 - the user must not be banned,
 - the event must still allow modifications,
 - the same song cannot already exist as an active proposal in the same event,
+- if one user claims multiple seats on the same song, each claim must belong to a different instrument type,
 - if the user immediately claims seats, the event-level track participation limit must still be respected.
 
 ## 5. Requesting a missing song
@@ -287,6 +288,7 @@ From the board table, authenticated users can join any seat that is:
 - open,
 - still editable under event rules,
 - not blocked by ban or event closure,
+- not a duplicate instrument-type claim for this user on the same song,
 - within the user’s allowed event track limit.
 
 The user joins the exact seat they click. Seat joins are server-validated and persisted atomically.
@@ -331,6 +333,8 @@ On `/profile`, users see all pending seat invites. For each invite they can:
 
 When accepted, the seat becomes assigned to the recipient. When declined, the invitation is retained for auditability but no assignment occurs.
 
+The profile page also shows outgoing optional-seat requests sent by the user, so musicians can track who is still waiting on approval.
+
 ## 11. Personal playing dashboard
 
 The profile page also shows all songs where the user is currently assigned to a seat. For each entry the page displays:
@@ -373,7 +377,7 @@ Each cell displays:
 
 - current state,
 - current occupant or “Need player”,
-- invitation summary if any,
+- pending request summary with requester details when available,
 - primary action relevant to the current viewer.
 
 Current action patterns include:

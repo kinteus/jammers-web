@@ -37,7 +37,13 @@ export default async function HomePage() {
     getCurrentUser(),
     getLocale(),
   ]);
-  const featuredEvent = events.find((event) => event.effectiveStatus === "OPEN") ?? events[0] ?? null;
+  const now = Date.now();
+  const featuredEvent =
+    events
+      .filter((event) => new Date(event.startsAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0] ??
+    events[0] ??
+    null;
 
   return (
     <div className="space-y-8 text-sand">
@@ -67,7 +73,7 @@ export default async function HomePage() {
               <div className="flex flex-wrap gap-3">
                 <Link href={featuredEvent ? `/events/${featuredEvent.slug}` : "#gigs"}>
                   <Button variant="primary">
-                    {pick(locale, { en: "Open next gig", ru: "Открыть ближайший гиг" })}
+                    {pick(locale, { en: "Go to next gig", ru: "Открыть ближайший гиг" })}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>

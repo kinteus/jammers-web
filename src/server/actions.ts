@@ -23,6 +23,7 @@ import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+import { getRoleFamilyKey } from "@/lib/role-families";
 import {
   assertEventAllowsChanges,
   canRequestClosedOptionalSeat,
@@ -143,6 +144,9 @@ async function createClosedOptionalSeatRequest({
   mode,
 }: {
   seat: Awaited<ReturnType<typeof db.trackSeat.findUniqueOrThrow>> & {
+    lineupSlot: {
+      key: string;
+    };
     track: {
       event: {
         title: string;
@@ -186,6 +190,14 @@ async function createClosedOptionalSeatRequest({
   const targetMessageLabel = targetUser.telegramUsername
     ? `@${targetUser.telegramUsername}`
     : targetUser.fullName ?? "A musician";
+  await assertCanClaimRoleFamilyForTrack({
+    eventSlug,
+    excludeSeatId: seat.id,
+    seatLabel: seat.label,
+    seatLineupKey: seat.lineupSlot.key,
+    trackId: seat.trackId,
+    userId: targetUser.id,
+  });
   const pendingRequests = await db.trackInvite.findMany({
     where: {
       seatId: seat.id,
@@ -288,6 +300,58 @@ async function countUniqueJoinedTracks(userId: string, eventId: string) {
   });
 
   return new Set(seats.map((seat) => seat.trackId)).size;
+}
+
+function throwDuplicateRoleFamilyError(eventSlug?: string): never {
+  if (eventSlug) {
+    redirect(buildEventRedirectUrl(eventSlug, { error: "duplicate-role-family" }));
+  }
+
+  throw new Error(
+    "You can join the same track multiple times only on different instrument types.",
+  );
+}
+
+async function assertCanClaimRoleFamilyForTrack({
+  eventSlug,
+  excludeSeatId,
+  seatLabel,
+  seatLineupKey,
+  trackId,
+  userId,
+}: {
+  eventSlug?: string;
+  excludeSeatId?: string;
+  seatLabel: string;
+  seatLineupKey: string;
+  trackId: string;
+  userId: string;
+}) {
+  const targetFamily = getRoleFamilyKey(seatLabel, seatLineupKey);
+  const claimedSeats = await db.trackSeat.findMany({
+    where: {
+      trackId,
+      userId,
+      status: TrackSeatStatus.CLAIMED,
+      ...(excludeSeatId ? { id: { not: excludeSeatId } } : {}),
+    },
+    select: {
+      label: true,
+      lineupSlot: {
+        select: {
+          key: true,
+        },
+      },
+    },
+  });
+
+  const alreadyHasFamilySeat = claimedSeats.some(
+    (claimedSeat) => getRoleFamilyKey(claimedSeat.label, claimedSeat.lineupSlot.key) === targetFamily,
+  );
+
+  if (alreadyHasFamilySeat) {
+    throwDuplicateRoleFamilyError(eventSlug);
+  }
 }
 
 async function createDefaultTrackSeats(trackId: string, eventId: string) {
@@ -671,6 +735,22 @@ export async function createTrackAction(formData: FormData) {
     include: { lineupSlot: true },
   });
   const unavailableKeys = parseSeatSelections(formData, "unavailableSeatKeys");
+  const claimedRoleFamilies = new Set<string>();
+
+  for (const seat of seats) {
+    const seatKey = `${seat.label}:${seat.seatIndex}`;
+    const claimed = claimSeatIds.includes(seatKey);
+
+    if (!claimed) {
+      continue;
+    }
+
+    const roleFamily = getRoleFamilyKey(seat.label, seat.lineupSlot.key);
+    if (claimedRoleFamilies.has(roleFamily)) {
+      throwDuplicateRoleFamilyError(eventSlug);
+    }
+    claimedRoleFamilies.add(roleFamily);
+  }
 
   for (const seat of seats) {
     const seatKey = `${seat.label}:${seat.seatIndex}`;
@@ -706,6 +786,11 @@ export async function claimSeatAction(formData: FormData) {
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
+      lineupSlot: {
+        select: {
+          key: true,
+        },
+      },
       track: {
         include: {
           event: true,
@@ -749,6 +834,14 @@ export async function claimSeatAction(formData: FormData) {
     const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
     assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
   }
+  await assertCanClaimRoleFamilyForTrack({
+    eventSlug,
+    excludeSeatId: seat.id,
+    seatLabel: seat.label,
+    seatLineupKey: seat.lineupSlot.key,
+    trackId: seat.trackId,
+    userId: user.id,
+  });
 
   await db.trackSeat.update({
     where: { id: seat.id },
@@ -799,6 +892,11 @@ export async function markSeatUnavailableAction(formData: FormData) {
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
+      lineupSlot: {
+        select: {
+          key: true,
+        },
+      },
       track: {
         include: {
           event: true,
@@ -839,6 +937,11 @@ export async function inviteToSeatAction(formData: FormData) {
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
+      lineupSlot: {
+        select: {
+          key: true,
+        },
+      },
       track: {
         include: {
           event: true,
@@ -875,6 +978,14 @@ export async function inviteToSeatAction(formData: FormData) {
         const joinedCount = await countUniqueJoinedTracks(recipient.id, seat.track.eventId);
         assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
       }
+      await assertCanClaimRoleFamilyForTrack({
+        eventSlug,
+        excludeSeatId: seat.id,
+        seatLabel: seat.label,
+        seatLineupKey: seat.lineupSlot.key,
+        trackId: seat.trackId,
+        userId: recipient.id,
+      });
 
       await db.trackSeat.update({
         where: { id: seat.id },
@@ -933,6 +1044,14 @@ export async function inviteToSeatAction(formData: FormData) {
       const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
       assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
     }
+    await assertCanClaimRoleFamilyForTrack({
+      eventSlug,
+      excludeSeatId: seat.id,
+      seatLabel: seat.label,
+      seatLineupKey: seat.lineupSlot.key,
+      trackId: seat.trackId,
+      userId: user.id,
+    });
 
     await db.trackSeat.update({
       where: { id: seat.id },
@@ -997,6 +1116,11 @@ export async function respondToInviteAction(formData: FormData) {
     include: {
       seat: {
         include: {
+          lineupSlot: {
+            select: {
+              key: true,
+            },
+          },
           track: {
             include: {
               event: true,
@@ -1033,6 +1157,14 @@ export async function respondToInviteAction(formData: FormData) {
     if (!alreadyOnTrack) {
       assertWithinTrackLimit(joinedCount, invite.seat.track.event.maxTracksPerUser);
     }
+    await assertCanClaimRoleFamilyForTrack({
+      eventSlug,
+      excludeSeatId: invite.seat.id,
+      seatLabel: invite.seat.label,
+      seatLineupKey: invite.seat.lineupSlot.key,
+      trackId: invite.trackId,
+      userId: targetUserId,
+    });
 
     await db.$transaction([
       db.trackSeat.update({
