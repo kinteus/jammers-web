@@ -21,10 +21,9 @@ import {
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
 import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
-import { cn, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import {
   createTrackAction,
-  requestSongCatalogAction,
   updateEventStatusAction,
 } from "@/server/actions";
 import { getEventWorkspace } from "@/server/query-data";
@@ -37,6 +36,8 @@ import { TrackBoardTable } from "@/components/track-board-table";
 import { TrackProposalComposer } from "@/components/track-proposal-composer";
 import { TrackProposalDialog } from "@/components/track-proposal-dialog";
 import { EventRegistrationCountdown } from "@/components/event-registration-countdown";
+import { FloatingToast } from "@/components/floating-toast";
+import { SongCatalogRequestForm } from "@/components/song-catalog-request-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -555,25 +556,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       ) : null}
 
       {floatingFeedback ? (
-        <div className="pointer-events-none fixed right-4 top-24 z-[90] w-[min(calc(100vw-2rem),26rem)]">
-          <div
-            className={cn(
-              "rounded-2xl border px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
-              floatingFeedback.tone === "success"
-                ? "border-blue/40 bg-blue/18 text-white"
-                : "border-red/40 bg-red/16 text-white",
-            )}
-            role="status"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
-              {floatingFeedback.tone === "success"
-                ? pick(locale, { en: "Update", ru: "Обновление" })
-                : pick(locale, { en: "Heads up", ru: "Внимание" })}
-            </p>
-            <p className="mt-1 font-semibold text-sand">{floatingFeedback.title}</p>
-            <p className="mt-1 text-sm leading-6 text-white/82">{floatingFeedback.description}</p>
-          </div>
-        </div>
+        <FloatingToast
+          description={floatingFeedback.description}
+          locale={locale}
+          title={floatingFeedback.title}
+          tone={floatingFeedback.tone}
+        />
       ) : null}
 
       <section className="border-b border-white/8 pb-8">
@@ -984,30 +972,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             </p>
           </div>
           <Card className="brand-shell">
-            <form action={requestSongCatalogAction} className="grid gap-4 lg:grid-cols-2">
-              <input name="eventSlug" type="hidden" value={event.id} />
-              <label className="block space-y-2 text-sm text-sand">
-                <span>{pick(locale, { en: "Artist", ru: "Артист" })}</span>
-                <input className="w-full px-4 py-3" name="artistName" required />
-              </label>
-              <label className="block space-y-2 text-sm text-sand">
-                <span>{pick(locale, { en: "Track title", ru: "Название трека" })}</span>
-                <input className="w-full px-4 py-3" name="trackTitle" required />
-              </label>
-              <label className="block space-y-2 text-sm text-sand lg:col-span-2">
-                <span>{pick(locale, { en: "Comment", ru: "Комментарий" })}</span>
-                <textarea className="min-h-24 w-full px-4 py-3" name="comment" />
-              </label>
-              <div className="lg:col-span-2">
-                <SubmitButton
-                  pendingLabel={pick(locale, { en: "Sending request...", ru: "Отправляем запрос..." })}
-                  type="submit"
-                  variant="secondary"
-                >
-                  {pick(locale, { en: "Ask admins to add the song", ru: "Попросить админов добавить песню" })}
-                </SubmitButton>
-              </div>
-            </form>
+            <SongCatalogRequestForm eventId={event.id} locale={locale} />
           </Card>
         </section>
       ) : null}

@@ -19,6 +19,7 @@ import {
   releaseSeatInlineAction,
 } from "@/server/actions";
 
+import { FloatingToast } from "@/components/floating-toast";
 import { Loader } from "@/components/ui/loader";
 
 type BoardUser = {
@@ -386,10 +387,12 @@ function applyOptimisticClaim({
 }
 
 function SeatRequestsControl({
+  align = "end",
   requests,
   locale,
   preferAbove = false,
 }: {
+  align?: "end" | "start";
   requests: SeatRequestEntry[];
   locale: Locale;
   preferAbove?: boolean;
@@ -401,7 +404,7 @@ function SeatRequestsControl({
   return (
     <details className="group/details relative">
       <summary
-        className="list-none cursor-pointer rounded-full border border-white/14 bg-black/24 px-1.5 py-0.5 text-[9px] font-semibold text-white/88 transition hover:bg-black/35"
+        className="list-none cursor-pointer rounded-full border border-white/14 bg-black/24 px-1.5 py-[1px] text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/35"
         title={pick(locale, {
           en: "Open pending requests",
           ru: "Показать ожидающие запросы",
@@ -411,7 +414,8 @@ function SeatRequestsControl({
       </summary>
       <div
         className={cn(
-          "absolute right-0 z-20 mt-1 w-56 space-y-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          "absolute z-40 mt-1 w-56 space-y-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          align === "start" ? "left-0" : "right-0",
           preferAbove ? "bottom-6" : "top-5",
         )}
       >
@@ -443,12 +447,14 @@ function SeatRequestsControl({
 
 function InviteControl({
   allowClosedOptionalRequests,
+  align = "end",
   seat,
   eventSlug,
   locale,
   preferAbove = false,
 }: {
   allowClosedOptionalRequests: boolean;
+  align?: "end" | "start";
   seat: BoardTrack["seats"][number];
   eventSlug: string;
   locale: Locale;
@@ -486,7 +492,8 @@ function InviteControl({
       <form
         action={inviteToSeatAction}
         className={cn(
-          "absolute right-0 z-20 flex w-44 flex-col gap-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          "absolute z-40 flex w-44 flex-col gap-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          align === "start" ? "left-0" : "right-0",
           preferAbove ? "bottom-7" : "top-7",
         )}
       >
@@ -666,25 +673,12 @@ export function TrackBoardTable({
   return (
     <div className="space-y-4">
       {feedback ? (
-        <div className="pointer-events-none fixed right-4 top-24 z-[95] w-[min(calc(100vw-2rem),24rem)]">
-          <div
-            className={cn(
-              "rounded-2xl border px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
-              feedback.tone === "success"
-                ? "border-blue/40 bg-blue/18 text-white"
-                : "border-red/40 bg-red/16 text-white",
-            )}
-            role="status"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
-              {feedback.tone === "success"
-                ? pick(locale, { en: "Update", ru: "Обновление" })
-                : pick(locale, { en: "Heads up", ru: "Внимание" })}
-            </p>
-            <p className="mt-1 font-semibold text-sand">{feedback.title}</p>
-            <p className="mt-1 text-sm leading-6 text-white/82">{feedback.description}</p>
-          </div>
-        </div>
+        <FloatingToast
+          description={feedback.description}
+          locale={locale}
+          title={feedback.title}
+          tone={feedback.tone}
+        />
       ) : null}
 
       <div className="brand-shell hidden overflow-visible rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
@@ -877,8 +871,9 @@ export function TrackBoardTable({
                     </div>
                   </td>
 
-                  {columns.map((column) => {
+                  {columns.map((column, columnIndex) => {
                     const seat = seatIndex.get(`${column.slotId}:${column.seatIndex}`);
+                    const overlayAlign = columnIndex === 0 ? "start" : "end";
 
                     if (!seat) {
                       return (
@@ -941,18 +936,18 @@ export function TrackBoardTable({
                                   })
                         }
                       >
-                        <div className="relative flex min-h-[3.7rem] flex-col justify-between px-1 py-1 transition">
-                          <span
-                            className={cn(
-                              "absolute left-1.5 top-1.5 h-1.5 w-1.5 rounded-full",
-                              statusDotClass(seat.status),
-                            )}
-                          />
+                        <div className="relative flex min-h-[3.7rem] flex-col px-1 py-1 transition">
 
                           {seat.status === TrackSeatStatus.OPEN ? (
                             <>
-                              <div className="flex items-start justify-between gap-1.5 pl-2.5 pr-0.5">
-                                <div className="flex min-h-[1rem] items-center gap-1">
+                              <div className="flex min-h-[1.5rem] items-start justify-between gap-1.5 px-0.5">
+                                <div className="flex min-h-[1.5rem] items-center gap-1">
+                                  <span
+                                    className={cn(
+                                      "h-2 w-2 shrink-0 rounded-full",
+                                      statusDotClass(seat.status),
+                                    )}
+                                  />
                                   {seat.isOptional ? (
                                     <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-gold/84">
                                       OPT
@@ -968,6 +963,7 @@ export function TrackBoardTable({
                                 <div className="flex items-center gap-1">
                                   {seatRequests.length > 0 ? (
                                     <SeatRequestsControl
+                                      align={overlayAlign}
                                       locale={locale}
                                       preferAbove={preferInviteAbove}
                                       requests={seatRequests}
@@ -976,6 +972,7 @@ export function TrackBoardTable({
                                   {canInvite ? (
                                     <InviteControl
                                       allowClosedOptionalRequests={allowClosedOptionalRequests}
+                                      align={overlayAlign}
                                       eventSlug={eventSlug}
                                       locale={locale}
                                       preferAbove={preferInviteAbove}
@@ -985,9 +982,9 @@ export function TrackBoardTable({
                                 </div>
                               </div>
 
-                              <div className="flex flex-1 items-center justify-center">
+                              <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-2">
                                 {canClaim ? (
-                                  <form>
+                                  <form className="pointer-events-auto">
                                     <ClaimSeatButton
                                       className={iconButtonClass("primary")}
                                       disabled={pendingSeatId !== null && pendingSeatId !== seat.id}
@@ -1040,65 +1037,97 @@ export function TrackBoardTable({
                             </>
                           ) : seat.user ? (
                             <>
-                              {getTelegramProfileUrl(seat.user) ? (
-                                <a
-                                  className="max-w-full break-all px-2 text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
-                                  href={getTelegramProfileUrl(seat.user) ?? undefined}
-                                  rel="noreferrer"
-                                  target="_blank"
-                                  title={formatPersonLabel(seat.user, locale)}
-                                >
-                                  {formatPersonLabel(seat.user, locale)}
-                                </a>
-                              ) : (
-                                <span
-                                  className="max-w-full break-all px-2 text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
-                                  title={formatPersonLabel(seat.user, locale)}
-                                >
-                                  {formatPersonLabel(seat.user, locale)}
-                                </span>
-                              )}
-                              <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                                {canManage ? (
-                                  <form>
-                                    <button
-                                      aria-label={pick(locale, {
-                                        en: `Release ${seat.label}`,
-                                        ru: `Освободить ${seat.label}`,
-                                      })}
-                                      className={cn(iconButtonClass(), pendingSeatId === seat.id && "cursor-wait")}
-                                      data-tip={pick(locale, {
-                                        en: "Release",
-                                        ru: "Освободить",
-                                      })}
-                                      disabled={pendingSeatId !== null}
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        void handleReleaseSeat(seat.id);
-                                      }}
-                                      title={pick(locale, {
-                                        en: `Release ${seat.label}`,
-                                        ru: `Освободить ${seat.label}`,
-                                      })}
-                                      type="button"
-                                    >
-                                      {pendingSeatId === seat.id ? (
-                                        <Loader className="text-current" />
-                                      ) : (
-                                        <LogOut className="h-3.5 w-3.5" />
-                                      )}
-                                    </button>
-                                  </form>
-                                ) : null}
+                              <div className="flex min-h-[1.5rem] items-start justify-between gap-1.5 px-0.5">
+                                <div className="flex min-h-[1.5rem] items-center">
+                                  <span
+                                    className={cn(
+                                      "h-2 w-2 shrink-0 rounded-full",
+                                      statusDotClass(seat.status),
+                                    )}
+                                  />
+                                </div>
+                                <div className="flex min-h-[1.5rem] items-center">
+                                  {canManage ? (
+                                    <form>
+                                      <button
+                                        aria-label={pick(locale, {
+                                          en: `Release ${seat.label}`,
+                                          ru: `Освободить ${seat.label}`,
+                                        })}
+                                        className={cn(iconButtonClass(), pendingSeatId === seat.id && "cursor-wait")}
+                                        data-tip={pick(locale, {
+                                          en: "Release",
+                                          ru: "Освободить",
+                                        })}
+                                        disabled={pendingSeatId !== null}
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          void handleReleaseSeat(seat.id);
+                                        }}
+                                        title={pick(locale, {
+                                          en: `Release ${seat.label}`,
+                                          ru: `Освободить ${seat.label}`,
+                                        })}
+                                        type="button"
+                                      >
+                                        {pendingSeatId === seat.id ? (
+                                          <Loader className="text-current" />
+                                        ) : (
+                                          <LogOut className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                    </form>
+                                  ) : (
+                                    <span className="h-6 w-6 shrink-0" />
+                                  )}
+                                </div>
                               </div>
+
+                              {getTelegramProfileUrl(seat.user) ? (
+                                <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
+                                  <a
+                                    className="max-w-full break-all text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                    href={getTelegramProfileUrl(seat.user) ?? undefined}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                    title={formatPersonLabel(seat.user, locale)}
+                                  >
+                                    {formatPersonLabel(seat.user, locale)}
+                                  </a>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
+                                  <span
+                                    className="max-w-full break-all text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                    title={formatPersonLabel(seat.user, locale)}
+                                  >
+                                    {formatPersonLabel(seat.user, locale)}
+                                  </span>
+                                </div>
+                              )}
                             </>
                           ) : (
-                            <span
-                              className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center text-white/34"
-                              data-tip={pick(locale, { en: "Empty", ru: "Пусто" })}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </span>
+                            <>
+                              <div className="flex min-h-[1.5rem] items-start justify-between gap-1.5 px-0.5">
+                                <div className="flex min-h-[1.5rem] items-center">
+                                  <span
+                                    className={cn(
+                                      "h-2 w-2 shrink-0 rounded-full",
+                                      statusDotClass(seat.status),
+                                    )}
+                                  />
+                                </div>
+                                <span className="h-6 w-6 shrink-0" />
+                              </div>
+                              <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center">
+                                <span
+                                  className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center text-white/34"
+                                  data-tip={pick(locale, { en: "Empty", ru: "Пусто" })}
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </span>
+                              </div>
+                            </>
                           )}
                         </div>
                       </td>
