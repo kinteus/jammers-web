@@ -107,7 +107,11 @@ export async function getSessionUser() {
   });
 
   if (!session || session.expiresAt <= new Date()) {
-    cookieStore.delete(env.SESSION_COOKIE_NAME);
+    if (session) {
+      await db.authSession.delete({
+        where: { id: session.id },
+      });
+    }
     return null;
   }
 
