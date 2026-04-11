@@ -10,11 +10,12 @@ import {
   TrackSeatStatus,
   UserRole,
 } from "@prisma/client";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { FAQ_PAGE_DATA_TAG, HOME_PAGE_DATA_TAG } from "@/lib/cache-tags";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
@@ -73,7 +74,16 @@ function pathBundle(eventSlug?: string) {
 }
 
 function revalidateAll(paths: string[]) {
-  for (const path of paths) {
+  const uniquePaths = [...new Set(paths)];
+
+  if (uniquePaths.some((path) => path === "/" || path.startsWith("/events/"))) {
+    revalidateTag(HOME_PAGE_DATA_TAG);
+  }
+  if (uniquePaths.some((path) => path === "/faq" || path === "/admin")) {
+    revalidateTag(FAQ_PAGE_DATA_TAG);
+  }
+
+  for (const path of uniquePaths) {
     revalidatePath(path);
   }
 }

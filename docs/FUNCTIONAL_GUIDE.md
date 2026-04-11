@@ -71,11 +71,11 @@ The current application exposes the following main surfaces:
   Public operating guide with quick-start rules, board semantics, and product feedback routing.
 - `/profile`
   Telegram sign-in, local development sign-in, profile editing, invite inbox, personal playing view, and next-step empty states.
-- `/events/[slug]`
-  Public event board and musician collaboration workspace with board guide and filterable song list.
+- `/events/[id]`
+  Public event board and musician collaboration workspace with board guide, registration countdowns, and filterable song list.
 - `/admin`
   Admin dashboard for global operations.
-- `/admin/events/[slug]`
+- `/admin/events/[id]`
   Event-level curation and publishing console.
 
 ## Core product concepts
@@ -87,7 +87,7 @@ An event is a concert or jam session with:
 - title and description,
 - venue and start time,
 - registration opening and closing window,
-- maximum allowed main-set duration,
+- maximum allowed main-set song count,
 - limit on how many tracks one user may join,
 - whether playback is allowed,
 - stage notes,
@@ -227,6 +227,22 @@ The public event page shows:
 
 The page supports a `view=mine` filter, allowing a user to focus only on songs where they are already participating.
 Board filtering is designed to feel low-friction: search updates automatically while the user types instead of requiring a separate apply step.
+Event URLs are canonicalized by `event.id` rather than by title-derived slugs, which removes Unicode routing edge cases for newly created gigs.
+
+### Registration window behavior
+
+The board is visible before registration opens, but participation stays locked.
+
+Before `registrationOpensAt`:
+
+- songs are visible,
+- board guidance explains that sign-up has not started yet,
+- a countdown shows when participation opens,
+- users cannot claim seats or add songs.
+
+Between `registrationOpensAt` and `registrationClosesAt`, the board behaves as a normal open registration surface.
+
+After `registrationClosesAt`, the board automatically behaves as closed even if an admin has not manually changed the stored status yet.
 
 ## 4. Proposing a song
 
@@ -297,6 +313,12 @@ If the track is not available in external search, a musician can submit a manual
 
 This request is stored for admins and appears in the admin dashboard.
 
+The current UI sends this through a dedicated API route with inline feedback instead of a blocking page refresh. The form now:
+
+- returns a success state directly in place,
+- times out visibly if the local environment is unhealthy,
+- shows explicit error messages for auth, validation, and temporary DB failures.
+
 ## 6. Joining a seat
 
 From the board table, authenticated users can join any seat that is:
@@ -308,6 +330,12 @@ From the board table, authenticated users can join any seat that is:
 - within the user’s allowed event track limit.
 
 The user joins the exact seat they click. Seat joins are server-validated and persisted atomically.
+
+The board now applies an optimistic UX pattern:
+
+- join and leave actions update the seat visually without a full page refresh,
+- conflicts such as “seat already taken” are rolled back locally,
+- feedback is shown through dismissible auto-hiding floating toasts.
 
 ## 7. Leaving a seat
 
@@ -335,6 +363,11 @@ The invite flow performs the following:
 - records delivery failures if messaging cannot be completed,
 - shows pending invites on the board.
 
+Current constraint:
+
+- invite lookup only works for musicians who already created a The Jammers profile,
+- if the username is unknown to the app, the user sees an inline board error instead of a generic crash page.
+
 This allows lineup assembly without requiring everyone to actively monitor the board at all times.
 
 ## 10. Viewing and responding to invites
@@ -350,6 +383,11 @@ On `/profile`, users see all pending seat invites. For each invite they can:
 When accepted, the seat becomes assigned to the recipient. When declined, the invitation is retained for auditability but no assignment occurs.
 
 The profile page also shows outgoing optional-seat requests sent by the user, so musicians can track who is still waiting on approval.
+
+Invite UX additions:
+
+- Telegram invite messages contain a direct link to `/profile`,
+- inviter usernames in the profile inbox are linked to their Telegram profiles when available.
 
 ## 11. Personal playing dashboard
 
@@ -414,6 +452,12 @@ In addition to the table itself, the surrounding board UI surfaces:
 - a "best next move" block,
 - filters for all songs, shortage-heavy songs, and the viewer's own songs.
 
+Recent interaction hardening on the board also includes:
+
+- invite and request popovers that open inward from the first instrument column,
+- consistent vertical alignment rules for occupied, open, and unavailable cells,
+- route-level and inline feedback that auto-dismisses but can also be closed manually.
+
 ## 13. Published setlist view
 
 Once admins publish the event, the event page additionally exposes the final ordered setlist:
@@ -437,10 +481,11 @@ Admins can create new events with:
 - title,
 - description,
 - start time,
+- registration open time,
 - registration close time,
 - venue,
 - venue map URL,
-- maximum set duration,
+- maximum main-set song count,
 - maximum tracks per user,
 - stage notes,
 - playback policy,
@@ -482,9 +527,15 @@ The dashboard also shows:
 - recent users,
 - events.
 
+The admin home is now intentionally compact:
+
+- most heavy global tools open inside focused dialog panels,
+- the event list stays visible on the main page,
+- each event row exposes quick actions such as open, close, publish, and delete.
+
 ## 15. Event settings administration
 
-On `/admin/events/[slug]`, admins can edit event configuration after creation:
+On `/admin/events/[id]`, admins can edit event configuration after creation:
 
 - title and description,
 - times,
@@ -495,6 +546,12 @@ On `/admin/events/[slug]`, admins can edit event configuration after creation:
 - lineup JSON.
 
 This page is the operational control center for a specific event.
+
+The event admin screen also includes:
+
+- compact stack-style rendering for main-set and backlog items,
+- drag-and-drop reordering of the set,
+- a dedicated danger zone for event deletion.
 
 ## 16. Event status transitions
 
@@ -529,7 +586,7 @@ The UI shows the current lock owner and expiration time when a lock exists.
 
 Once registration is closed, admins can trigger the setlist algorithm. The algorithm tries to maximize unique participant coverage while respecting:
 
-- set duration budget,
+- main-set song-count budget,
 - prior-gig song exclusion,
 - known-group de-prioritization.
 
@@ -561,7 +618,8 @@ When the main set is ready, admins can publish it. Publishing:
 
 - marks the event as published,
 - exposes the public final setlist to all visitors,
-- turns the collaboration board into a final public event artifact.
+- turns the collaboration board into a final public event artifact,
+- sends Telegram notifications to musicians who appear in the published `MAIN` set when their Telegram delivery data is available.
 
 ## 22. Direct seat administration
 

@@ -402,9 +402,9 @@ function SeatRequestsControl({
   }
 
   return (
-    <details className="group/details relative">
+    <details className="group/details relative flex w-6 justify-end">
       <summary
-        className="list-none cursor-pointer rounded-full border border-white/14 bg-black/24 px-1.5 py-[1px] text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/35"
+        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[2px]"
         title={pick(locale, {
           en: "Open pending requests",
           ru: "Показать ожидающие запросы",
@@ -487,7 +487,7 @@ function InviteControl({
             : `Позвать музыканта на ${seat.label}`,
         })}
       >
-        <Send className="h-3.5 w-3.5" />
+        <Send className="h-3.5 w-3.5 translate-x-px" />
       </summary>
       <form
         action={inviteToSeatAction}
@@ -908,6 +908,7 @@ export function TrackBoardTable({
                             request.kind === "request" && request.requesterId === user.id,
                         ),
                     );
+                    const openCellCenterClass = seatRequests.length > 0 ? "top-[54%]" : "top-1/2";
 
                     return (
                       <td
@@ -940,8 +941,8 @@ export function TrackBoardTable({
 
                           {seat.status === TrackSeatStatus.OPEN ? (
                             <>
-                              <div className="flex min-h-[1.5rem] items-start justify-between gap-1.5 px-0.5">
-                                <div className="flex min-h-[1.5rem] items-center gap-1">
+                              <div className="flex min-h-[1.25rem] items-center px-0.5">
+                                <div className="flex min-h-[1.25rem] items-center gap-1 pr-9">
                                   <span
                                     className={cn(
                                       "h-2 w-2 shrink-0 rounded-full",
@@ -959,16 +960,10 @@ export function TrackBoardTable({
                                     </span>
                                   ) : null}
                                 </div>
+                              </div>
 
-                                <div className="flex items-center gap-1">
-                                  {seatRequests.length > 0 ? (
-                                    <SeatRequestsControl
-                                      align={overlayAlign}
-                                      locale={locale}
-                                      preferAbove={preferInviteAbove}
-                                      requests={seatRequests}
-                                    />
-                                  ) : null}
+                              {(seatRequests.length > 0 || canInvite) ? (
+                                <div className="absolute right-1 top-1 flex flex-col items-end gap-1">
                                   {canInvite ? (
                                     <InviteControl
                                       allowClosedOptionalRequests={allowClosedOptionalRequests}
@@ -979,10 +974,23 @@ export function TrackBoardTable({
                                       seat={seat}
                                     />
                                   ) : null}
+                                  {seatRequests.length > 0 ? (
+                                    <SeatRequestsControl
+                                      align={overlayAlign}
+                                      locale={locale}
+                                      preferAbove={preferInviteAbove}
+                                      requests={seatRequests}
+                                    />
+                                  ) : null}
                                 </div>
-                              </div>
+                              ) : null}
 
-                              <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-2">
+                              <div
+                                className={cn(
+                                  "pointer-events-none absolute inset-x-0 flex -translate-y-1/2 items-center justify-center px-2",
+                                  openCellCenterClass,
+                                )}
+                              >
                                 {canClaim ? (
                                   <form className="pointer-events-auto">
                                     <ClaimSeatButton

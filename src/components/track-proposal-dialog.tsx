@@ -10,12 +10,16 @@ import { Button } from "@/components/ui/button";
 export function TrackProposalDialog({
   children,
   locale,
+  onOpenChange,
+  open,
 }: {
   children: React.ReactNode;
   locale: Locale;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
 }) {
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Trigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />

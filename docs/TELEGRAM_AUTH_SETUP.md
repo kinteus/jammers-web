@@ -12,6 +12,7 @@ What is already implemented in the app:
 - merge/link of an existing imported user by Telegram username or Telegram ID
 - automatic creation of a brand-new user on first successful Telegram sign-in
 - Telegram bot delivery for invites and approval requests
+- final-set Telegram delivery for published participants
 
 What must still be configured outside the app:
 
@@ -160,6 +161,12 @@ Before launch:
 - If `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` is missing, the Telegram widget will not render.
 - If `TELEGRAM_BOT_TOKEN` is missing or wrong, login verification will fail.
 - If the production domain is not configured correctly in Telegram, widget login will fail before the app can create a session.
+
+## Current invite UX details
+
+- invite lookup still resolves recipients through the application database, so inviting by Telegram username works only for people who already created a The Jammers profile,
+- when Telegram delivery succeeds, invite messages now contain a direct link to `/profile`, so the recipient can jump straight into the invite inbox,
+- invite records still exist in the app even if Telegram delivery fails, provided the target profile exists.
 
 ## Launch verdict
 

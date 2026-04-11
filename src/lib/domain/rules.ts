@@ -3,7 +3,8 @@ import {
   TrackSeatStatus,
   type Event,
   type TrackSeat,
-  type User,
+  type UserRole,
+  type UserStatus,
 } from "@prisma/client";
 
 import {
@@ -12,7 +13,15 @@ import {
 } from "@/lib/domain/event-status";
 import { hasActiveBan } from "@/lib/permissions";
 
-type UserWithBan = User & {
+type UserWithBan = {
+  id: string;
+  role: UserRole;
+  status: UserStatus;
+  telegramId: string | null;
+  telegramUsername: string | null;
+  fullName: string | null;
+  email: string | null;
+  phone?: string | null;
   bans?: Array<{
     endsAt: Date | null;
     isPermanent: boolean;

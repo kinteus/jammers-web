@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
@@ -33,15 +34,44 @@ import { EventBoardGuide } from "@/components/event-board-guide";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
-import { TrackProposalComposer } from "@/components/track-proposal-composer";
-import { TrackProposalDialog } from "@/components/track-proposal-dialog";
-import { EventRegistrationCountdown } from "@/components/event-registration-countdown";
-import { FloatingToast } from "@/components/floating-toast";
-import { SongCatalogRequestForm } from "@/components/song-catalog-request-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { SubmitButton } from "@/components/ui/submit-button";
+
+const EventRegistrationCountdown = nextDynamic(
+  () =>
+    import("@/components/event-registration-countdown").then(
+      (module) => module.EventRegistrationCountdown,
+    ),
+  {
+    loading: () => <span className="font-semibold text-sand">...</span>,
+  },
+);
+
+const FloatingToast = nextDynamic(
+  () => import("@/components/floating-toast").then((module) => module.FloatingToast),
+);
+
+const SongCatalogRequestForm = nextDynamic(
+  () =>
+    import("@/components/song-catalog-request-form").then(
+      (module) => module.SongCatalogRequestForm,
+    ),
+  {
+    loading: () => (
+      <div className="rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/62">
+        Loading request form...
+      </div>
+    ),
+  },
+);
+
+const TrackProposalLauncher = nextDynamic(
+  () =>
+    import("@/components/track-proposal-launcher").then(
+      (module) => module.TrackProposalLauncher,
+    ),
+);
 
 export const dynamic = "force-dynamic";
 
@@ -759,22 +789,14 @@ export default async function EventPage({ params, searchParams }: EventPageProps
 
             <div className="flex flex-wrap items-center gap-2">
               {user && effectiveStatus === "OPEN" ? (
-                <TrackProposalDialog locale={locale}>
-                  <form action={createTrackAction} className="space-y-5">
-                    <input name="eventId" type="hidden" value={event.id} />
-                    <input name="eventSlug" type="hidden" value={event.id} />
-                    <TrackProposalComposer
-                      lineupSlots={event.lineupSlots}
-                      locale={locale}
-                      trackInfoFields={trackInfoFields}
-                    />
-                    <div className="flex justify-end">
-                      <SubmitButton className="min-w-[220px]" pendingLabel={pick(locale, { en: "Adding track...", ru: "Добавляем трек..." })} type="submit">
-                        {pick(locale, { en: "Publish proposal to board", ru: "Опубликовать трек на борде" })}
-                      </SubmitButton>
-                    </div>
-                  </form>
-                </TrackProposalDialog>
+                <TrackProposalLauncher
+                  createTrackAction={createTrackAction}
+                  eventId={event.id}
+                  eventSlug={event.id}
+                  lineupSlots={event.lineupSlots}
+                  locale={locale}
+                  trackInfoFields={trackInfoFields}
+                />
               ) : null}
               {!user && effectiveStatus === "OPEN" ? (
                 <Link href="/profile">

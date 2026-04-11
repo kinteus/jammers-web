@@ -12,6 +12,8 @@ type ItunesSongResult = {
   trackTimeMillis?: number;
 };
 
+const SONG_SEARCH_CACHE_SECONDS = 60 * 60;
+
 export async function GET(request: Request) {
   const rateLimit = consumeRateLimit({
     key: `song-search:${getClientIpFromHeaders(request.headers)}`,
@@ -47,7 +49,9 @@ export async function GET(request: Request) {
     headers: {
       accept: "application/json",
     },
-    cache: "no-store",
+    next: {
+      revalidate: SONG_SEARCH_CACHE_SECONDS,
+    },
   });
 
   if (!response.ok) {
@@ -90,5 +94,12 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ results: [...dedupedResults.values()] });
+  return NextResponse.json(
+    { results: [...dedupedResults.values()] },
+    {
+      headers: {
+        "Cache-Control": `public, s-maxage=${SONG_SEARCH_CACHE_SECONDS}, stale-while-revalidate=${SONG_SEARCH_CACHE_SECONDS}`,
+      },
+    },
+  );
 }

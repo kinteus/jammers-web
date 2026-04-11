@@ -1,6 +1,6 @@
 # The Jammers
 
-The Jammers is a public concert planning web app for community jam events. Users authenticate with Telegram, discover songs through live external search, propose tracks, claim stage positions, invite other registered musicians, and follow the published setlist after admin curation. The public experience is intentionally newcomer-friendly: the home page teaches the expected join flow, event pages explain how to read the board quickly, and the profile page pushes signed-in musicians toward the next useful action instead of behaving like a passive settings screen. Admins manage event rules, moderate participants, run the setlist algorithm, maintain a backlog, and publish the final show order.
+The Jammers is a public concert planning web app for community jam events. Users authenticate with Telegram, discover songs through live external search, propose tracks, claim stage positions, invite other registered musicians, and follow the published setlist after admin curation. The public experience is intentionally newcomer-friendly: the home page teaches the expected join flow, event pages explain how to read the board quickly, show registration countdowns before sign-up opens, and the profile page pushes signed-in musicians toward the next useful action instead of behaving like a passive settings screen. Admins manage event rules, moderate participants, run the setlist algorithm, maintain a backlog, reorder the final set, and publish the final show order with Telegram notifications to confirmed players.
 
 ## Stack
 
@@ -13,12 +13,12 @@ The Jammers is a public concert planning web app for community jam events. Users
 ## Core capabilities
 
 - Telegram-based registration and sign-in, with a dev-only local fallback
-- Public event boards with configurable stage lineups and board-reading guidance
-- Track proposals from live song search plus song-addition requests
-- Multi-seat sign-up, skipped seats, Telegram invites, and a personal dashboard with actionable empty states
+- Public event boards with configurable stage lineups, registration-open countdowns, and board-reading guidance
+- Track proposals from live song search plus resilient missing-song requests with inline success and error feedback
+- Multi-seat sign-up, optimistic join/leave flows, Telegram invites for registered users, and a personal dashboard with actionable empty states
 - Public FAQ, newcomer onboarding, and published setlist discovery from the main navigation
-- Admin event CRUD, moderation, known-group registry, ratings, and curation lock
-- Coverage-first setlist selection with previous-concert song exclusion and backlog support
+- Admin event CRUD, moderation, known-group registry, ratings, curation lock, quick event actions, and event deletion
+- Coverage-first setlist selection with previous-concert song exclusion, backlog support, drag-and-drop set ordering, and final-set Telegram notifications
 
 ## Quick start
 
@@ -54,6 +54,7 @@ npm run local:down
 npm run lint
 npm run typecheck
 npm run test
+npm run test:coverage
 npm run build
 ```
 

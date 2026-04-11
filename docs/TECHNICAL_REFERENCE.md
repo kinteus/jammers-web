@@ -81,8 +81,8 @@ At a high level the system interacts with:
   Home page, public overview, newcomer onboarding, event discovery, and published setlist entry points.
 - `/faq`
   Public FAQ, quick-start guidance, and product feedback form.
-- `/events/[slug]`
-  Public event board and musician workspace with board guide and filter state.
+- `/events/[id]`
+  Public event board and musician workspace with board guide, registration countdown, and filter state.
 
 ### User page
 
@@ -93,7 +93,7 @@ At a high level the system interacts with:
 
 - `/admin`
   Global admin dashboard.
-- `/admin/events/[slug]`
+- `/admin/events/[id]`
   Event-level operations and curation.
 
 ### API routes
@@ -102,6 +102,8 @@ At a high level the system interacts with:
   Telegram authentication callback endpoint.
 - `/api/song-search`
   Song discovery proxy to iTunes Search API.
+- `/api/song-catalog-request`
+  Inline missing-song request endpoint used by the event page.
 - `/api/healthz`
   Health endpoint for probes and basic service checks.
 
@@ -119,6 +121,7 @@ Important route files:
 - [src/app/events/[slug]/page.tsx](/Users/maksimnaumov/jammers-web/src/app/events/[slug]/page.tsx)
 - [src/app/admin/page.tsx](/Users/maksimnaumov/jammers-web/src/app/admin/page.tsx)
 - [src/app/admin/events/[slug]/page.tsx](/Users/maksimnaumov/jammers-web/src/app/admin/events/[slug]/page.tsx)
+- [src/app/api/song-catalog-request/route.ts](/Users/maksimnaumov/jammers-web/src/app/api/song-catalog-request/route.ts)
 
 ## Server actions
 
@@ -166,8 +169,10 @@ Important rule and domain modules include:
 
 - [src/lib/domain/rules.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/rules.ts)
 - [src/lib/domain/event-status.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-status.ts)
+- [src/lib/domain/event-registration.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-registration.ts)
 - [src/lib/domain/lineup.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/lineup.ts)
 - [src/lib/domain/setlist-algorithm.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-algorithm.ts)
+- [src/lib/domain/setlist-limit.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-limit.ts)
 
 These modules are the main place to evolve business rules without bloating page components.
 
@@ -181,6 +186,9 @@ Recent product-specific components include:
 - [src/components/track-board-filters.tsx](/Users/maksimnaumov/jammers-web/src/components/track-board-filters.tsx)
 - [src/components/track-proposal-composer.tsx](/Users/maksimnaumov/jammers-web/src/components/track-proposal-composer.tsx)
 - [src/components/track-board-table.tsx](/Users/maksimnaumov/jammers-web/src/components/track-board-table.tsx)
+- [src/components/song-catalog-request-form.tsx](/Users/maksimnaumov/jammers-web/src/components/song-catalog-request-form.tsx)
+- [src/components/floating-toast.tsx](/Users/maksimnaumov/jammers-web/src/components/floating-toast.tsx)
+- [src/components/database-unavailable-state.tsx](/Users/maksimnaumov/jammers-web/src/components/database-unavailable-state.tsx)
 - [src/components/site-header.tsx](/Users/maksimnaumov/jammers-web/src/components/site-header.tsx)
 
 ## Data model
@@ -269,10 +277,12 @@ This guard is enforced server-side to avoid accidental leakage into production b
 The UI may show an effective status derived from:
 
 - stored event status,
+- registration open timestamp,
 - registration close timestamp,
 - runtime conditions.
 
 This allows timer-based closure to be reflected correctly without waiting for a manual admin click.
+It also allows pre-registration boards to be publicly visible while still locking participation until the opening timestamp.
 
 For structured data, non-published closed boards are emitted as scheduled events rather than postponed events. This keeps search-engine semantics aligned with the real product meaning: registration may be closed while the event itself is still happening as planned.
 
@@ -327,6 +337,7 @@ The invite send path attempts Telegram delivery using:
 - [src/server/telegram-bot.ts](/Users/maksimnaumov/jammers-web/src/server/telegram-bot.ts)
 
 Failures are recorded as delivery status rather than silently ignored. This is important operationally because not every Telegram user may have already started the bot chat.
+Invite messages now include a direct profile link so recipients can jump into the in-app inbox quickly.
 
 ## Selection algorithm
 
@@ -340,7 +351,7 @@ Implementation details:
 - tracks with no participants are ignored,
 - songs from the previous published event are excluded,
 - known groups are deprioritized,
-- the algorithm optimizes for marginal unique participant coverage under duration constraints,
+- the algorithm optimizes for marginal unique participant coverage under main-set track-count constraints,
 - results are persisted into `SetlistItem`.
 
 Why this matters technically:
@@ -421,7 +432,11 @@ Recent UX additions in the production UI include:
 - page-specific FAQ metadata and localized fallback content,
 - a dedicated board-guide component on event pages,
 - automatically applying board search filters,
-- actionable empty states on `/profile`.
+- actionable empty states on `/profile`,
+- optimistic join and leave flows with floating toast feedback,
+- aligned seat-cell composition and inward-opening invite popovers,
+- resilient inline missing-song requests,
+- `Local data unavailable` fallback surfaces instead of Prisma runtime overlays when local DB connectivity is missing.
 
 ## Environment and configuration
 
@@ -449,6 +464,7 @@ Key scripts from [package.json](/Users/maksimnaumov/jammers-web/package.json):
 - `npm run lint`
 - `npm run typecheck`
 - `npm run test`
+- `npm run test:coverage`
 - `npm run db:generate`
 - `npm run db:migrate`
 - `npm run db:seed`
@@ -463,13 +479,18 @@ Current local flow:
 
 When port `3000` is occupied, Next.js automatically falls back to the next available port.
 
+For realistic local QA against live production content, maintainers also use a Postgres port-forward on `127.0.0.1:55432` and point `DATABASE_URL` at that tunnel. The app now handles tunnel loss gracefully with explicit fallback screens.
+
 ## Testing strategy
 
 The test suite is currently strongest in the domain layer, especially:
 
 - setlist selection,
 - Telegram auth verification,
-- participation rules.
+- participation rules,
+- registration window logic,
+- published-set notifications,
+- board-state and slug/id routing regressions.
 
 This is appropriate for high-risk business logic, but there is room to expand into:
 
@@ -485,6 +506,7 @@ CI is configured in GitHub Actions:
 - lint,
 - typecheck,
 - tests,
+- coverage run,
 - production build,
 - Docker image build.
 
@@ -534,7 +556,7 @@ Current acceptable debt areas:
 - `src/server/actions.ts` has become large and should eventually be split by bounded context.
 - The admin UI is functionally rich but not yet as visually refined as the musician event board.
 - Selection algorithm reasoning is stored, but richer operator-facing explanations could be added.
-- There is no dedicated background worker yet; Telegram delivery happens inline.
+- There is no dedicated background worker yet; Telegram invite and published-set delivery still happen inline.
 - Some tests remain focused on logic rather than full-stack scenarios.
 
 ## Recommended extension path

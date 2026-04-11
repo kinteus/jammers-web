@@ -8,11 +8,12 @@ The PDF and the follow-up text overlap, but the newer textual brief was treated 
 
 - Telegram is the primary and required authentication identity.
 - Telegram username is the main public identifier for collaboration and invites.
-- Admins can create and configure events, open and close registration, moderate songs and participants, manage bans, and publish a final setlist.
+- Admins can create and configure events, open and close registration, moderate songs and participants, manage bans, delete gigs, and publish a final setlist.
 - Users can propose songs from live song search, request missing songs, claim multiple seats on a song only across different instrument types, invite registered users, and leave seats while the board is open.
-- Event rules include max set duration, max tracks per user, lineup configuration, playback support, and registration closing time.
+- Event rules include registration opening and closing time, max main-set song count, max tracks per user, lineup configuration, and playback support.
 - Admins maintain a registry of known groups whose songs should rank below organically assembled bands during selection.
 - The final setlist has two sections: main set and backlog, with manual admin editing after algorithmic recommendation.
+- Final-set publication may notify participating musicians in Telegram when delivery is possible.
 
 ### Deferred from PDF
 
@@ -22,7 +23,7 @@ The PDF and the follow-up text overlap, but the newer textual brief was treated 
 
 ## Assumptions
 
-- Song duration comes from the song catalog and is used as the input to set duration constraints.
+- Song duration can still be stored in the catalog, but the current selection budget is based on track count rather than minutes.
 - Known groups are matched by exact member set when running the selection algorithm.
 - Editing the event lineup after tracks already exist is intentionally restricted to avoid destructive seat reshaping.
 - Telegram bot delivery depends on valid production credentials and users having an active Telegram link with the bot.

@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 
+const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
+
 function getSessionSecret() {
   if (
     env.NODE_ENV === "production" &&
@@ -86,22 +88,28 @@ export async function getSessionUser() {
       where: {
         tokenHash: hashToken(rawToken),
       },
-      include: {
+      select: {
+        id: true,
+        expiresAt: true,
+        lastSeenAt: true,
         user: {
-          include: {
-            instruments: {
-              include: {
-                instrument: true,
-              },
-            },
+          select: {
+            id: true,
+            role: true,
+            status: true,
+            telegramId: true,
+            telegramUsername: true,
+            fullName: true,
+            email: true,
+            phone: true,
             bans: {
               where: {
                 OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
               },
-              orderBy: {
-                createdAt: "desc",
+              select: {
+                endsAt: true,
+                isPermanent: true,
               },
-              take: 1,
             },
           },
         },
@@ -117,10 +125,19 @@ export async function getSessionUser() {
       return null;
     }
 
-    await db.authSession.update({
-      where: { id: session.id },
-      data: { lastSeenAt: new Date() },
-    });
+    const now = new Date();
+    const shouldRefreshLastSeen =
+      now.getTime() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS;
+
+    if (shouldRefreshLastSeen) {
+      await db.authSession.updateMany({
+        where: {
+          id: session.id,
+          lastSeenAt: { lt: new Date(now.getTime() - SESSION_LAST_SEEN_UPDATE_INTERVAL_MS) },
+        },
+        data: { lastSeenAt: now },
+      });
+    }
 
     return session.user;
   } catch (error) {

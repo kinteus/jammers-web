@@ -1,5 +1,5 @@
+import { cache } from "react";
+
 import { getSessionUser } from "@/lib/auth/session";
 
-export async function getCurrentUser() {
-  return getSessionUser();
-}
+export const getCurrentUser = cache(getSessionUser);

@@ -1,5 +1,9 @@
-import { EventStatus, SetlistSection, TrackSeatStatus } from "@prisma/client";
+import { cache } from "react";
 
+import { EventStatus, SetlistSection, TrackSeatStatus } from "@prisma/client";
+import { unstable_cache } from "next/cache";
+
+import { FAQ_PAGE_DATA_TAG, HOME_PAGE_DATA_TAG } from "@/lib/cache-tags";
 import { db } from "@/lib/db";
 import { buildArchiveStats, buildUserArchiveStats } from "@/lib/domain/archive-stats";
 import {
@@ -14,6 +18,17 @@ import {
 } from "@/lib/site-content";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 
+const EVENT_STATUS_SYNC_INTERVAL_MS = 30_000;
+
+const archiveUserSelect = {
+  id: true,
+  telegramUsername: true,
+  fullName: true,
+} as const;
+
+let lastEventStatusSyncAt = 0;
+let eventStatusSyncPromise: Promise<void> | null = null;
+
 function getEventWorkspaceInclude() {
   return {
     lineupSlots: {
@@ -26,18 +41,26 @@ function getEventWorkspaceInclude() {
         song: {
           include: { artist: true },
         },
-        proposedBy: true,
+        proposedBy: {
+          select: archiveUserSelect,
+        },
         seats: {
           include: {
-            user: true,
+            user: {
+              select: archiveUserSelect,
+            },
             lineupSlot: true,
             invites: {
               where: {
                 status: "PENDING" as const,
               },
               include: {
-                recipient: true,
-                sender: true,
+                recipient: {
+                  select: archiveUserSelect,
+                },
+                sender: {
+                  select: archiveUserSelect,
+                },
               },
             },
           },
@@ -55,7 +78,9 @@ function getEventWorkspaceInclude() {
             },
             seats: {
               include: {
-                user: true,
+                user: {
+                  select: archiveUserSelect,
+                },
                 lineupSlot: true,
               },
             },
@@ -64,18 +89,18 @@ function getEventWorkspaceInclude() {
       },
       orderBy: [{ section: "asc" as const }, { orderIndex: "asc" as const }],
     },
-    selectionRuns: {
-      orderBy: { createdAt: "desc" as const },
-      take: 1,
-    },
     editLocks: {
       where: { expiresAt: { gt: new Date() } },
-      include: { user: true },
+      include: {
+        user: {
+          select: archiveUserSelect,
+        },
+      },
     },
   };
 }
 
-async function syncDateDrivenEventStatuses() {
+async function runDateDrivenEventStatusSync() {
   const now = new Date();
   const events = await db.event.findMany({
     where: {
@@ -118,72 +143,115 @@ async function syncDateDrivenEventStatuses() {
   );
 }
 
-export async function getHomePageData() {
-  await syncDateDrivenEventStatuses();
-  const now = new Date();
-  const [events, archiveEvents] = await Promise.all([
-    db.event.findMany({
-      where: {
-        OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
-      },
-      include: {
-        tracks: {
-          where: { state: "ACTIVE" },
-          include: {
-            seats: true,
-          },
+async function syncDateDrivenEventStatuses() {
+  const now = Date.now();
+  if (now - lastEventStatusSyncAt < EVENT_STATUS_SYNC_INTERVAL_MS) {
+    return;
+  }
+
+  if (!eventStatusSyncPromise) {
+    eventStatusSyncPromise = (async () => {
+      await runDateDrivenEventStatusSync();
+      lastEventStatusSyncAt = Date.now();
+    })().finally(() => {
+      eventStatusSyncPromise = null;
+    });
+  }
+
+  await eventStatusSyncPromise;
+}
+
+const getCachedHomePageData = unstable_cache(
+  async () => {
+    await syncDateDrivenEventStatuses();
+    const now = new Date();
+    const [events, archiveEvents] = await Promise.all([
+      db.event.findMany({
+        where: {
+          OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
         },
-      },
-      orderBy: { startsAt: "desc" },
-    }),
-    db.event.findMany({
-      where: {
-        status: EventStatus.PUBLISHED,
-        startsAt: { lt: now },
-      },
-      include: {
-        setlistItems: {
-          where: { section: SetlistSection.MAIN },
-          orderBy: { orderIndex: "asc" },
-          include: {
-            track: {
-              include: {
-                proposedBy: true,
-                song: {
-                  include: { artist: true },
-                },
-                seats: {
-                  include: { user: true },
+        include: {
+          tracks: {
+            where: { state: "ACTIVE" },
+            include: {
+              seats: {
+                select: {
+                  status: true,
+                  isOptional: true,
+                  userId: true,
                 },
               },
             },
           },
         },
-      },
-      orderBy: { startsAt: "desc" },
-    }),
-  ]);
+        orderBy: { startsAt: "desc" },
+      }),
+      db.event.findMany({
+        where: {
+          status: EventStatus.PUBLISHED,
+          startsAt: { lt: now },
+        },
+        include: {
+          setlistItems: {
+            where: { section: SetlistSection.MAIN },
+            orderBy: { orderIndex: "asc" },
+            include: {
+              track: {
+                include: {
+                  proposedBy: {
+                    select: archiveUserSelect,
+                  },
+                  song: {
+                    include: { artist: true },
+                  },
+                  seats: {
+                    include: {
+                      user: {
+                        select: archiveUserSelect,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { startsAt: "desc" },
+      }),
+    ]);
 
-  return {
-    events: events.map((event) => ({
-      ...event,
-      effectiveStatus: getEffectiveEventStatus(event),
-      participantCount: new Set(
-        event.tracks.flatMap((track) =>
-          track.seats.filter((seat) => seat.status === TrackSeatStatus.CLAIMED).map((seat) => seat.userId),
-        ),
-      ).size,
-      trackCount: event.tracks.length,
-      completedTrackCount: event.tracks.filter((track) =>
-        getTrackCompletionSummary(track.seats).isComplete,
-      ).length,
-    })),
-    publishedEvents: archiveEvents.slice(0, 5),
-    archiveStats: buildArchiveStats(archiveEvents),
-  };
+    return {
+      events: events.map((event) => ({
+        ...event,
+        effectiveStatus: getEffectiveEventStatus(event),
+        participantCount: new Set(
+          event.tracks.flatMap((track) =>
+            track.seats
+              .filter((seat) => seat.status === TrackSeatStatus.CLAIMED)
+              .map((seat) => seat.userId),
+          ),
+        ).size,
+        trackCount: event.tracks.length,
+        completedTrackCount: event.tracks.filter((track) =>
+          getTrackCompletionSummary(track.seats).isComplete,
+        ).length,
+      })),
+      publishedEvents: archiveEvents.slice(0, 5),
+      archiveStats: buildArchiveStats(archiveEvents),
+    };
+  },
+  ["home-page-data"],
+  {
+    revalidate: 60,
+    tags: [HOME_PAGE_DATA_TAG],
+  },
+);
+
+export async function getHomePageData() {
+  return getCachedHomePageData();
 }
 
-export async function getEventWorkspace(slug: string) {
+export const getEventWorkspace = cache(async function getEventWorkspace(slug: string) {
   await syncDateDrivenEventStatuses();
   const directMatch = await db.event.findUnique({
     where: { id: slug },
@@ -198,7 +266,7 @@ export async function getEventWorkspace(slug: string) {
     where: { slug },
     include: getEventWorkspaceInclude(),
   });
-}
+});
 
 export async function getAdminDashboardData() {
   await syncDateDrivenEventStatuses();
@@ -280,7 +348,12 @@ export async function getProfileWorkspace(userId: string) {
                   include: { artist: true },
                 },
                 seats: {
-                  include: { user: true, lineupSlot: true },
+                  include: {
+                    user: {
+                      select: archiveUserSelect,
+                    },
+                    lineupSlot: true,
+                  },
                 },
               },
             },
@@ -306,7 +379,9 @@ export async function getProfileWorkspace(userId: string) {
               },
             },
             seat: true,
-            sender: true,
+            sender: {
+              select: archiveUserSelect,
+            },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -329,7 +404,9 @@ export async function getProfileWorkspace(userId: string) {
               },
             },
             seat: true,
-            recipient: true,
+            recipient: {
+              select: archiveUserSelect,
+            },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -363,12 +440,18 @@ export async function getProfileWorkspace(userId: string) {
           include: {
             track: {
               include: {
-                proposedBy: true,
+                proposedBy: {
+                  select: archiveUserSelect,
+                },
                 song: {
                   include: { artist: true },
                 },
                 seats: {
-                  include: { user: true },
+                  include: {
+                    user: {
+                      select: archiveUserSelect,
+                    },
+                  },
                 },
               },
             },
@@ -389,23 +472,34 @@ export async function getProfileWorkspace(userId: string) {
   };
 }
 
-export async function getFaqPageData() {
-  try {
-    const content = await db.sitePageContent.findUnique({
-      where: { id: SITE_CONTENT_ID },
-    });
+const getCachedFaqPageData = unstable_cache(
+  async () => {
+    try {
+      const content = await db.sitePageContent.findUnique({
+        where: { id: SITE_CONTENT_ID },
+      });
 
-    return {
-      participationRulesMarkdown:
-        content?.participationRulesMarkdown ?? DEFAULT_PARTICIPATION_RULES_MARKDOWN,
-      lineupDetailsMarkdown: content?.lineupDetailsMarkdown ?? DEFAULT_LINEUP_DETAILS_MARKDOWN,
-      lineupVideoUrls: parseVideoUrls(content?.lineupVideoUrlsJson),
-    };
-  } catch {
-    return {
-      participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
-      lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
-      lineupVideoUrls: [],
-    };
-  }
+      return {
+        participationRulesMarkdown:
+          content?.participationRulesMarkdown ?? DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+        lineupDetailsMarkdown: content?.lineupDetailsMarkdown ?? DEFAULT_LINEUP_DETAILS_MARKDOWN,
+        lineupVideoUrls: parseVideoUrls(content?.lineupVideoUrlsJson),
+      };
+    } catch {
+      return {
+        participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+        lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
+        lineupVideoUrls: [],
+      };
+    }
+  },
+  ["faq-page-data"],
+  {
+    revalidate: 300,
+    tags: [FAQ_PAGE_DATA_TAG],
+  },
+);
+
+export async function getFaqPageData() {
+  return getCachedFaqPageData();
 }

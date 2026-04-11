@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { pick, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,8 @@ type SongSearchResult = {
 
 export type SongSearchSelection = SongSearchResult;
 
+const songSearchCache = new Map<string, SongSearchResult[]>();
+
 export function SongSearchField({
   locale,
   selected,
@@ -29,22 +31,55 @@ export function SongSearchField({
   onSelectedChange: (value: SongSearchSelection | null) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SongSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const deferredQuery = useDeferredValue(query);
-  const shouldSearch = deferredQuery.trim().length >= 2 && !selected;
+  const trimmedQuery = query.trim();
+  const shouldSearch = debouncedQuery.length >= 2 && !selected;
+
+  useEffect(() => {
+    if (selected) {
+      setDebouncedQuery("");
+      return;
+    }
+
+    if (trimmedQuery.length < 2) {
+      setDebouncedQuery("");
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(trimmedQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [selected, trimmedQuery]);
 
   useEffect(() => {
     if (!shouldSearch) {
       setResults([]);
+      setIsLoading(false);
+      setHighlightedIndex(0);
+      return;
+    }
+
+    const cacheKey = debouncedQuery.toLowerCase();
+    const cachedResults = songSearchCache.get(cacheKey);
+
+    if (cachedResults) {
+      startTransition(() => {
+        setResults(cachedResults);
+        setHighlightedIndex(0);
+      });
+      setIsLoading(false);
       return;
     }
 
     const controller = new AbortController();
     setIsLoading(true);
 
-    void fetch(`/api/song-search?query=${encodeURIComponent(deferredQuery.trim())}`, {
+    void fetch(`/api/song-search?query=${encodeURIComponent(debouncedQuery)}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -54,6 +89,7 @@ export function SongSearchField({
         return response.json() as Promise<{ results: SongSearchResult[] }>;
       })
       .then((payload) => {
+        songSearchCache.set(cacheKey, payload.results);
         startTransition(() => {
           setResults(payload.results);
           setHighlightedIndex(0);
@@ -69,13 +105,13 @@ export function SongSearchField({
       });
 
     return () => controller.abort();
-  }, [deferredQuery, shouldSearch]);
+  }, [debouncedQuery, shouldSearch]);
 
   const dropdownVisible = useMemo(
-    () => !selected && deferredQuery.trim().length >= 2,
-    [deferredQuery, selected],
+    () => !selected && trimmedQuery.length >= 2,
+    [selected, trimmedQuery],
   );
-  const normalizedQuery = deferredQuery.trim().toLowerCase();
+  const normalizedQuery = trimmedQuery.toLowerCase();
 
   function renderMatch(text: string) {
     if (!normalizedQuery) {

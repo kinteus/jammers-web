@@ -98,6 +98,8 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Switched board search to update automatically while typing.
 - Added guest sign-in prompts when the board is open.
 - Gated missing-song requests to the correct user state.
+- Added pre-registration countdown messaging so visible gigs can stay public before sign-up opens.
+- Switched missing-song requests to inline success and error feedback instead of a blocking submit state.
 
 ### Recommended next layer
 
@@ -120,12 +122,16 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Improved track-level summaries such as "Needs vocals and bass".
 - Clarified labels such as `Filled`, `Open`, and `Skipped`.
 - Added song anchors so summary cards can jump users into the relevant row.
+- Added optimistic join and release feedback without full page refresh.
+- Moved board and route-level feedback into dismissible auto-hiding toast bubbles.
+- Reworked cell geometry so occupied and open seats share a more stable visual grid.
+- Fixed invite popovers and request popovers to open inside the visible board area.
 
 ### Recommended next layer
 
-- Add optimistic feedback or inline action confirmation.
 - Add collapsible mobile grouping by "needs players" vs "ready".
-- Add inline error states for action failures instead of relying on generic error boundaries.
+- Add denser desktop summaries for very large boards with many repeated role families.
+- Add instrument-aware highlighting once profile skill data becomes trustworthy enough for recommendations.
 
 ## Proposal flow
 
@@ -163,6 +169,8 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Added direct links back to the relevant event boards.
 - Added explicit next-step guidance and actionable empty states when the musician has no current activity yet.
 - Split visible identity from the sign-out control in the global header.
+- Added Telegram deep-linking from invite messages back into the profile inbox.
+- Linked inviter usernames in the inbox back to their Telegram profiles when known.
 
 ### Recommended next layer
 
@@ -172,8 +180,8 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 
 ## Highest-value next improvements after this pass
 
-1. Add inline action feedback and server-action error presentation.
-2. Add stronger event-state messaging, especially for closed vs published boards.
-3. Add instrument-aware recommendations once profile data can be used safely.
-4. Add public past-event archives with stronger navigation from home.
-5. Add richer mobile board navigation for long events with many songs.
+1. Add stronger event-state messaging, especially for closed vs published boards.
+2. Add instrument-aware recommendations once profile data can be used safely.
+3. Add public past-event archives with stronger navigation from home.
+4. Add richer mobile board navigation for long events with many songs.
+5. Add lightweight analytics for which board shortcuts and invite prompts actually get used.
