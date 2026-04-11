@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 
+import { getEffectiveEventStatus } from "@/lib/domain/event-status";
 import {
   formatTrackInfoFieldsForTextarea,
   getEventTrackInfoFields,
@@ -62,6 +63,7 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
   const trackInfoFields = formatTrackInfoFieldsForTextarea(
     getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback),
   );
+  const effectiveStatus = getEffectiveEventStatus(event);
 
   return (
     <div className="space-y-8">
@@ -177,13 +179,29 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
 
           <Card className="space-y-4">
             <Badge>Status</Badge>
+            <div className="space-y-1 text-sm text-ink/70">
+              <p>
+                Effective status: <span className="font-semibold text-ink">{effectiveStatus}</span>
+              </p>
+              {effectiveStatus !== event.status ? (
+                <p>
+                  Stored status remains <span className="font-semibold text-ink">{event.status}</span>
+                  , but registration timing currently makes the gig behave as{" "}
+                  <span className="font-semibold text-ink">{effectiveStatus}</span>.
+                </p>
+              ) : null}
+            </div>
             <div className="flex flex-wrap gap-3">
               {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
                 <form action={updateEventStatusAction} key={status}>
                   <input name="eventId" type="hidden" value={event.id} />
                   <input name="eventSlug" type="hidden" value={event.slug} />
                   <input name="status" type="hidden" value={status} />
-                  <Button size="sm" type="submit" variant={event.status === status ? "primary" : "secondary"}>
+                  <Button
+                    size="sm"
+                    type="submit"
+                    variant={event.status === status ? "primary" : "secondary"}
+                  >
                     {status}
                   </Button>
                 </form>

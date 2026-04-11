@@ -3,23 +3,32 @@ import { EventStatus, type Event } from "@prisma/client";
 export function getEffectiveEventStatus(
   event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt">,
 ) {
-  if (
-    event.status === EventStatus.OPEN &&
-    event.registrationClosesAt &&
-    event.registrationClosesAt <= new Date()
-  ) {
-    return EventStatus.CLOSED;
-  }
+  let status = event.status;
 
   if (
-    event.status === EventStatus.DRAFT &&
+    status === EventStatus.DRAFT &&
     event.registrationOpensAt &&
     event.registrationOpensAt <= new Date()
   ) {
-    return EventStatus.OPEN;
+    status = EventStatus.OPEN;
   }
 
-  return event.status;
+  if (
+    status === EventStatus.OPEN &&
+    event.registrationClosesAt &&
+    event.registrationClosesAt <= new Date()
+  ) {
+    status = EventStatus.CLOSED;
+  }
+
+  return status;
+}
+
+export function getAutoSyncedEventStatus(
+  event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt">,
+) {
+  const effectiveStatus = getEffectiveEventStatus(event);
+  return effectiveStatus === event.status ? null : effectiveStatus;
 }
 
 export function isEventOpen(

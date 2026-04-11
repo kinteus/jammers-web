@@ -21,10 +21,15 @@ import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/rol
 import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/utils";
-import { createTrackAction, requestSongCatalogAction } from "@/server/actions";
+import {
+  createTrackAction,
+  requestSongCatalogAction,
+  updateEventStatusAction,
+} from "@/server/actions";
 import { getEventWorkspace } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
+import { EventBoardGuide } from "@/components/event-board-guide";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
 import { TrackProposalComposer } from "@/components/track-proposal-composer";
@@ -184,11 +189,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     description: event.description ?? undefined,
     startDate: new Date(event.startsAt).toISOString(),
     eventStatus: `https://schema.org/${
-      effectiveStatus === "PUBLISHED"
-        ? "EventCompleted"
-        : effectiveStatus === "CLOSED"
-          ? "EventPostponed"
-          : "EventScheduled"
+      effectiveStatus === "PUBLISHED" ? "EventCompleted" : "EventScheduled"
     }`,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     url: `${env.NEXT_PUBLIC_APP_URL}/events/${event.slug}`,
@@ -267,6 +268,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const selectedRoleLabel = roleFilters.map((role) => getRoleFamilyLabel(role, locale)).join(" + ");
   const allowClosedOptionalRequests = allowsClosedOptionalSeatRequests(event);
   const trackInfoFields = getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback);
+  const isAdmin = user?.role === "ADMIN";
 
   return (
     <div className="space-y-8 text-sand">
@@ -456,9 +458,50 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 </span>
               ) : null}
             </div>
+
+            {isAdmin ? (
+              <Card className="brand-shell-soft space-y-3 border-white/10">
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    {pick(locale, { en: "Admin status control", ru: "Управление статусом" })}
+                  </p>
+                  <p className="text-sm leading-6 text-white/70">
+                    {pick(locale, {
+                      en: `Stored status: ${event.status}. Effective status now: ${effectiveStatus}.`,
+                      ru: `Сохранённый статус: ${event.status}. Фактический статус сейчас: ${effectiveStatus}.`,
+                    })}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
+                    <form action={updateEventStatusAction} key={status}>
+                      <input name="eventId" type="hidden" value={event.id} />
+                      <input name="eventSlug" type="hidden" value={event.slug} />
+                      <input name="status" type="hidden" value={status} />
+                      <Button
+                        size="sm"
+                        type="submit"
+                        variant={event.status === status ? "primary" : "secondary"}
+                      >
+                        {status}
+                      </Button>
+                    </form>
+                  ))}
+                </div>
+              </Card>
+            ) : null}
           </div>
         </div>
       </section>
+
+      <EventBoardGuide
+        allowClosedOptionalRequests={allowClosedOptionalRequests}
+        locale={locale}
+        optionalOpenSeatCount={optionalOpenSeatCount}
+        requiredOpenSeatCount={requiredOpenSeatCount}
+        roleShortages={roleShortages}
+        tracksNeedingPlayers={tracksNeedingPlayers}
+      />
 
       <section className="space-y-4" id="track-board">
         <div className="space-y-2">

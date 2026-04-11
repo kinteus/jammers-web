@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -57,14 +57,29 @@ export function TrackBoardFilters({
   const router = useRouter();
   const [query, setQuery] = useState(searchQuery);
 
+  const replace = useCallback(
+    (next: { search: string; roles: RoleFamilyKey[]; view: ViewKey }) => {
+      const queryString = buildQueryString(next);
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+    },
+    [pathname, router],
+  );
+
   useEffect(() => {
     setQuery(searchQuery);
   }, [searchQuery]);
 
-  function replace(next: { search: string; roles: RoleFamilyKey[]; view: ViewKey }) {
-    const queryString = buildQueryString(next);
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-  }
+  useEffect(() => {
+    if (query.trim() === searchQuery.trim()) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      replace({ search: query, roles: selectedRoles, view: activeView });
+    }, 240);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeView, query, replace, searchQuery, selectedRoles]);
 
   function toggleRole(role: RoleFamilyKey) {
     const nextRoles = selectedRoles.includes(role)
@@ -111,40 +126,45 @@ export function TrackBoardFilters({
         </div>
 
         <form
-          className="flex min-w-0 flex-col gap-2 sm:flex-row"
+          className="flex min-w-0 flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             replace({ search: query, roles: selectedRoles, view: activeView });
           }}
         >
-          <div className="relative min-w-0 sm:min-w-[320px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/32" />
-            <input
-              className="w-full border-white/12 bg-stage py-2.5 pl-10 pr-4"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={pick(locale, {
-                en: "Search by song, artist or proposer",
-                ru: "Поиск по песне, артисту или автору",
-              })}
-              value={query}
-            />
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 sm:min-w-[320px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/32" />
+              <input
+                className="w-full border-white/12 bg-stage py-2.5 pl-10 pr-4"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={pick(locale, {
+                  en: "Search by song, artist or proposer",
+                  ru: "Поиск по песне, артисту или автору",
+                })}
+                value={query}
+              />
+            </div>
+            {hasExtraFilters ? (
+              <Button
+                onClick={() => {
+                  setQuery("");
+                  router.replace(pathname, { scroll: false });
+                }}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {pick(locale, { en: "Clear", ru: "Сбросить" })}
+              </Button>
+            ) : null}
           </div>
-          <Button size="sm" type="submit" variant="secondary">
-            {pick(locale, { en: "Apply", ru: "Применить" })}
-          </Button>
-          {hasExtraFilters ? (
-            <Button
-              onClick={() => {
-                setQuery("");
-                router.replace(pathname, { scroll: false });
-              }}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              {pick(locale, { en: "Clear", ru: "Сбросить" })}
-            </Button>
-          ) : null}
+          <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+            {pick(locale, {
+              en: "Search updates automatically as you type",
+              ru: "Поиск обновляется автоматически по мере ввода",
+            })}
+          </p>
         </form>
       </div>
 

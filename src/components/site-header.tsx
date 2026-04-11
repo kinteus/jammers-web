@@ -30,6 +30,9 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
           <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/">
             {pick(locale, { en: "Gigs", ru: "Гиги" })}
           </Link>
+          <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/#published">
+            {pick(locale, { en: "Setlists", ru: "Сетлисты" })}
+          </Link>
           <Link className="text-sm font-semibold text-white/82 hover:text-gold" href="/faq">
             {pick(locale, { en: "FAQ", ru: "FAQ" })}
           </Link>

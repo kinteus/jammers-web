@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/utils";
@@ -44,6 +45,38 @@ export default async function HomePage() {
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0] ??
     events[0] ??
     null;
+  const featuredRequiredOpenSeats = featuredEvent
+    ? featuredEvent.tracks.reduce(
+        (count, track) => count + getTrackCompletionSummary(track.seats).requiredOpen,
+        0,
+      )
+    : 0;
+  const featuredTracksNeedingPlayers = featuredEvent
+    ? featuredEvent.tracks.filter((track) => !getTrackCompletionSummary(track.seats).isComplete).length
+    : 0;
+  const joiningSteps = [
+    {
+      title: pick(locale, { en: "Open the live board", ru: "Открой живой борд" }),
+      body: pick(locale, {
+        en: "Start with the current gig, not with a blank idea. The board already shows what the night actually needs.",
+        ru: "Начинай с текущего гига, а не с абстрактной идеи. На борде уже видно, что именно нужно этому вечеру.",
+      }),
+    },
+    {
+      title: pick(locale, { en: "Fill real gaps first", ru: "Сначала закрой нехватку" }),
+      body: pick(locale, {
+        en: "If you can cover an open role, take it first. This keeps the line-up healthier before more songs are added.",
+        ru: "Если можешь закрыть открытую роль, сначала займи её. Так лайнап крепнет до того, как накидывать новые песни.",
+      }),
+    },
+    {
+      title: pick(locale, { en: "Propose only after checking", ru: "Предлагай после проверки" }),
+      body: pick(locale, {
+        en: "New songs are strongest when they do not duplicate what is already moving on the board.",
+        ru: "Новые песни лучше всего заходят, когда не дублируют то, что уже движется на борде.",
+      }),
+    },
+  ];
 
   return (
     <div className="space-y-8 text-sand">
@@ -99,6 +132,107 @@ export default async function HomePage() {
               })}
             </p>
           </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card className="brand-shell space-y-5">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+              {pick(locale, { en: "First gig?", ru: "Первый гиг?" })}
+            </p>
+            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+              {pick(locale, {
+                en: "How to join without slowing the board down",
+                ru: "Как влиться и не затормозить борд",
+              })}
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {joiningSteps.map((step, index) => (
+              <div className="brand-shell-soft rounded-xl p-4" key={step.title}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
+                  0{index + 1}
+                </p>
+                <h3 className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-sand">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-white/72">{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="brand-stage space-y-5">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+              {pick(locale, { en: "Right now", ru: "Прямо сейчас" })}
+            </p>
+            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+              {featuredEvent
+                ? pick(locale, {
+                    en: "What needs attention on the next gig",
+                    ru: "Что сейчас просит внимания в ближайшем гиге",
+                  })
+                : pick(locale, {
+                    en: "Why the board matters",
+                    ru: "Зачем вообще нужен этот борд",
+                  })}
+            </h2>
+          </div>
+
+          {featuredEvent ? (
+            <>
+              <div className="space-y-2">
+                <p className="text-lg font-semibold text-sand">{featuredEvent.title}</p>
+                <p className="text-sm leading-6 text-white/74">
+                  {pick(locale, {
+                    en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
+                    ru: "Лучший следующий шаг почти всегда один: сначала закрыть открытые места, а уже потом утяжелять сет новыми песнями.",
+                  })}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    {pick(locale, { en: "Required seats open", ru: "Открыто обязательных мест" })}
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredRequiredOpenSeats}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    {pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" })}
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredTracksNeedingPlayers}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    {pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" })}
+                  </p>
+                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredEvent.participantCount}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href={`/events/${featuredEvent.slug}`}>
+                  <Button variant="secondary">
+                    {pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
+                  </Button>
+                </Link>
+                <Link href="/faq">
+                  <Button variant="ghost">
+                    {pick(locale, { en: "Read how it works", ru: "Как это работает" })}
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "The board gives the community one shared source of truth: what songs exist, who is still missing, and which setlists already made it to the stage.",
+                ru: "Борд даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
+              })}
+            </p>
+          )}
         </Card>
       </section>
 
@@ -235,7 +369,7 @@ export default async function HomePage() {
 
       <ArchiveStatsSection locale={locale} stats={archiveStats} />
 
-      <section className="space-y-4 border-t border-white/8 pt-8">
+      <section className="space-y-4 border-t border-white/8 pt-8" id="published">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
             {pick(locale, { en: "Published", ru: "Опубликовано" })}

@@ -210,6 +210,10 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         requestMeta: NonNullable<ReturnType<typeof parseClosedOptionalSeatRequestMeta>>;
       } => Boolean(entry.requestMeta),
     );
+  const hasNoCurrentActivity =
+    profile.invitations.length === 0 &&
+    outgoingSeatRequests.length === 0 &&
+    currentSongs.length === 0;
 
   return (
     <div className="space-y-6 text-sand">
@@ -254,6 +258,38 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
       </section>
 
+      {hasNoCurrentActivity ? (
+        <Card className="brand-stage space-y-4">
+          <div className="space-y-2">
+            <Badge>{pick(locale, { en: "Next step", ru: "Следующий шаг" })}</Badge>
+            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
+              {pick(locale, {
+                en: "Your profile is ready. Join a live board next.",
+                ru: "Профиль готов. Следующий шаг — зайти на живой борд.",
+              })}
+            </h2>
+            <p className="max-w-3xl text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "Open the current gig, cover an open seat you can genuinely play, and this page will start showing your songs, invites and approvals.",
+                ru: "Открой текущий гиг, займи открытое место, которое реально можешь сыграть, и здесь сразу появятся твои песни, инвайты и согласования.",
+              })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/">
+              <Button>
+                {pick(locale, { en: "Browse live gigs", ru: "Открыть живые гиги" })}
+              </Button>
+            </Link>
+            <Link href="/faq">
+              <Button variant="secondary">
+                {pick(locale, { en: "Review the rules", ru: "Освежить правила" })}
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      ) : null}
+
       <ProfileArchiveStats locale={locale} stats={profile.archiveStats} />
 
       <section className="space-y-4">
@@ -270,12 +306,19 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
         <Card className="brand-shell space-y-4">
           {profile.invitations.length === 0 ? (
-            <p className="text-sm text-white/60">
-              {pick(locale, {
-                en: "No pending invites right now.",
-                ru: "Сейчас нет ожидающих приглашений.",
-              })}
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm text-white/60">
+                {pick(locale, {
+                  en: "No pending invites right now.",
+                  ru: "Сейчас нет ожидающих приглашений.",
+                })}
+              </p>
+              <Link href="/">
+                <Button size="sm" variant="secondary">
+                  {pick(locale, { en: "Open live gigs", ru: "Открыть живые гиги" })}
+                </Button>
+              </Link>
+            </div>
           ) : (
             profile.invitations.map((invite) => {
               const requestMeta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
@@ -350,12 +393,19 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
         <Card className="brand-shell space-y-4">
           {outgoingSeatRequests.length === 0 ? (
-            <p className="text-sm text-white/60">
-              {pick(locale, {
-                en: "No outgoing optional-seat requests right now.",
-                ru: "Сейчас нет исходящих запросов на optional-места.",
-              })}
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm text-white/60">
+                {pick(locale, {
+                  en: "No outgoing optional-seat requests right now.",
+                  ru: "Сейчас нет исходящих запросов на optional-места.",
+                })}
+              </p>
+              <Link href="/">
+                <Button size="sm" type="button" variant="secondary">
+                  {pick(locale, { en: "Find a board to join", ru: "Найти борд" })}
+                </Button>
+              </Link>
+            </div>
           ) : (
             outgoingSeatRequests.map(({ invite, requestMeta }) => {
               const recipientLabel = invite.recipient.telegramUsername
@@ -411,12 +461,19 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
         <Card className="brand-shell space-y-4">
           {currentSongs.length === 0 ? (
-            <p className="text-sm text-white/60">
-              {pick(locale, {
-                en: "You're not attached to any songs yet.",
-                ru: "Ты пока не вписан ни в одну песню.",
-              })}
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm text-white/60">
+                {pick(locale, {
+                  en: "You're not attached to any songs yet.",
+                  ru: "Ты пока не вписан ни в одну песню.",
+                })}
+              </p>
+              <Link href="/">
+                <Button size="sm" variant="secondary">
+                  {pick(locale, { en: "Join a live board", ru: "Войти в живой борд" })}
+                </Button>
+              </Link>
+            </div>
           ) : (
             currentSongs.map((entry) => (
               <div className="border-b border-white/10 pb-4 last:border-b-0 last:pb-0" key={entry.track.id}>

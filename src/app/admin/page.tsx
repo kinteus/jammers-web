@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
+import { getEffectiveEventStatus } from "@/lib/domain/event-status";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
 import {
   DEFAULT_TRACK_INFO_FIELDS,
@@ -378,8 +379,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <div>
                   <p className="font-semibold text-sand">{event.title}</p>
                   <p className="text-sm text-white/70">
-                    {event.status} · {event.tracks.length} active tracks
+                    {getEffectiveEventStatus(event)} · {event.tracks.length} active tracks
                   </p>
+                  {getEffectiveEventStatus(event) !== event.status ? (
+                    <p className="mt-1 text-xs text-white/45">
+                      Stored status: {event.status}
+                    </p>
+                  ) : null}
                 </div>
                 <Link href={`/admin/events/${event.slug}`}>
                   <Button size="sm">Open event admin</Button>

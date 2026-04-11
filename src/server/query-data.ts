@@ -2,7 +2,10 @@ import { EventStatus, SetlistSection, TrackSeatStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { buildArchiveStats, buildUserArchiveStats } from "@/lib/domain/archive-stats";
-import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import {
+  getAutoSyncedEventStatus,
+  getEffectiveEventStatus,
+} from "@/lib/domain/event-status";
 import {
   DEFAULT_LINEUP_DETAILS_MARKDOWN,
   DEFAULT_PARTICIPATION_RULES_MARKDOWN,
@@ -11,7 +14,51 @@ import {
 } from "@/lib/site-content";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 
+async function syncDateDrivenEventStatuses() {
+  const now = new Date();
+  const events = await db.event.findMany({
+    where: {
+      status: {
+        in: [EventStatus.DRAFT, EventStatus.OPEN],
+      },
+      OR: [
+        { registrationOpensAt: { not: null, lte: now } },
+        { registrationClosesAt: { not: null, lte: now } },
+      ],
+    },
+    select: {
+      id: true,
+      status: true,
+      registrationOpensAt: true,
+      registrationClosesAt: true,
+    },
+  });
+
+  const updates = events
+    .map((event) => ({
+      id: event.id,
+      nextStatus: getAutoSyncedEventStatus(event),
+    }))
+    .filter(
+      (event): event is { id: string; nextStatus: EventStatus } => event.nextStatus !== null,
+    );
+
+  if (updates.length === 0) {
+    return;
+  }
+
+  await db.$transaction(
+    updates.map((event) =>
+      db.event.update({
+        where: { id: event.id },
+        data: { status: event.nextStatus },
+      }),
+    ),
+  );
+}
+
 export async function getHomePageData() {
+  await syncDateDrivenEventStatuses();
   const now = new Date();
   const [events, archiveEvents] = await Promise.all([
     db.event.findMany({
@@ -76,6 +123,7 @@ export async function getHomePageData() {
 }
 
 export async function getEventWorkspace(slug: string) {
+  await syncDateDrivenEventStatuses();
   return db.event.findUnique({
     where: { slug },
     include: {
@@ -140,6 +188,7 @@ export async function getEventWorkspace(slug: string) {
 }
 
 export async function getAdminDashboardData() {
+  await syncDateDrivenEventStatuses();
   const [events, users, songRequests, groups, artists] = await Promise.all([
     db.event.findMany({
       orderBy: { startsAt: "asc" },
@@ -191,6 +240,7 @@ export async function getAdminDashboardData() {
 }
 
 export async function getProfileWorkspace(userId: string) {
+  await syncDateDrivenEventStatuses();
   const now = new Date();
   const [profile, archiveEvents] = await Promise.all([
     db.user.findUnique({
