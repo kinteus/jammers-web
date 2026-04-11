@@ -99,6 +99,14 @@ function redirectClaimFailure(eventSlug: string | undefined, error: string): nev
   redirectToEventError(eventSlug, error);
 }
 
+function redirectToEventNotice(eventSlug: string | undefined, notice: string): never {
+  if (eventSlug) {
+    redirect(buildEventRedirectUrl(eventSlug, { notice }));
+  }
+
+  throw new Error(notice);
+}
+
 const eventStatusSchema = z.nativeEnum(EventStatus);
 const setlistSectionSchema = z.nativeEnum(SetlistSection);
 const lineupSlotSchema = z.object({
@@ -1118,7 +1126,7 @@ export async function inviteToSeatAction(formData: FormData) {
   const username = normalizeTelegramUsername(getString(formData, "recipientUsername"));
   const seatId = getString(formData, "seatId");
   if (!username) {
-    throw new Error("Recipient username is required.");
+    redirectToEventError(eventSlug, "invite-recipient-required");
   }
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
@@ -1145,12 +1153,18 @@ export async function inviteToSeatAction(formData: FormData) {
   });
 
   if (!recipient) {
-    throw new Error("Recipient not found. Ask them to register first.");
+    redirectToEventError(eventSlug, "invite-recipient-not-found");
   }
 
   if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
     if (user.id === seat.track.proposedById || user.role === UserRole.ADMIN) {
-      assertSeatClaimable(seat);
+      if (seat.status === TrackSeatStatus.UNAVAILABLE) {
+        redirectToEventError(eventSlug, "seat-unavailable");
+      }
+
+      if (seat.userId) {
+        redirectToEventError(eventSlug, "seat-occupied");
+      }
 
       const alreadyOnTrack = await db.trackSeat.count({
         where: {
@@ -1162,25 +1176,44 @@ export async function inviteToSeatAction(formData: FormData) {
 
       if (!alreadyOnTrack) {
         const joinedCount = await countUniqueJoinedTracks(recipient.id, seat.track.eventId);
-        assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
+        if (joinedCount >= seat.track.event.maxTracksPerUser) {
+          redirectToEventError(eventSlug, "invite-track-limit");
+        }
       }
-      await assertCanClaimRoleFamilyForTrack({
-        eventSlug,
-        excludeSeatId: seat.id,
-        seatLabel: seat.label,
-        seatLineupKey: seat.lineupSlot.key,
-        trackId: seat.trackId,
-        userId: recipient.id,
-      });
 
-      await db.trackSeat.update({
-        where: { id: seat.id },
+      try {
+        await assertCanClaimRoleFamilyForTrack({
+          eventSlug,
+          excludeSeatId: seat.id,
+          seatLabel: seat.label,
+          seatLineupKey: seat.lineupSlot.key,
+          trackId: seat.trackId,
+          userId: recipient.id,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("different instrument types")) {
+          redirectToEventError(eventSlug, "invite-duplicate-role-family");
+        }
+
+        throw error;
+      }
+
+      const claimResult = await db.trackSeat.updateMany({
+        where: {
+          id: seat.id,
+          userId: null,
+          status: TrackSeatStatus.OPEN,
+        },
         data: {
           userId: recipient.id,
           status: TrackSeatStatus.CLAIMED,
           claimedAt: new Date(),
         },
       });
+
+      if (claimResult.count === 0) {
+        redirectToEventError(eventSlug, "seat-occupied");
+      }
 
       await db.trackInvite.updateMany({
         where: {
@@ -1194,10 +1227,7 @@ export async function inviteToSeatAction(formData: FormData) {
       });
 
       revalidateAll(pathBundle(eventSlug));
-      if (eventSlug) {
-        redirect(buildEventRedirectUrl(eventSlug, { notice: "seat-claimed" }));
-      }
-      return;
+      redirectToEventNotice(eventSlug, "seat-claimed");
     }
 
     await createClosedOptionalSeatRequest({
@@ -1211,48 +1241,29 @@ export async function inviteToSeatAction(formData: FormData) {
   }
 
   if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    throw new Error("Only the proposer or an admin can invite people to this track.");
+    redirectToEventError(eventSlug, "invite-not-allowed");
   }
 
   assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
-  assertSeatClaimable(seat);
+  if (seat.status === TrackSeatStatus.UNAVAILABLE) {
+    redirectToEventError(eventSlug, "seat-unavailable");
+  }
+  if (seat.userId) {
+    redirectToEventError(eventSlug, "seat-occupied");
+  }
 
   if (recipient.id === user.id) {
-    const alreadyOnTrack = await db.trackSeat.count({
-      where: {
-        userId: user.id,
-        trackId: seat.trackId,
-        status: TrackSeatStatus.CLAIMED,
-      },
-    });
-
-    if (!alreadyOnTrack) {
-      const joinedCount = await countUniqueJoinedTracks(user.id, seat.track.eventId);
-      assertWithinTrackLimit(joinedCount, seat.track.event.maxTracksPerUser);
-    }
-    await assertCanClaimRoleFamilyForTrack({
+    const result = await runClaimSeat({
       eventSlug,
-      excludeSeatId: seat.id,
-      seatLabel: seat.label,
-      seatLineupKey: seat.lineupSlot.key,
-      trackId: seat.trackId,
-      userId: user.id,
+      seatId,
+      user,
     });
 
-    await db.trackSeat.update({
-      where: { id: seat.id },
-      data: {
-        userId: user.id,
-        status: TrackSeatStatus.CLAIMED,
-        claimedAt: new Date(),
-      },
-    });
-
-    revalidateAll(pathBundle(eventSlug));
-    if (eventSlug) {
-      redirect(buildEventRedirectUrl(eventSlug, { notice: "seat-claimed" }));
+    if (!result.ok) {
+      redirectToEventError(eventSlug, result.error);
     }
-    return;
+
+    redirectToEventNotice(eventSlug, result.notice);
   }
 
   const existingInvite = await db.trackInvite.findFirst({
@@ -1264,7 +1275,7 @@ export async function inviteToSeatAction(formData: FormData) {
   });
 
   if (existingInvite) {
-    throw new Error("This user already has a pending invite for the selected seat.");
+    redirectToEventError(eventSlug, "invite-already-pending");
   }
 
   const delivery = await sendTelegramInviteMessage({
@@ -1290,6 +1301,12 @@ export async function inviteToSeatAction(formData: FormData) {
   });
 
   revalidateAll(pathBundle(eventSlug));
+
+  if (delivery.status === "DELIVERY_FAILED") {
+    redirectToEventNotice(eventSlug, "invite-saved-without-telegram");
+  }
+
+  redirectToEventNotice(eventSlug, "invite-sent");
 }
 
 export async function respondToInviteAction(formData: FormData) {

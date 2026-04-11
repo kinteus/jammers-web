@@ -2,9 +2,13 @@ import { env } from "@/lib/env";
 
 async function sendTelegramMessage({
   chatId,
+  disableWebPagePreview,
+  parseMode,
   text,
 }: {
   chatId: string | null | undefined;
+  disableWebPagePreview?: boolean;
+  parseMode?: "HTML";
   text: string;
 }) {
   if (!env.TELEGRAM_BOT_TOKEN) {
@@ -30,6 +34,8 @@ async function sendTelegramMessage({
       },
       body: JSON.stringify({
         chat_id: chatId,
+        disable_web_page_preview: disableWebPagePreview,
+        parse_mode: parseMode,
         text,
       }),
       cache: "no-store",
@@ -52,6 +58,13 @@ async function sendTelegramMessage({
     status: "PENDING" as const,
     note: "Invite was sent through Telegram.",
   };
+}
+
+function escapeTelegramHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 export function buildTelegramPublishedSetMessage({
@@ -88,6 +101,26 @@ export function buildTelegramPublishedSetMessage({
   ].join("\n");
 }
 
+export function buildTelegramInviteMessage({
+  eventTitle,
+  inviterLabel,
+  profileUrl,
+  seatLabel,
+  songLabel,
+}: {
+  eventTitle: string;
+  inviterLabel: string;
+  profileUrl: string;
+  seatLabel: string;
+  songLabel: string;
+}) {
+  return [
+    `${escapeTelegramHtml(inviterLabel)} invited you to ${escapeTelegramHtml(songLabel)} (${escapeTelegramHtml(seatLabel)}) for ${escapeTelegramHtml(eventTitle)}.`,
+    "",
+    `Open <a href="${profileUrl}">your profile invites</a> to accept or decline.`,
+  ].join("\n");
+}
+
 export async function sendTelegramInviteMessage({
   recipientTelegramId,
   eventTitle,
@@ -101,9 +134,19 @@ export async function sendTelegramInviteMessage({
   seatLabel: string;
   inviterLabel: string;
 }) {
+  const profileUrl = `${env.NEXT_PUBLIC_APP_URL}/profile`;
+
   return sendTelegramMessage({
     chatId: recipientTelegramId,
-    text: `${inviterLabel} invited you to ${songLabel} (${seatLabel}) for ${eventTitle}. Open the app to accept or decline.`,
+    disableWebPagePreview: true,
+    parseMode: "HTML",
+    text: buildTelegramInviteMessage({
+      eventTitle,
+      inviterLabel,
+      profileUrl,
+      seatLabel,
+      songLabel,
+    }),
   });
 }
 

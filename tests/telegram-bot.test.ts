@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTelegramPublishedSetMessage } from "@/server/telegram-bot";
+import {
+  buildTelegramInviteMessage,
+  buildTelegramPublishedSetMessage,
+} from "@/server/telegram-bot";
 
 describe("telegram published-set message", () => {
   it("includes the gig title and the participant songs", () => {
@@ -24,5 +27,20 @@ describe("telegram published-set message", () => {
     expect(message).toContain("Spring Jam Night");
     expect(message).toContain("1. Blur - Song 2 - Drums, BV");
     expect(message).toContain("4. Muse - Starlight - Percussion");
+  });
+});
+
+describe("telegram invite message", () => {
+  it("includes a direct profile link for invite handling", () => {
+    const message = buildTelegramInviteMessage({
+      eventTitle: "Spring Jam Night",
+      inviterLabel: "@anna_drums",
+      profileUrl: "https://thejammers.org/profile",
+      seatLabel: "Bass",
+      songLabel: "Blur - Song 2",
+    });
+
+    expect(message).toContain("@anna_drums invited you to Blur - Song 2 (Bass) for Spring Jam Night.");
+    expect(message).toContain('<a href="https://thejammers.org/profile">your profile invites</a>');
   });
 });

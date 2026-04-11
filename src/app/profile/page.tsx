@@ -353,6 +353,9 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               const senderLabel = invite.sender.telegramUsername
                 ? `@${invite.sender.telegramUsername}`
                 : invite.sender.fullName ?? pick(locale, { en: "a bandmate", ru: "кто-то из команды" });
+              const senderLink = invite.sender.telegramUsername
+                ? `https://t.me/${invite.sender.telegramUsername}`
+                : null;
 
               return (
                 <div className="border-b border-white/10 pb-4 last:border-b-0 last:pb-0" key={invite.id}>
@@ -371,9 +374,30 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                             ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на optional ${invite.seat.label} в ${invite.track.event.title}.`,
                           })
                       : pick(locale, {
-                          en: `${invite.seat.label} for ${invite.track.event.title}, invited by ${senderLabel}.`,
-                          ru: `${invite.seat.label} для ${invite.track.event.title}, пригласил(а) ${senderLabel}.`,
+                          en: "",
+                          ru: "",
                         })}
+                    {!requestMeta ? (
+                      <>
+                        {pick(locale, {
+                          en: `${invite.seat.label} for ${invite.track.event.title}, invited by `,
+                          ru: `${invite.seat.label} для ${invite.track.event.title}, пригласил(а) `,
+                        })}
+                        {senderLink ? (
+                          <a
+                            className="font-medium text-gold transition hover:text-white"
+                            href={senderLink}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {senderLabel}
+                          </a>
+                        ) : (
+                          senderLabel
+                        )}
+                        .
+                      </>
+                    ) : null}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <form action={respondToInviteAction}>

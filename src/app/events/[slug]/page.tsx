@@ -206,6 +206,28 @@ function getFloatingFeedback({
     };
   }
 
+  if (notice === "invite-sent") {
+    return {
+      tone: "success" as const,
+      title: pick(locale, { en: "Invite sent", ru: "Инвайт отправлен" }),
+      description: pick(locale, {
+        en: "The player now has a seat invite in the app and a Telegram message if their chat is linked.",
+        ru: "У музыканта появился инвайт в приложении и сообщение в Telegram, если чат уже привязан.",
+      }),
+    };
+  }
+
+  if (notice === "invite-saved-without-telegram") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Invite saved, Telegram not delivered", ru: "Инвайт сохранён, Telegram не доставлен" }),
+      description: pick(locale, {
+        en: "The invite exists in the app, but Telegram delivery failed. Ask the player to sign in and check their profile invites.",
+        ru: "Инвайт сохранён в приложении, но Telegram не доставился. Попроси музыканта войти в систему и проверить инвайты в профиле.",
+      }),
+    };
+  }
+
   if (error === "seat-occupied") {
     return {
       tone: "error" as const,
@@ -279,6 +301,72 @@ function getFloatingFeedback({
       description: pick(locale, {
         en: "You can join the same song multiple times only with different instrument families.",
         ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
+      }),
+    };
+  }
+
+  if (error === "invite-recipient-required") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Enter a username", ru: "Укажи username" }),
+      description: pick(locale, {
+        en: "Type the player's Telegram username before sending the invite.",
+        ru: "Введи Telegram username музыканта перед отправкой инвайта.",
+      }),
+    };
+  }
+
+  if (error === "invite-recipient-not-found") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Player not found", ru: "Музыкант не найден" }),
+      description: pick(locale, {
+        en: "Invites work only for people who already created a profile in The Jammers.",
+        ru: "Инвайты работают только для тех, кто уже создал профиль в The Jammers.",
+      }),
+    };
+  }
+
+  if (error === "invite-not-allowed") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Invite not allowed", ru: "Нельзя отправить инвайт" }),
+      description: pick(locale, {
+        en: "Only the track proposer or an admin can invite someone to this seat.",
+        ru: "Позвать кого-то на это место может только автор трека или админ.",
+      }),
+    };
+  }
+
+  if (error === "invite-already-pending") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Invite already pending", ru: "Инвайт уже ожидает ответа" }),
+      description: pick(locale, {
+        en: "This player already has an active invite for the selected seat.",
+        ru: "У этого музыканта уже есть активный инвайт на выбранное место.",
+      }),
+    };
+  }
+
+  if (error === "invite-track-limit") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Player hit the track limit", ru: "У музыканта достигнут лимит треков" }),
+      description: pick(locale, {
+        en: "They need to leave one of their current songs before you can place them on this track.",
+        ru: "Сначала ему нужно выписаться из одной из текущих песен, и только потом можно поставить его сюда.",
+      }),
+    };
+  }
+
+  if (error === "invite-duplicate-role-family") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Player already covers this role", ru: "Музыкант уже закрывает эту роль" }),
+      description: pick(locale, {
+        en: "They can join the same song twice only on different instrument families.",
+        ru: "В одну песню можно поставить человека дважды только на разные типы инструментов.",
       }),
     };
   }
