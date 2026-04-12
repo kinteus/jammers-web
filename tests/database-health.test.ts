@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma-errors", () => ({
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("isDatabaseAvailable", () => {
@@ -37,6 +38,18 @@ describe("isDatabaseAvailable", () => {
     const { isDatabaseAvailable } = await import("@/server/database-health");
 
     await expect(isDatabaseAvailable()).resolves.toBe(false);
+  });
+
+  it("returns false when the probe times out", async () => {
+    vi.useFakeTimers();
+    dbMock.$queryRaw.mockImplementation(() => new Promise(() => {}));
+
+    const { isDatabaseAvailable } = await import("@/server/database-health");
+    const probePromise = isDatabaseAvailable(25);
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expect(probePromise).resolves.toBe(false);
   });
 
   it("rethrows unexpected probe errors", async () => {

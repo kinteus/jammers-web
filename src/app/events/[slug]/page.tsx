@@ -20,7 +20,7 @@ import {
   type Locale,
 } from "@/lib/i18n";
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
-import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
+import { getEventTrackInfoFields } from "@/lib/track-info-flags";
 import { serializeJsonForHtmlScript } from "@/lib/html-script";
 import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/utils";
@@ -31,7 +31,6 @@ import {
 import { getEventWorkspace } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
-import { EventBoardGuide } from "@/components/event-board-guide";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
@@ -539,17 +538,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const participantCount = new Set(
     event.tracks.flatMap((track) => track.seats.map((seat) => seat.userId).filter(Boolean)),
   ).size;
-  const requiredOpenSeatCount = event.tracks.reduce(
-    (count, track) => count + getTrackCompletionSummary(track.seats).requiredOpen,
-    0,
-  );
-  const optionalOpenSeatCount = event.tracks.reduce(
-    (count, track) => count + getTrackCompletionSummary(track.seats).optionalOpen,
-    0,
-  );
-  const completedTrackCount = event.tracks.filter((track) =>
-    getTrackCompletionSummary(track.seats).isComplete,
-  ).length;
   const tracksNeedingPlayers = event.tracks.filter(
     (track) => !getTrackCompletionSummary(track.seats).isComplete,
   ).length;
@@ -558,9 +546,11 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const allowClosedOptionalRequests = allowsClosedOptionalSeatRequests(event);
   const trackInfoFields = getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback);
   const isAdmin = user?.role === "ADMIN";
+  const showAdminStatusControl = isAdmin && !env.LIVE_PRODUCTION_TUNNEL;
   const registrationOpensSoon =
     effectiveStatus === "DRAFT" &&
     Boolean(event.registrationOpensAt && event.registrationOpensAt > new Date());
+  const showRegistrationMeta = effectiveStatus !== "PUBLISHED";
 
   return (
     <div className="space-y-8 text-sand">
@@ -629,35 +619,22 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 {event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
               </p>
               {event.description ? (
-                <p className="max-w-4xl text-base leading-7 text-white/78">{event.description}</p>
-              ) : (
-                <p className="max-w-4xl text-base leading-7 text-white/78">
-                  {pick(locale, {
-                    en: "Open the board fast, scan what still needs people, and strengthen the gig before adding more weight to the set.",
-                    ru: "Сначала быстро открой борд, пойми, где ещё нужны люди, и усили гиг, прежде чем добавлять новые песни в сет.",
-                  })}
-                </p>
-              )}
+                <p className="max-w-4xl text-sm leading-6 text-white/74">{event.description}</p>
+              ) : null}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="brand-shell-soft rounded-xl px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  {pick(locale, { en: "Tracks proposed", ru: "Заявлено треков" })}
+                  {pick(locale, { en: "Songs on board", ru: "Песен на борде" })}
                 </p>
                 <p className="mt-1 text-3xl font-semibold text-sand">{event.tracks.length}</p>
               </div>
               <div className="brand-shell-soft rounded-xl px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  {pick(locale, { en: "Tracks assembled", ru: "Собрано треков" })}
+                  {pick(locale, { en: "Still need players", ru: "Ещё нужны люди" })}
                 </p>
-                <p className="mt-1 text-3xl font-semibold text-sand">{completedTrackCount}</p>
-              </div>
-              <div className="brand-shell-soft rounded-xl px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  {pick(locale, { en: "Required seats open", ru: "Открыто обязательных мест" })}
-                </p>
-                <p className="mt-1 text-3xl font-semibold text-sand">{requiredOpenSeatCount}</p>
+                <p className="mt-1 text-3xl font-semibold text-sand">{tracksNeedingPlayers}</p>
               </div>
               <div className="brand-shell-soft rounded-xl px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
@@ -674,44 +651,34 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
-              {user ? (
-                <Link href={`/events/${event.id}?view=mine`}>
-                  <Button variant="secondary">
-                    {pick(locale, { en: "My songs", ru: "Мои песни" })}
-                  </Button>
-                </Link>
-              ) : effectiveStatus === "OPEN" ? (
-                <Link href="/profile">
-                  <Button variant="secondary">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
-                  </Button>
-                </Link>
-              ) : null}
+              <Link href="/faq">
+                <Button variant="secondary">
+                  {pick(locale, {
+                    en: "New here? FAQ explains how this works",
+                    ru: "Новичок? В FAQ есть как это работает",
+                  })}
+                </Button>
+              </Link>
             </div>
 
-            <div className="flex flex-wrap gap-4 text-sm text-white/58">
-              {event.registrationOpensAt ? (
+            {showRegistrationMeta ? (
+              <div className="flex flex-wrap gap-4 text-sm text-white/58">
+                {event.registrationOpensAt ? (
+                  <span>
+                    {pick(locale, { en: "Registration opens:", ru: "Регистрация открывается:" })}{" "}
+                    {formatDateTime(event.registrationOpensAt, locale)}
+                  </span>
+                ) : null}
                 <span>
-                  {pick(locale, { en: "Registration opens:", ru: "Регистрация открывается:" })}{" "}
-                  {formatDateTime(event.registrationOpensAt, locale)}
+                  {pick(locale, { en: "Registration closes:", ru: "Регистрация закрывается:" })}{" "}
+                  {event.registrationClosesAt
+                    ? formatDateTime(event.registrationClosesAt, locale)
+                    : pick(locale, { en: "manual", ru: "вручную" })}
                 </span>
-              ) : null}
-              <span>
-                {pick(locale, { en: "Registration closes:", ru: "Регистрация закрывается:" })}{" "}
-                {event.registrationClosesAt
-                  ? formatDateTime(event.registrationClosesAt, locale)
-                  : pick(locale, { en: "manual", ru: "вручную" })}
-              </span>
-              {trackInfoFields.length > 0 ? (
-                <span>
-                  {pick(locale, { en: "Extra flags:", ru: "Доп. флаги:" })}{" "}
-                  {trackInfoFields.map((field) => getTrackInfoLabel(field, locale)).join(", ")}
-                </span>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
-            {isAdmin ? (
+            {showAdminStatusControl ? (
               <Card className="brand-shell-soft space-y-3 border-white/10">
                 <div className="space-y-1">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
@@ -746,15 +713,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         </div>
       </section>
 
-      <EventBoardGuide
-        allowClosedOptionalRequests={allowClosedOptionalRequests}
-        locale={locale}
-        optionalOpenSeatCount={optionalOpenSeatCount}
-        requiredOpenSeatCount={requiredOpenSeatCount}
-        roleShortages={roleShortages}
-        tracksNeedingPlayers={tracksNeedingPlayers}
-      />
-
       <section className="space-y-4" id="track-board">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
@@ -763,12 +721,20 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
             {filterLabel(locale, activeView)}
           </h2>
-          <p className="max-w-3xl text-sm leading-6 text-white/68">
-            {pick(locale, {
-              en: "Start here: scan the songs, filter what you need and take the part you can really cover.",
-              ru: "Начинай отсюда: смотри песни, быстро фильтруй нужное и занимай ту партию, которую реально можешь закрыть.",
-            })}
-          </p>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-white/66">
+            <span>
+              {pick(locale, {
+                en: "Start here: scan the songs and take the part you can really cover.",
+                ru: "Начинай отсюда: смотри песни и занимай ту партию, которую реально можешь закрыть.",
+              })}
+            </span>
+            <Link className="font-semibold text-gold transition hover:text-gold/80 hover:underline" href="/faq">
+              {pick(locale, {
+                en: "Need the board rules? FAQ has the short version.",
+                ru: "Нужны правила борда? В FAQ есть короткое объяснение.",
+              })}
+            </Link>
+          </div>
           {roleFilters.length > 0 ? (
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/62">
               {pick(locale, { en: "Open role focus", ru: "Фокус по открытым ролям" })}: {selectedRoleLabel}
@@ -808,23 +774,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 </Link>
               ) : null}
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs text-white/62">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2">
-              <span className="h-2 w-2 rounded-full bg-red" />
-              {requiredOpenSeatCount} {pick(locale, { en: "required open", ru: "обязательных открыто" })}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2">
-              <Clock3 className="h-3.5 w-3.5 text-blue" />
-              {tracksNeedingPlayers} {pick(locale, { en: "tracks need players", ru: "треков ждут людей" })}
-            </span>
-            {optionalOpenSeatCount > 0 ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2">
-                <span className="h-2 w-2 rounded-full bg-blue" />
-                {optionalOpenSeatCount} {pick(locale, { en: "optional open", ru: "optional открыто" })}
-              </span>
-            ) : null}
           </div>
         </Card>
 

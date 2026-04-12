@@ -135,10 +135,14 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 en:
                   authError === "retry"
                     ? "Please complete sign-in from the Telegram button on this page and try again."
+                    : authError === "dev-user-not-found"
+                      ? "That username was not found in the connected database. While using the live database tunnel, local sign-in works only for existing users."
                     : "Telegram sign-in failed. Please try again.",
                 ru:
                   authError === "retry"
                     ? "Заверши вход через кнопку Telegram на этой странице и попробуй ещё раз."
+                    : authError === "dev-user-not-found"
+                      ? "Такой username не найден в подключённой базе. При работе через туннель к живой базе локальный вход доступен только для уже существующих пользователей."
                     : "Не удалось войти через Telegram. Попробуй ещё раз.",
               })}
             </p>
@@ -162,10 +166,15 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 })}
               </h2>
               <p className="text-sm text-white/70">
-                {pick(locale, {
-                  en: "Enabled only for local development and tests. Production must rely on Telegram auth.",
-                  ru: "Доступно только для локальной разработки и тестов. В бою должен использоваться Telegram-вход.",
-                })}
+                {env.LIVE_PRODUCTION_TUNNEL
+                  ? pick(locale, {
+                      en: "Local sign-in is available while using the live database tunnel, but only for users that already exist there. No new accounts or role changes are created through this shortcut.",
+                      ru: "Локальный вход доступен и при подключении к живой базе, но только для пользователей, которые там уже существуют. Новые аккаунты и смена ролей через этот shortcut не создаются.",
+                    })
+                  : pick(locale, {
+                      en: "Enabled only for local development and tests. Production must rely on Telegram auth.",
+                      ru: "Доступно только для локальной разработки и тестов. В бою должен использоваться Telegram-вход.",
+                    })}
               </p>
             </div>
             <form action={devSignInAction} className="space-y-4">
@@ -178,15 +187,20 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   required
                 />
               </label>
-              <label className="block space-y-2 text-sm">
-                <span>{pick(locale, { en: "Role", ru: "Роль" })}</span>
-                <select className="w-full px-4 py-3" defaultValue="USER" name="role">
-                  <option value="USER">{pick(locale, { en: "User", ru: "Пользователь" })}</option>
-                  <option value="ADMIN">{pick(locale, { en: "Admin", ru: "Админ" })}</option>
-                </select>
-              </label>
+              {env.LIVE_PRODUCTION_TUNNEL ? null : (
+                <label className="block space-y-2 text-sm">
+                  <span>{pick(locale, { en: "Role", ru: "Роль" })}</span>
+                  <select className="w-full px-4 py-3" defaultValue="USER" name="role">
+                    <option value="USER">{pick(locale, { en: "User", ru: "Пользователь" })}</option>
+                    <option value="ADMIN">{pick(locale, { en: "Admin", ru: "Админ" })}</option>
+                  </select>
+                </label>
+              )}
               <SubmitButton pendingLabel={pick(locale, { en: "Signing in...", ru: "Входим..." })} type="submit">
-                {pick(locale, { en: "Continue locally", ru: "Продолжить локально" })}
+                {pick(locale, {
+                  en: env.LIVE_PRODUCTION_TUNNEL ? "Sign in as existing user" : "Continue locally",
+                  ru: env.LIVE_PRODUCTION_TUNNEL ? "Войти как существующий пользователь" : "Продолжить локально",
+                })}
               </SubmitButton>
             </form>
           </Card>

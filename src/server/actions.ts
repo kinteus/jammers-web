@@ -709,17 +709,24 @@ export async function devSignInAction(formData: FormData) {
   if (!username) {
     throw new Error("Telegram username is required.");
   }
-  const role = getString(formData, "role") === "ADMIN" ? UserRole.ADMIN : UserRole.USER;
-  const user = await db.user.upsert({
-    where: { telegramUsername: username },
-    update: { role },
-    create: {
-      telegramId: crypto.randomUUID(),
-      telegramUsername: username,
-      fullName: username,
-      role,
-    },
-  });
+  const user = env.LIVE_PRODUCTION_TUNNEL
+    ? await db.user.findUnique({
+        where: { telegramUsername: username },
+      })
+    : await db.user.upsert({
+        where: { telegramUsername: username },
+        update: { role: getString(formData, "role") === "ADMIN" ? UserRole.ADMIN : UserRole.USER },
+        create: {
+          telegramId: crypto.randomUUID(),
+          telegramUsername: username,
+          fullName: username,
+          role: getString(formData, "role") === "ADMIN" ? UserRole.ADMIN : UserRole.USER,
+        },
+      });
+
+  if (!user) {
+    redirect("/profile?authError=dev-user-not-found");
+  }
 
   await createSession(user.id);
   revalidateAll(["/", "/admin", "/profile"]);

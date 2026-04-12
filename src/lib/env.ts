@@ -39,8 +39,7 @@ export const env = {
   LIVE_PRODUCTION_TUNNEL: liveProductionTunnel,
   SESSION_SECRET: rawEnv.SESSION_SECRET ?? "local-development-session-secret",
   ENABLE_DEV_AUTH:
-    !liveProductionTunnel &&
-    (rawEnv.ENABLE_DEV_AUTH !== undefined
+    rawEnv.ENABLE_DEV_AUTH !== undefined
       ? rawEnv.ENABLE_DEV_AUTH === "true"
-      : rawEnv.NODE_ENV !== "production"),
+      : rawEnv.NODE_ENV !== "production",
 };

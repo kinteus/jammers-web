@@ -789,6 +789,9 @@ export function TrackBoardTable({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
+                          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/44">
+                            {index + 1}.
+                          </span>
                           <a
                             className="truncate font-display text-[1.05rem] font-semibold text-sand transition hover:text-white hover:underline"
                             href={getYoutubeSearchUrl(track)}
@@ -1174,7 +1177,7 @@ export function TrackBoardTable({
       </div>
 
       <div className="space-y-3 md:hidden">
-        {currentTracks.map((track) => {
+        {currentTracks.map((track, index) => {
           const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
           const completion = getTrackCompletionSummary(track.seats);
           const activeTrackInfoLabels = trackInfoFields
@@ -1197,11 +1200,16 @@ export function TrackBoardTable({
               <summary className="list-none cursor-pointer px-4 py-4">
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-display text-lg font-semibold text-sand">{track.song.title}</p>
-                      <p className="text-[11px] text-white/60">
-                        {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="shrink-0 pt-0.5 text-sm font-semibold tabular-nums text-white/48">
+                        {index + 1}.
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-display text-lg font-semibold text-sand">{track.song.title}</p>
+                        <p className="text-[11px] text-white/60">
+                          {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
+                        </p>
+                      </div>
                     </div>
                     <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/72">
                       {pick(locale, { en: "Details", ru: "Детали" })}
