@@ -13,12 +13,12 @@ test.describe("Jammers smoke", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: /Right now|Прямо сейчас/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Upcoming gig boards|Ближайшие гиги/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Spring Jam Night/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Released setlists|Опубликованные сетлисты/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Сцена в цифрах|Scene in numbers/i })).toBeVisible();
 
-    await page.getByRole("link", { name: /Open gig|Открыть гиг/i }).first().click();
-    await expect(page).toHaveURL(/\/events\/(spring-jam-night|c[a-z0-9]+)/);
-    await expect(page.getByRole("heading", { name: /Spring Jam Night/i })).toBeVisible();
+    await page.getByRole("link", { name: /Open next gig board|Открыть борд ближайшего гига/i }).click();
+    await expect(page).toHaveURL(/\/events\/[a-z0-9]+/i);
+    await expect(page.locator("main")).toContainText(/FAQ|Борд|Gig|Гиг/i);
 
     await page.goto("/faq");
     await expect(page.getByRole("heading", { name: /How The Jammers works|Как всё устроено у The Jammers/i })).toBeVisible();

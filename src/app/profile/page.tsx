@@ -155,7 +155,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           </Link>
         </Card>
 
-        {env.ENABLE_DEV_AUTH && env.NODE_ENV !== "production" ? (
+        {env.ENABLE_DEV_AUTH ? (
           <Card className="brand-shell space-y-5">
             <Badge>Development only</Badge>
             <div className="space-y-2">

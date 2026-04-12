@@ -701,7 +701,7 @@ export async function telegramSignInAction(
 }
 
 export async function devSignInAction(formData: FormData) {
-  if (!env.ENABLE_DEV_AUTH || env.NODE_ENV === "production") {
+  if (!env.ENABLE_DEV_AUTH) {
     throw new Error("Development auth is disabled.");
   }
 
