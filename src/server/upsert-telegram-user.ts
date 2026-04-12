@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
 
+export class TelegramIdentityConflictError extends Error {
+  constructor() {
+    super("This Telegram account cannot be linked automatically. Please contact an admin.");
+  }
+}
+
 type TelegramIdentity = {
   telegramId: string;
   telegramUsername?: string | null;
@@ -10,12 +16,9 @@ type TelegramIdentity = {
 
 export async function upsertTelegramUser(identity: TelegramIdentity) {
   const normalizedUsername = normalizeTelegramUsername(identity.telegramUsername);
-  const existing = await db.user.findFirst({
+  const existing = await db.user.findUnique({
     where: {
-      OR: [
-        { telegramId: identity.telegramId },
-        ...(normalizedUsername ? [{ telegramUsername: normalizedUsername }] : []),
-      ],
+      telegramId: identity.telegramId,
     },
   });
 
@@ -29,6 +32,17 @@ export async function upsertTelegramUser(identity: TelegramIdentity) {
         avatarUrl: identity.avatarUrl,
       },
     });
+  }
+
+  if (normalizedUsername) {
+    const conflictingUser = await db.user.findUnique({
+      where: { telegramUsername: normalizedUsername },
+      select: { id: true },
+    });
+
+    if (conflictingUser) {
+      throw new TelegramIdentityConflictError();
+    }
   }
 
   return db.user.create({

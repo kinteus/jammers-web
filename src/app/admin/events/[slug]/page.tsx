@@ -46,6 +46,7 @@ export const metadata: Metadata = {
 
 type AdminEventPageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function buildLineupSummary(
@@ -65,9 +66,12 @@ function buildLineupSummary(
   return occupied.length > 0 ? occupied.join(", ") : "No players assigned yet.";
 }
 
-export default async function AdminEventPage({ params }: AdminEventPageProps) {
+export default async function AdminEventPage({ params, searchParams }: AdminEventPageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
   const locale = await getLocale();
+  const notice =
+    typeof resolvedSearchParams.notice === "string" ? resolvedSearchParams.notice : null;
 
   try {
     await requireAdmin();
@@ -157,6 +161,12 @@ export default async function AdminEventPage({ params }: AdminEventPageProps) {
 
   return (
     <div className="space-y-8">
+      {notice === "publish-partial-notify" ? (
+        <div className="rounded-xl border border-gold/30 bg-gold/12 px-4 py-3 text-sm text-white">
+          Some Telegram notifications failed after publish. The setlist is live, but at least one player may need a manual heads-up.
+        </div>
+      ) : null}
+
       <section className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
         <Card className="space-y-4">
           <Badge>Event settings</Badge>

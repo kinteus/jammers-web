@@ -4,7 +4,10 @@ import { createSession } from "@/lib/auth/session";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { env } from "@/lib/env";
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
-import { upsertTelegramUser } from "@/server/upsert-telegram-user";
+import {
+  TelegramIdentityConflictError,
+  upsertTelegramUser,
+} from "@/server/upsert-telegram-user";
 
 type TelegramPayloadRecord = Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>;
 
@@ -89,13 +92,14 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Telegram authentication failed.";
+    const status = error instanceof TelegramIdentityConflictError ? 409 : 400;
 
     return NextResponse.json(
       {
         ok: false,
         error: message,
       },
-      { status: 400 },
+      { status },
     );
   }
 }

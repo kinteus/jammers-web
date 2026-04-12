@@ -21,6 +21,7 @@ import {
 } from "@/lib/i18n";
 import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/role-families";
 import { getEventTrackInfoFields, getTrackInfoLabel } from "@/lib/track-info-flags";
+import { serializeJsonForHtmlScript } from "@/lib/html-script";
 import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/utils";
 import {
@@ -564,7 +565,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   return (
     <div className="space-y-8 text-sand">
       <script
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonForHtmlScript(structuredData) }}
         type="application/ld+json"
       />
       {notice === "track-created" ? (

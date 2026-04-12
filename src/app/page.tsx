@@ -1,12 +1,15 @@
+import { EventStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { formatDateTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
@@ -32,6 +35,174 @@ export const metadata: Metadata = {
     url: "/",
   },
 };
+
+function getRightNowContent({
+  event,
+  featuredRequiredOpenSeats,
+  featuredTracksNeedingPlayers,
+  locale,
+}: {
+  event: {
+    id: string;
+    title: string;
+    venueName: string | null;
+    venueMapUrl: string | null;
+    startsAt: Date;
+    effectiveStatus: EventStatus;
+    registrationOpensAt: Date | null;
+    participantCount: number;
+  };
+  featuredRequiredOpenSeats: number;
+  featuredTracksNeedingPlayers: number;
+  locale: Awaited<ReturnType<typeof getLocale>>;
+}) {
+  const safeVenueMapUrl = normalizeVenueMapUrl(event.venueMapUrl);
+  const venueValue: ReactNode = event.venueName ? (
+    safeVenueMapUrl ? (
+      <a
+        className="text-gold transition hover:text-gold/80 hover:underline"
+        href={safeVenueMapUrl}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {event.venueName}
+      </a>
+    ) : (
+      event.venueName
+    )
+  ) : (
+    pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })
+  );
+
+  if (event.effectiveStatus === EventStatus.PUBLISHED) {
+    return {
+      title: pick(locale, {
+        en: "The setlist is live",
+        ru: "Сетлист уже опубликован",
+      }),
+      intro: pick(locale, {
+        en: "The nearest gig is already locked in. Check the venue details, then use the FAQ if you need a quick reminder on the technical side of the night.",
+        ru: "Ближайший гиг уже зафиксирован. Проверь площадку, а затем загляни в FAQ, если нужно быстро освежить технические детали вечера.",
+      }),
+      stats: [
+        {
+          label: pick(locale, { en: "Venue", ru: "Площадка" }),
+          value: venueValue,
+        },
+        {
+          label: pick(locale, { en: "Gig date", ru: "Дата гига" }),
+          value: formatDateTime(event.startsAt, locale),
+        },
+      ],
+      primaryCta: {
+        href: `/events/${event.id}`,
+        label: pick(locale, { en: "Open setlist", ru: "Открыть сетлист" }),
+      },
+      secondaryCta: {
+        href: "/faq",
+        label: pick(locale, { en: "Read FAQ", ru: "Открыть FAQ" }),
+      },
+    };
+  }
+
+  if (event.effectiveStatus === EventStatus.DRAFT) {
+    return {
+      title: pick(locale, {
+        en: "Registration is not open yet",
+        ru: "Регистрация ещё не открыта",
+      }),
+      intro: pick(locale, {
+        en: "The gig is already visible on the board, but sign-up and song proposals unlock only after registration opens. Use the waiting time to review the rules and board logic.",
+        ru: "Гиг уже виден на борде, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике борда.",
+      }),
+      stats: [
+        {
+          label: pick(locale, { en: "Registration opens", ru: "Регистрация откроется" }),
+          value:
+            event.registrationOpensAt !== null
+              ? formatDateTime(event.registrationOpensAt, locale)
+              : pick(locale, { en: "TBA", ru: "Скоро" }),
+        },
+        {
+          label: pick(locale, { en: "Gig date", ru: "Дата гига" }),
+          value: formatDateTime(event.startsAt, locale),
+        },
+      ],
+      primaryCta: {
+        href: `/events/${event.id}`,
+        label: pick(locale, { en: "Watch the board", ru: "Открыть борд" }),
+      },
+      secondaryCta: {
+        href: "/faq",
+        label: pick(locale, { en: "Read the rules", ru: "Понять правила" }),
+      },
+    };
+  }
+
+  if (
+    event.effectiveStatus === EventStatus.CLOSED ||
+    event.effectiveStatus === EventStatus.CURATING
+  ) {
+    return {
+      title: pick(locale, {
+        en: "Sign-up is closed",
+        ru: "Набор уже закрыт",
+      }),
+      intro: pick(locale, {
+        en: "The board is now in curation mode. The final setlist will be published soon, and everyone who made the final line-up will be notified.",
+        ru: "Борд перешёл в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все, кто попал в итоговый лайнап, получат уведомление.",
+      }),
+      stats: [
+        {
+          label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+          value: String(event.participantCount),
+        },
+        {
+          label: pick(locale, { en: "Gig date", ru: "Дата гига" }),
+          value: formatDateTime(event.startsAt, locale),
+        },
+      ],
+      primaryCta: {
+        href: `/events/${event.id}`,
+        label: pick(locale, { en: "Review the board", ru: "Посмотреть борд" }),
+      },
+      secondaryCta: null,
+    };
+  }
+
+  return {
+    title: pick(locale, {
+      en: "What needs attention on the next gig",
+      ru: "Что сейчас просит внимания в ближайшем гиге",
+    }),
+    intro: pick(locale, {
+      en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
+      ru: "Лучший следующий шаг почти всегда один: сначала закрыть открытые места, а уже потом утяжелять сет новыми песнями.",
+    }),
+    stats: [
+      {
+        label: pick(locale, { en: "Required seats open", ru: "Открыто обязательных мест" }),
+        value: String(featuredRequiredOpenSeats),
+      },
+      {
+        label: pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" }),
+        value: String(featuredTracksNeedingPlayers),
+      },
+      {
+        label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+        value: String(event.participantCount),
+      },
+    ],
+    primaryCta: {
+      href: `/events/${event.id}`,
+      label: pick(locale, { en: "Review the board", ru: "Посмотреть борд" }),
+    },
+    secondaryCta: {
+      href: "/faq",
+      label: pick(locale, { en: "Read how it works", ru: "Как это работает" }),
+    },
+  };
+}
 
 export default async function HomePage() {
   let events;
@@ -80,6 +251,14 @@ export default async function HomePage() {
   const featuredTracksNeedingPlayers = featuredEvent
     ? featuredEvent.tracks.filter((track) => !getTrackCompletionSummary(track.seats).isComplete).length
     : 0;
+  const rightNowContent = featuredEvent
+    ? getRightNowContent({
+        event: featuredEvent,
+        featuredRequiredOpenSeats,
+        featuredTracksNeedingPlayers,
+        locale,
+      })
+    : null;
   const joiningSteps = [
     {
       title: pick(locale, { en: "Open the live board", ru: "Открой живой борд" }),
@@ -210,11 +389,8 @@ export default async function HomePage() {
               {pick(locale, { en: "Right now", ru: "Прямо сейчас" })}
             </p>
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-              {featuredEvent
-                ? pick(locale, {
-                    en: "What needs attention on the next gig",
-                    ru: "Что сейчас просит внимания в ближайшем гиге",
-                  })
+              {rightNowContent
+                ? rightNowContent.title
                 : pick(locale, {
                     en: "Why the board matters",
                     ru: "Зачем вообще нужен этот борд",
@@ -226,44 +402,32 @@ export default async function HomePage() {
             <>
               <div className="space-y-2">
                 <p className="text-lg font-semibold text-sand">{featuredEvent.title}</p>
-                <p className="text-sm leading-6 text-white/74">
-                  {pick(locale, {
-                    en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
-                    ru: "Лучший следующий шаг почти всегда один: сначала закрыть открытые места, а уже потом утяжелять сет новыми песнями.",
-                  })}
-                </p>
+                <p className="text-sm leading-6 text-white/74">{rightNowContent?.intro}</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                    {pick(locale, { en: "Required seats open", ru: "Открыто обязательных мест" })}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredRequiredOpenSeats}</p>
+              {rightNowContent && rightNowContent.stats.length > 0 ? (
+                <div
+                  className={rightNowContent.stats.length === 3 ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}
+                >
+                  {rightNowContent.stats.map((stat) => (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4" key={stat.label}>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{stat.label}</p>
+                      <div className="mt-2 text-3xl font-semibold text-sand">{stat.value}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                    {pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" })}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredTracksNeedingPlayers}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                    {pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" })}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-sand">{featuredEvent.participantCount}</p>
-                </div>
-              </div>
+              ) : null}
               <div className="flex flex-wrap gap-3">
-                <Link href={`/events/${featuredEvent.id}`}>
+                <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
                   <Button variant="secondary">
-                    {pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
+                    {rightNowContent?.primaryCta.label ??
+                      pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
                   </Button>
                 </Link>
-                <Link href="/faq">
-                  <Button variant="ghost">
-                    {pick(locale, { en: "Read how it works", ru: "Как это работает" })}
-                  </Button>
-                </Link>
+                {rightNowContent?.secondaryCta ? (
+                  <Link href={rightNowContent.secondaryCta.href}>
+                    <Button variant="ghost">{rightNowContent.secondaryCta.label}</Button>
+                  </Link>
+                ) : null}
               </div>
             </>
           ) : (
@@ -274,76 +438,6 @@ export default async function HomePage() {
               })}
             </p>
           )}
-        </Card>
-      </section>
-
-      <section className="space-y-4">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-            {pick(locale, { en: "Next up", ru: "Ближайший гиг" })}
-          </p>
-          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-            {pick(locale, {
-              en: "What the next gig looks like right now",
-              ru: "Что сейчас происходит в ближайшем гиге",
-            })}
-          </h2>
-        </div>
-        <Card className="brand-shell border-white/10 p-0">
-          <div className="h-1 w-full stage-rule" />
-          <div className="space-y-4 p-5">
-            {featuredEvent ? (
-              <>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="border-blue/24 bg-blue/16 text-white">
-                      {getEventStatusLabel(featuredEvent.effectiveStatus, locale)}
-                    </Badge>
-                    <span className="text-sm text-white/58">
-                      {formatDateTime(featuredEvent.startsAt, locale)} ·{" "}
-                      {featuredEvent.venueName ??
-                        pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
-                    </span>
-                  </div>
-                  <h3 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
-                    {featuredEvent.title}
-                  </h3>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="brand-shell-soft rounded-xl p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                      {pick(locale, { en: "Tracks proposed", ru: "Заявлено треков" })}
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-sand">{featuredEvent.trackCount}</p>
-                  </div>
-                  <div className="brand-shell-soft rounded-xl p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                      {pick(locale, { en: "Tracks assembled", ru: "Собрано треков" })}
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold text-sand">
-                      {featuredEvent.completedTrackCount}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Link href={`/events/${featuredEvent.slug}`}>
-                    <Button variant="secondary">
-                      {pick(locale, { en: "Go to gig board", ru: "Перейти к борду гига" })}
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm leading-6 text-white/68">
-                {pick(locale, {
-                  en: "Once the next gig is ready, this block becomes the fastest way into the live board.",
-                  ru: "Как только появится следующий гиг, этот блок станет самым быстрым входом в живой борд.",
-                })}
-              </p>
-            )}
-          </div>
         </Card>
       </section>
 

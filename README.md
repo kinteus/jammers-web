@@ -48,6 +48,31 @@ To stop the Docker-based local stack when Compose is being used:
 npm run local:down
 ```
 
+### Run locally against the production database
+
+If you need to inspect the real live data locally, you can point the app at the production Postgres instance through a Kubernetes port-forward.
+
+1. Start the port-forward:
+
+```bash
+kubectl --kubeconfig ~/.kube/config-jammers-microk8s -n prod port-forward svc/jammers-web-postgres 55432:5432
+```
+
+2. In a separate terminal, create a local override in `.env.local`:
+
+```bash
+DATABASE_URL=postgresql://<prod-user>:<prod-password>@127.0.0.1:55432/prod
+ENABLE_DEV_AUTH=false
+```
+
+3. Start the app:
+
+```bash
+npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+As long as the `kubectl port-forward` process stays alive, the local app will read from the real production database. Keep this mode read-oriented, leave `ENABLE_DEV_AUTH=false`, and stop the port-forward when you are done.
+
 ## Validation commands
 
 ```bash

@@ -9,7 +9,7 @@ What is already implemented in the app:
 - Telegram Login Widget on `/profile`
 - Telegram payload verification through bot-token HMAC
 - server-side session creation in PostgreSQL-backed `AuthSession`
-- merge/link of an existing imported user by Telegram username or Telegram ID
+- automatic reuse of an existing account only by immutable Telegram ID
 - automatic creation of a brand-new user on first successful Telegram sign-in
 - Telegram bot delivery for invites and approval requests
 - final-set Telegram delivery for published participants
@@ -37,6 +37,7 @@ Required for production:
 - `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`
 - `TELEGRAM_BOT_TOKEN`
 - `ENABLE_DEV_AUTH=false`
+- `PRIMARY_ADMIN_TELEGRAM_ID`
 
 Strongly recommended:
 
@@ -51,8 +52,8 @@ Strongly recommended:
 3. Telegram redirects signed auth data to `/api/auth/telegram`.
 4. The backend verifies the HMAC signature using `TELEGRAM_BOT_TOKEN`.
 5. The app upserts the user:
-   - first by `telegramId`
-   - otherwise by normalized `telegramUsername`
+   - only by immutable `telegramId`
+   - otherwise it creates a new user if no conflicting username already exists
 6. The app creates a server-side `AuthSession` record and sets an HTTP-only cookie.
 7. The user is redirected back to `/profile` as an authenticated musician.
 
@@ -60,25 +61,18 @@ Strongly recommended:
 
 This is the important case for the legacy setlist import.
 
-If a musician already exists in the database from the Excel import:
-
-- and their current Telegram username matches the imported username,
-- then the first successful Telegram sign-in links that existing row,
-- `telegramId` is attached to that user,
-- all historical statistics, profile data, future invites, and board participation remain on the same account.
+If a musician already exists in the database from the Excel import without a `telegramId`, the app no longer auto-links that row by username during sign-in. This avoids account takeover if a Telegram username was changed, released, or later claimed by a different person.
 
 Notes:
 
-- username matching is normalized to lowercase in the app, so `RockAt777` and `rockat777` now map to the same stored identity.
 - the person should have a Telegram username set in Telegram settings
-- if the imported username contains a typo, the login will create a separate new account instead of linking the old one
+- legacy username-only accounts now need an explicit admin-side migration before they can safely retain historical data under a Telegram-authenticated account
 
 If an imported user does not link correctly:
 
 1. Find the existing imported user in the database.
-2. Compare their stored `telegramUsername` with the real Telegram username.
-3. Fix the stored username once.
-4. Ask the person to sign in again through Telegram.
+2. Attach the real `telegramId` to the intended row through a controlled admin migration.
+3. Ask the person to sign in again through Telegram.
 
 ## New users
 
@@ -121,8 +115,8 @@ Before launch:
 5. Disable dev auth with `ENABLE_DEV_AUTH=false`.
 6. Open `/profile` and confirm the Telegram widget is visible.
 7. Sign in with an already imported user and confirm:
-   - the account opens the existing profile
-   - no duplicate user is created
+   - the account opens the intended Telegram-linked profile
+   - username-only legacy rows do not get auto-linked silently
 8. Sign in with a brand-new Telegram account and confirm:
    - a new user row is created
    - profile loads normally

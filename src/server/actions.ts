@@ -55,6 +55,7 @@ import {
   serializeVideoUrls,
 } from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
+import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
@@ -561,15 +562,19 @@ async function runClaimSeat({
   };
 }
 
-async function createDefaultTrackSeats(trackId: string, eventId: string) {
-  const slots = await db.eventLineupSlot.findMany({
+async function createDefaultTrackSeats(
+  trackId: string,
+  eventId: string,
+  executor: Prisma.TransactionClient | typeof db = db,
+) {
+  const slots = await executor.eventLineupSlot.findMany({
     where: { eventId },
     orderBy: { displayOrder: "asc" },
   });
 
   for (const slot of slots) {
     for (let index = 1; index <= slot.seatCount; index += 1) {
-      await db.trackSeat.create({
+      await executor.trackSeat.create({
         data: {
           trackId,
           lineupSlotId: slot.id,
@@ -633,12 +638,17 @@ async function resolveSongId(formData: FormData) {
   return song.id;
 }
 
-async function ensureSetlistItem(trackId: string, eventId: string, editedById?: string) {
-  const count = await db.setlistItem.count({
+async function ensureSetlistItem(
+  trackId: string,
+  eventId: string,
+  editedById?: string,
+  executor: Prisma.TransactionClient | typeof db = db,
+) {
+  const count = await executor.setlistItem.count({
     where: { eventId, section: SetlistSection.BACKLOG },
   });
 
-  await db.setlistItem.upsert({
+  await executor.setlistItem.upsert({
     where: {
       eventId_trackId: {
         eventId,
@@ -657,7 +667,7 @@ async function ensureSetlistItem(trackId: string, eventId: string, editedById?: 
 }
 
 async function assertLockOwnership(eventId: string, userId: string) {
-  const activeLock = await db.eventEditLock.findFirst({
+  const activeLocks = await db.eventEditLock.findMany({
     where: {
       eventId,
       scope: ADMIN_LOCK_SCOPE,
@@ -665,6 +675,11 @@ async function assertLockOwnership(eventId: string, userId: string) {
     },
   });
 
+  if (activeLocks.length > 1) {
+    throw new Error("Multiple active curation locks detected. Refresh and try again.");
+  }
+
+  const activeLock = activeLocks[0] ?? null;
   if (activeLock && activeLock.userId !== userId) {
     throw new Error("Another admin currently owns the curation lock.");
   }
@@ -763,17 +778,32 @@ export async function grantAdminRoleAction(formData: FormData) {
 export async function revokeAdminRoleAction(formData: FormData) {
   await requireSuperAdmin();
 
-  const telegramUsername = normalizeTelegramUsername(getString(formData, "telegramUsername"));
-  if (!telegramUsername) {
-    throw new Error("Telegram username is required.");
+  const userId = getString(formData, "userId");
+  if (!userId) {
+    throw new Error("User id is required.");
   }
 
-  if (telegramUsername === normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME)) {
+  const targetUser = await db.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      id: true,
+      telegramId: true,
+      telegramUsername: true,
+    },
+  });
+
+  if (
+    (env.PRIMARY_ADMIN_TELEGRAM_ID && targetUser.telegramId === env.PRIMARY_ADMIN_TELEGRAM_ID) ||
+    (!env.PRIMARY_ADMIN_TELEGRAM_ID &&
+      env.NODE_ENV !== "production" &&
+      normalizeTelegramUsername(targetUser.telegramUsername) ===
+        normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME))
+  ) {
     throw new Error("The primary admin cannot lose admin access.");
   }
 
   await db.user.update({
-    where: { telegramUsername },
+    where: { id: targetUser.id },
     data: { role: UserRole.USER },
   });
 
@@ -904,27 +934,76 @@ export async function createTrackAction(formData: FormData) {
     assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
   }
 
-  let track;
   const selectedTrackInfoKeys = formData
     .getAll("trackInfoFlagKeys")
     .map((value) => String(value))
     .filter(Boolean);
+  const unavailableKeys = parseSeatSelections(formData, "unavailableSeatKeys");
+  const slots = await db.eventLineupSlot.findMany({
+    where: { eventId },
+    orderBy: { displayOrder: "asc" },
+  });
+  const claimedRoleFamilies = new Set<string>();
+  for (const slot of slots) {
+    for (let index = 1; index <= slot.seatCount; index += 1) {
+      const label = seatLabelForSlot(slot, index);
+      const seatKey = `${label}:${index}`;
+      if (!claimSeatIds.includes(seatKey)) {
+        continue;
+      }
+
+      const roleFamily = getRoleFamilyKey(label, slot.key);
+      if (claimedRoleFamilies.has(roleFamily)) {
+        throwDuplicateRoleFamilyError(eventSlug);
+      }
+      claimedRoleFamilies.add(roleFamily);
+    }
+  }
+
   try {
-    track = await db.track.create({
-      data: {
-        eventId,
-        songId,
-        proposedById: user.id,
-        comment: getString(formData, "comment") || null,
-        playbackRequired: selectedTrackInfoKeys.includes("playback"),
-        trackInfoKeysJson: serializeTrackInfoKeys(selectedTrackInfoKeys),
-      },
+    await db.$transaction(async (tx) => {
+      const track = await tx.track.create({
+        data: {
+          eventId,
+          songId,
+          proposedById: user.id,
+          comment: getString(formData, "comment") || null,
+          playbackRequired: selectedTrackInfoKeys.includes("playback"),
+          trackInfoKeysJson: serializeTrackInfoKeys(selectedTrackInfoKeys),
+        },
+      });
+
+      await createDefaultTrackSeats(track.id, eventId, tx);
+      await ensureSetlistItem(track.id, eventId, user.id, tx);
+
+      const seats = await tx.trackSeat.findMany({
+        where: { trackId: track.id },
+        include: { lineupSlot: true },
+      });
+
+      for (const seat of seats) {
+        const seatKey = `${seat.label}:${seat.seatIndex}`;
+        const status = unavailableKeys.includes(seatKey)
+          ? TrackSeatStatus.UNAVAILABLE
+          : TrackSeatStatus.OPEN;
+        const claimed = claimSeatIds.includes(seatKey);
+
+        await tx.trackSeat.update({
+          where: { id: seat.id },
+          data: {
+            status: claimed ? TrackSeatStatus.CLAIMED : status,
+            isOptional:
+              seat.lineupSlot.allowOptional &&
+              optionalSeatIds.includes(seatKey) &&
+              !unavailableKeys.includes(seatKey),
+            userId: claimed ? user.id : null,
+            claimedAt: claimed ? new Date() : null,
+          },
+        });
+      }
     });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       if (eventSlug) {
         redirect(buildEventRedirectUrl(eventSlug, { error: "track-exists" }));
       }
@@ -932,52 +1011,6 @@ export async function createTrackAction(formData: FormData) {
     }
 
     throw error;
-  }
-
-  await createDefaultTrackSeats(track.id, eventId);
-  await ensureSetlistItem(track.id, eventId, user.id);
-
-  const seats = await db.trackSeat.findMany({
-    where: { trackId: track.id },
-    include: { lineupSlot: true },
-  });
-  const unavailableKeys = parseSeatSelections(formData, "unavailableSeatKeys");
-  const claimedRoleFamilies = new Set<string>();
-
-  for (const seat of seats) {
-    const seatKey = `${seat.label}:${seat.seatIndex}`;
-    const claimed = claimSeatIds.includes(seatKey);
-
-    if (!claimed) {
-      continue;
-    }
-
-    const roleFamily = getRoleFamilyKey(seat.label, seat.lineupSlot.key);
-    if (claimedRoleFamilies.has(roleFamily)) {
-      throwDuplicateRoleFamilyError(eventSlug);
-    }
-    claimedRoleFamilies.add(roleFamily);
-  }
-
-  for (const seat of seats) {
-    const seatKey = `${seat.label}:${seat.seatIndex}`;
-    const status = unavailableKeys.includes(seatKey)
-      ? TrackSeatStatus.UNAVAILABLE
-      : TrackSeatStatus.OPEN;
-    const claimed = claimSeatIds.includes(seatKey);
-
-    await db.trackSeat.update({
-      where: { id: seat.id },
-      data: {
-        status: claimed ? TrackSeatStatus.CLAIMED : status,
-        isOptional:
-          seat.lineupSlot.allowOptional &&
-          optionalSeatIds.includes(seatKey) &&
-          !unavailableKeys.includes(seatKey),
-        userId: claimed ? user.id : null,
-        claimedAt: claimed ? new Date() : null,
-      },
-    });
   }
 
   revalidateAll(pathBundle(eventSlug));
@@ -1378,35 +1411,75 @@ export async function respondToInviteAction(formData: FormData) {
       trackId: invite.trackId,
       userId: targetUserId,
     });
+    try {
+      await db.$transaction(async (tx) => {
+        const freshInvite = await tx.trackInvite.findUniqueOrThrow({
+          where: { id: inviteId },
+          include: {
+            seat: {
+              include: {
+                track: {
+                  include: {
+                    event: true,
+                  },
+                },
+              },
+            },
+          },
+        });
 
-    await db.$transaction([
-      db.trackSeat.update({
-        where: { id: invite.seatId },
-        data: {
-          userId: targetUserId,
-          status: TrackSeatStatus.CLAIMED,
-          claimedAt: new Date(),
-        },
-      }),
-      db.trackInvite.update({
-        where: { id: inviteId },
-        data: {
-          status: TrackInviteStatus.ACCEPTED,
-          respondedAt: new Date(),
-        },
-      }),
-      db.trackInvite.updateMany({
-        where: {
-          seatId: invite.seatId,
-          status: TrackInviteStatus.PENDING,
-          id: { not: inviteId },
-        },
-        data: {
-          status: TrackInviteStatus.CANCELED,
-          respondedAt: new Date(),
-        },
-      }),
-    ]);
+        if (
+          freshInvite.recipientId !== user.id ||
+          freshInvite.status !== TrackInviteStatus.PENDING
+        ) {
+          throw new Error("invite-stale");
+        }
+
+        const claimResult = await tx.trackSeat.updateMany({
+          where: {
+            id: freshInvite.seatId,
+            userId: null,
+            status: TrackSeatStatus.OPEN,
+          },
+          data: {
+            userId: targetUserId,
+            status: TrackSeatStatus.CLAIMED,
+            claimedAt: new Date(),
+          },
+        });
+
+        if (claimResult.count === 0) {
+          throw new Error("seat-occupied");
+        }
+
+        await tx.trackInvite.update({
+          where: { id: inviteId },
+          data: {
+            status: TrackInviteStatus.ACCEPTED,
+            respondedAt: new Date(),
+          },
+        });
+        await tx.trackInvite.updateMany({
+          where: {
+            seatId: freshInvite.seatId,
+            status: TrackInviteStatus.PENDING,
+            id: { not: inviteId },
+          },
+          data: {
+            status: TrackInviteStatus.CANCELED,
+            respondedAt: new Date(),
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "seat-occupied") {
+        redirectToEventError(eventSlug, "seat-occupied");
+      }
+      if (error instanceof Error && error.message === "invite-stale") {
+        redirectToEventError(eventSlug, "invite-stale");
+      }
+      throw error;
+    }
   } else {
     await db.trackInvite.update({
       where: { id: inviteId },
@@ -1439,7 +1512,7 @@ export async function createEventAction(formData: FormData) {
       title,
       description: getString(formData, "description") || null,
       venueName: getString(formData, "venueName") || null,
-      venueMapUrl: getString(formData, "venueMapUrl") || null,
+      venueMapUrl: normalizeVenueMapUrl(getString(formData, "venueMapUrl")),
       startsAt,
       registrationOpensAt: opensAt,
       registrationClosesAt: closesAt,
@@ -1510,7 +1583,7 @@ export async function updateEventAction(formData: FormData) {
       title: getString(formData, "title"),
       description: getString(formData, "description") || null,
       venueName: getString(formData, "venueName") || null,
-      venueMapUrl: getString(formData, "venueMapUrl") || null,
+      venueMapUrl: normalizeVenueMapUrl(getString(formData, "venueMapUrl")),
       startsAt,
       registrationOpensAt: opensAt,
       registrationClosesAt: closesAt,
@@ -1831,35 +1904,48 @@ export async function adminClearSeatAction(formData: FormData) {
 export async function acquireCurationLockAction(formData: FormData) {
   const admin = await requireAdmin();
   const eventId = getString(formData, "eventId");
-  const existing = await db.eventEditLock.findFirst({
-    where: {
-      eventId,
-      scope: ADMIN_LOCK_SCOPE,
-      expiresAt: { gt: new Date() },
+  await db.$transaction(
+    async (tx) => {
+      const existingLocks = await tx.eventEditLock.findMany({
+        where: {
+          eventId,
+          scope: ADMIN_LOCK_SCOPE,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      if (existingLocks.length > 1) {
+        throw new Error("Multiple active curation locks detected. Refresh and try again.");
+      }
+
+      const existing = existingLocks[0] ?? null;
+      if (existing && existing.userId !== admin.id) {
+        throw new Error("Another admin already owns the curation lock.");
+      }
+
+      if (existing) {
+        await tx.eventEditLock.update({
+          where: { id: existing.id },
+          data: {
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          },
+        });
+      } else {
+        await tx.eventEditLock.create({
+          data: {
+            eventId,
+            userId: admin.id,
+            scope: ADMIN_LOCK_SCOPE,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          },
+        });
+      }
     },
-  });
-
-  if (existing && existing.userId !== admin.id) {
-    throw new Error("Another admin already owns the curation lock.");
-  }
-
-  if (existing) {
-    await db.eventEditLock.update({
-      where: { id: existing.id },
-      data: {
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
-  } else {
-    await db.eventEditLock.create({
-      data: {
-        eventId,
-        userId: admin.id,
-        scope: ADMIN_LOCK_SCOPE,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
-  }
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    },
+  );
 
   revalidateAll(pathBundle(getString(formData, "eventSlug")));
 }
@@ -1947,47 +2033,49 @@ export async function runSelectionAction(formData: FormData) {
     candidates,
   });
 
-  await db.selectionRun.create({
-    data: {
-      eventId,
-      startedById: admin.id,
-      resultSummaryJson: recommendation,
-    },
-  });
-
-  await db.setlistItem.deleteMany({
-    where: { eventId },
-  });
-
-  for (const item of recommendation.selected) {
-    await db.setlistItem.create({
+  await db.$transaction(async (tx) => {
+    await tx.selectionRun.create({
       data: {
         eventId,
-        trackId: item.trackId,
-        section: item.section,
-        orderIndex: item.orderIndex,
-        editedById: admin.id,
+        startedById: admin.id,
+        resultSummaryJson: recommendation,
       },
     });
-  }
 
-  for (const [index, item] of recommendation.backlog.entries()) {
-    await db.setlistItem.create({
+    await tx.setlistItem.deleteMany({
+      where: { eventId },
+    });
+
+    for (const item of recommendation.selected) {
+      await tx.setlistItem.create({
+        data: {
+          eventId,
+          trackId: item.trackId,
+          section: item.section,
+          orderIndex: item.orderIndex,
+          editedById: admin.id,
+        },
+      });
+    }
+
+    for (const [index, item] of recommendation.backlog.entries()) {
+      await tx.setlistItem.create({
+        data: {
+          eventId,
+          trackId: item.trackId,
+          section: item.section,
+          orderIndex: index + 1,
+          editedById: admin.id,
+        },
+      });
+    }
+
+    await tx.event.update({
+      where: { id: eventId },
       data: {
-        eventId,
-        trackId: item.trackId,
-        section: item.section,
-        orderIndex: index + 1,
-        editedById: admin.id,
+        status: EventStatus.CURATING,
       },
     });
-  }
-
-  await db.event.update({
-    where: { id: eventId },
-    data: {
-      status: EventStatus.CURATING,
-    },
   });
 
   revalidateAll(pathBundle(eventSlug));
@@ -2175,7 +2263,7 @@ export async function publishSetlistAction(formData: FormData) {
     setlistItems: event.setlistItems,
   });
 
-  await Promise.allSettled(
+  const deliveryResults = await Promise.allSettled(
     notifications.map((notification) =>
       sendTelegramPublishedSetMessage({
         recipientTelegramId: notification.recipientTelegramId,
@@ -2185,8 +2273,17 @@ export async function publishSetlistAction(formData: FormData) {
       }),
     ),
   );
+  const failedDeliveries = deliveryResults.filter(
+    (result) =>
+      result.status === "rejected" ||
+      (result.status === "fulfilled" && result.value.status === "DELIVERY_FAILED"),
+  ).length;
 
   revalidateAll(pathBundle(eventSlug));
+
+  if (failedDeliveries > 0) {
+    redirect(`/admin/events/${eventSlug}?notice=publish-partial-notify`);
+  }
 }
 
 export async function sortSetlistByDrummerAction(formData: FormData) {

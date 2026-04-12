@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
+import { normalizeAppleMusicUrl } from "@/lib/url-security";
 
 type ItunesSongResult = {
   trackId: number;
@@ -87,7 +88,7 @@ export async function GET(request: Request) {
       artistName: entry.artistName,
       artworkUrl: entry.artworkUrl100 ?? null,
       collectionName: entry.collectionName ?? null,
-      externalUrl: entry.trackViewUrl ?? null,
+      externalUrl: normalizeAppleMusicUrl(entry.trackViewUrl),
       durationSeconds: entry.trackTimeMillis
         ? Math.round(entry.trackTimeMillis / 1000)
         : null,

@@ -125,6 +125,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       const rightName = right.telegramUsername ?? right.fullName ?? "";
       return leftName.localeCompare(rightName);
     });
+  const primaryAdminTelegramId = env.PRIMARY_ADMIN_TELEGRAM_ID;
   const primaryAdminUsername = normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME);
 
   return (
@@ -413,7 +414,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                   {adminUsers.map((member) => {
                     const username = member.telegramUsername ?? member.fullName ?? "unknown";
                     const isPrimaryAdmin =
-                      normalizeTelegramUsername(member.telegramUsername) === primaryAdminUsername;
+                      primaryAdminTelegramId
+                        ? member.telegramId === primaryAdminTelegramId
+                        : normalizeTelegramUsername(member.telegramUsername) === primaryAdminUsername;
 
                     return (
                       <div
@@ -428,7 +431,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                         </div>
                         {canManageAdmins && !isPrimaryAdmin ? (
                           <form action={revokeAdminRoleAction}>
-                            <input name="telegramUsername" type="hidden" value={username} />
+                            <input name="userId" type="hidden" value={member.id} />
                             <SubmitButton pendingLabel="Removing..." size="sm" type="submit" variant="ghost">
                               Remove admin
                             </SubmitButton>
@@ -445,7 +448,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 {canManageAdmins ? (
                   <form action={grantAdminRoleAction} className="space-y-3">
                     <p className="text-sm text-white/60">
-                      Only @{primaryAdminUsername} can promote or demote admins.
+                      {primaryAdminTelegramId
+                        ? "Only the configured primary admin can promote or demote admins."
+                        : `Only @${primaryAdminUsername} can promote or demote admins.`}
                     </p>
                     <input
                       className="w-full px-4 py-3"

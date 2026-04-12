@@ -32,7 +32,7 @@ spec:
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /api/healthz
+              path: /api/livez
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20

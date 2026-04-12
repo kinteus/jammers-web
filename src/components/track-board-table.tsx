@@ -404,7 +404,7 @@ function SeatRequestsControl({
   return (
     <details className="group/details relative flex w-6 justify-end">
       <summary
-        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[2px]"
+        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[3px]"
         title={pick(locale, {
           en: "Open pending requests",
           ru: "Показать ожидающие запросы",
@@ -487,7 +487,7 @@ function InviteControl({
             : `Позвать музыканта на ${seat.label}`,
         })}
       >
-        <Send className="h-3.5 w-3.5 translate-x-px" />
+        <Send className="h-3.5 w-3.5 -translate-x-[0.5px]" />
       </summary>
       <form
         action={inviteToSeatAction}
@@ -587,15 +587,29 @@ export function TrackBoardTable({
     const formData = new FormData();
     formData.set("seatId", seatId);
     formData.set("eventSlug", eventSlug);
+    try {
+      const result = await claimSeatInlineAction(formData);
 
-    const result = await claimSeatInlineAction(formData);
+      if (!result.ok && !isRequestOnly) {
+        setCurrentTracks(previousTracks);
+      }
 
-    if (!result.ok && !isRequestOnly) {
-      setCurrentTracks(previousTracks);
+      setFeedback(buildClaimFeedback(locale, result));
+    } catch {
+      if (!isRequestOnly) {
+        setCurrentTracks(previousTracks);
+      }
+      setFeedback({
+        tone: "error",
+        title: pick(locale, { en: "Could not join", ru: "Не получилось вписаться" }),
+        description: pick(locale, {
+          en: "The board did not confirm your change. Please try again.",
+          ru: "Борд не подтвердил изменение. Попробуй ещё раз.",
+        }),
+      });
+    } finally {
+      setPendingSeatId(null);
     }
-
-    setFeedback(buildClaimFeedback(locale, result));
-    setPendingSeatId(null);
   }
 
   async function handleReleaseSeat(seatId: string) {
@@ -622,51 +636,62 @@ export function TrackBoardTable({
       const formData = new FormData();
       formData.set("seatId", seatId);
       formData.set("eventSlug", eventSlug);
+      try {
+        const result = await releaseSeatInlineAction(formData);
 
-      const result = await releaseSeatInlineAction(formData);
-
-      if (!result.ok) {
-        setCurrentTracks(previousTracks);
-        setFeedback(
-          result.error === "release-not-allowed"
-            ? {
-                tone: "error",
-                title: pick(locale, { en: "Can't release seat", ru: "Нельзя освободить место" }),
-                description: pick(locale, {
-                  en: "Only the player, proposer or admin can remove this participant.",
-                  ru: "Освобождать это место может только сам участник, автор трека или админ.",
-                }),
-              }
-            : result.error === "seat-open"
+        if (!result.ok) {
+          setCurrentTracks(previousTracks);
+          setFeedback(
+            result.error === "release-not-allowed"
               ? {
                   tone: "error",
-                  title: pick(locale, { en: "Seat already open", ru: "Место уже свободно" }),
+                  title: pick(locale, { en: "Can't release seat", ru: "Нельзя освободить место" }),
                   description: pick(locale, {
-                    en: "This place was already released elsewhere.",
-                    ru: "Это место уже освободили в другом действии.",
+                    en: "Only the player, proposer or admin can remove this participant.",
+                    ru: "Освобождать это место может только сам участник, автор трека или админ.",
                   }),
                 }
-              : {
-                  tone: "error",
-                  title: pick(locale, { en: "Could not release seat", ru: "Не удалось освободить место" }),
-                  description: pick(locale, {
-                    en: "Please try again in a moment.",
-                    ru: "Попробуй ещё раз через пару секунд.",
-                  }),
-                },
-        );
-      } else {
+              : result.error === "seat-open"
+                ? {
+                    tone: "error",
+                    title: pick(locale, { en: "Seat already open", ru: "Место уже свободно" }),
+                    description: pick(locale, {
+                      en: "This place was already released elsewhere.",
+                      ru: "Это место уже освободили в другом действии.",
+                    }),
+                  }
+                : {
+                    tone: "error",
+                    title: pick(locale, { en: "Could not release seat", ru: "Не удалось освободить место" }),
+                    description: pick(locale, {
+                      en: "Please try again in a moment.",
+                      ru: "Попробуй ещё раз через пару секунд.",
+                    }),
+                  },
+          );
+        } else {
+          setFeedback({
+            tone: "success",
+            title: pick(locale, { en: "Seat released", ru: "Место освобождено" }),
+            description: pick(locale, {
+              en: "The line-up updated right away.",
+              ru: "Лайнап обновился сразу.",
+            }),
+          });
+        }
+      } catch {
+        setCurrentTracks(previousTracks);
         setFeedback({
-          tone: "success",
-          title: pick(locale, { en: "Seat released", ru: "Место освобождено" }),
+          tone: "error",
+          title: pick(locale, { en: "Could not release seat", ru: "Не удалось освободить место" }),
           description: pick(locale, {
-            en: "The line-up updated right away.",
-            ru: "Лайнап обновился сразу.",
+            en: "The board did not confirm your change. Please try again.",
+            ru: "Борд не подтвердил изменение. Попробуй ещё раз.",
           }),
         });
+      } finally {
+        setPendingSeatId(null);
       }
-
-      setPendingSeatId(null);
     }
   }
 
@@ -1054,7 +1079,7 @@ export function TrackBoardTable({
                                     )}
                                   />
                                 </div>
-                                <div className="flex min-h-[1.5rem] items-center">
+                                <div className="flex min-h-[1.5rem] items-center translate-x-[3px]">
                                   {canManage ? (
                                     <form>
                                       <button

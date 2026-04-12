@@ -40,12 +40,13 @@ For realistic local review of the current production content, you can port-forwa
 
 ```bash
 kubectl --kubeconfig ~/.kube/config-jammers-microk8s -n prod port-forward svc/jammers-web-postgres 55432:5432
-DATABASE_URL='postgresql://jammers:...@127.0.0.1:55432/prod' npm run dev -- --hostname 127.0.0.1 --port 3001
+DATABASE_URL='postgresql://<prod-user>:<prod-password>@127.0.0.1:55432/prod' ENABLE_DEV_AUTH=false npm run dev -- --hostname 127.0.0.1 --port 3001
 ```
 
 Operational notes:
 
 - use this only for read-oriented local QA unless you intentionally want to mutate production data,
+- keep `ENABLE_DEV_AUTH=false` whenever the app points at the production tunnel,
 - admin publish and delete flows are real writes when pointed at the live database,
 - if the tunnel drops, the app now degrades to explicit `Local data unavailable` screens instead of Prisma crash overlays.
 
