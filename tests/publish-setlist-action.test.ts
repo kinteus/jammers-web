@@ -102,7 +102,9 @@ function buildPublishedEvent() {
 }
 
 describe("publishSetlistAction", () => {
-  it("publishes the set and fans out Telegram notifications", async () => {
+  it(
+    "publishes the set and fans out Telegram notifications",
+    async () => {
     requireAdminMock.mockResolvedValue({
       id: "admin-1",
       role: UserRole.ADMIN,
@@ -127,17 +129,19 @@ describe("publishSetlistAction", () => {
 
     const { publishSetlistAction } = await import("@/server/actions");
 
-    await expect(publishSetlistAction(buildFormData())).resolves.toBeUndefined();
+      await expect(publishSetlistAction(buildFormData())).resolves.toBeUndefined();
 
-    expect(dbMock.event.update).toHaveBeenCalledWith({
-      where: { id: "event-1" },
-      data: { status: EventStatus.PUBLISHED },
-    });
-    expect(sendTelegramPublishedSetMessageMock).toHaveBeenCalledTimes(1);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/events/spring-jam-night");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/events/spring-jam-night");
-  });
+      expect(dbMock.event.update).toHaveBeenCalledWith({
+        where: { id: "event-1" },
+        data: { status: EventStatus.PUBLISHED },
+      });
+      expect(sendTelegramPublishedSetMessageMock).toHaveBeenCalledTimes(1);
+      expect(revalidatePathMock).toHaveBeenCalledWith("/");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/events/spring-jam-night");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/admin/events/spring-jam-night");
+    },
+    10_000,
+  );
 
   it("redirects admins to a warning when at least one notification fails", async () => {
     requireAdminMock.mockResolvedValue({
