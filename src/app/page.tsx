@@ -7,14 +7,13 @@ import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
-import { getEventStatusLabel, pick } from "@/lib/i18n";
+import { pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { formatDateTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
 import { ArchiveStatsSection } from "@/components/archive-stats-section";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
@@ -35,6 +34,8 @@ export const metadata: Metadata = {
     url: "/",
   },
 };
+
+const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
 
 function getRightNowContent({
   event,
@@ -96,11 +97,11 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Open setlist", ru: "Открыть сетлист" }),
+        label: pick(locale, { en: "See the final setlist", ru: "Открыть финальный сетлист" }),
       },
       secondaryCta: {
         href: "/faq",
-        label: pick(locale, { en: "Read FAQ", ru: "Открыть FAQ" }),
+        label: pick(locale, { en: "Need the details? Read FAQ", ru: "Нужны детали? Читать FAQ" }),
       },
     };
   }
@@ -130,11 +131,11 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Watch the board", ru: "Открыть борд" }),
+        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим бордом" }),
       },
       secondaryCta: {
         href: "/faq",
-        label: pick(locale, { en: "Read the rules", ru: "Понять правила" }),
+        label: pick(locale, { en: "Don't know the rules yet?", ru: "Ещё не знаешь правила?" }),
       },
     };
   }
@@ -164,7 +165,7 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Review the board", ru: "Посмотреть борд" }),
+        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый борд" }),
       },
       secondaryCta: null,
     };
@@ -195,11 +196,11 @@ function getRightNowContent({
     ],
     primaryCta: {
       href: `/events/${event.id}`,
-      label: pick(locale, { en: "Review the board", ru: "Посмотреть борд" }),
+      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть борд и закрыть нехватку" }),
     },
     secondaryCta: {
       href: "/faq",
-      label: pick(locale, { en: "Read how it works", ru: "Как это работает" }),
+      label: pick(locale, { en: "New here? Read how it works", ru: "Новичок? Читать как это работает" }),
     },
   };
 }
@@ -259,127 +260,91 @@ export default async function HomePage() {
         locale,
       })
     : null;
-  const joiningSteps = [
-    {
-      title: pick(locale, { en: "Open the live board", ru: "Открой живой борд" }),
-      body: pick(locale, {
-        en: "Start with the current gig, not with a blank idea. The board already shows what the night actually needs.",
-        ru: "Начинай с текущего гига, а не с абстрактной идеи. На борде уже видно, что именно нужно этому вечеру.",
-      }),
-    },
-    {
-      title: pick(locale, { en: "Fill real gaps first", ru: "Сначала закрой нехватку" }),
-      body: pick(locale, {
-        en: "If you can cover an open role, take it first. This keeps the line-up healthier before more songs are added.",
-        ru: "Если можешь закрыть открытую роль, сначала займи её. Так лайнап крепнет до того, как накидывать новые песни.",
-      }),
-    },
-    {
-      title: pick(locale, { en: "Propose only after checking", ru: "Предлагай после проверки" }),
-      body: pick(locale, {
-        en: "New songs are strongest when they do not duplicate what is already moving on the board.",
-        ru: "Новые песни лучше всего заходят, когда не дублируют то, что уже движется на борде.",
-      }),
-    },
-  ];
-
   return (
     <div className="space-y-8 text-sand">
       <section className="space-y-4">
-        <Card className="brand-stage overflow-hidden border-gold/24 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_28%),radial-gradient(circle_at_top_left,rgba(255,179,0,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(185,0,22,0.14),transparent_28%),#17120f] shadow-[0_22px_70px_rgba(0,0,0,0.34)]">
-          <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-start md:justify-between md:px-6">
-            <div className="space-y-3">
-              <Badge className="border-gold/30 bg-gold/16 text-[#fff3cf]">BETA</Badge>
+        <div className={HERO_FRAME_CLASS}>
+          <div className="max-w-3xl rounded-[1.6rem] border border-dashed border-gold/26 bg-[linear-gradient(180deg,rgba(255,179,0,0.08),rgba(255,179,0,0.03)),rgba(16,14,13,0.92)] px-5 py-4 shadow-[0_16px_42px_rgba(0,0,0,0.24)]">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-2">
-                <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand md:text-4xl">
+                <p className="text-lg font-semibold uppercase tracking-[0.3em] text-gold md:text-xl">
+                  BETA
+                </p>
+                <p className="max-w-2xl text-sm leading-6 text-white/74">
                   {pick(locale, {
-                    en: "The platform is live, but still evolving fast",
-                    ru: "Платформа уже живая, но всё ещё быстро эволюционирует",
-                  })}
-                </h2>
-                <p className="max-w-4xl text-sm leading-6 text-white/82 md:text-base">
-                  {pick(locale, {
-                    en: "Core flows are already usable for real gigs. Expect interface refinements, small workflow shifts, and quick improvements as we tighten the product with the community.",
-                    ru: "Основные сценарии уже можно использовать для реальных гигов. При этом интерфейс, отдельные шаги и мелкие workflow-решения ещё будут быстро улучшаться по мере шлифовки продукта вместе с коммьюнити.",
+                    en: "Some edges are still rough. If a flow feels unclear or breaks, send feedback from the FAQ form.",
+                    ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, отправь feedback через форму в FAQ.",
                   })}
                 </p>
               </div>
-            </div>
-            <div className="brand-shell-soft min-w-[220px] rounded-2xl px-4 py-4 text-sm leading-6 text-white/74">
-              {pick(locale, {
-                en: "If something feels unclear or rough, the FAQ feedback form goes straight to the team.",
-                ru: "Если что-то выглядит сыро или непонятно, форма обратной связи в FAQ сразу уходит команде.",
-              })}
-            </div>
-          </div>
-        </Card>
-      </section>
-
-      <section className="space-y-6 border-b border-white/8 pb-8">
-        <div className="brand-stage overflow-hidden rounded-[2rem] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.38)] md:px-8 md:py-10">
-          <div className="mx-auto flex max-w-6xl flex-col items-center space-y-7 text-center">
-            <div className="space-y-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/56">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">
                 {pick(locale, {
-                  en: "Cyprus music community",
-                  ru: "Музыкальное коммьюнити Кипра",
+                  en: "Temporary build zone",
+                  ru: "Временная зона доработки",
                 })}
-              </p>
-              <h1 className="font-display text-5xl font-semibold uppercase tracking-[0.04em] text-sand md:text-7xl">
-                {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
-              </h1>
-              <p className="mx-auto max-w-3xl text-base leading-7 text-white/80">
-                {pick(locale, {
-                  en: "A fast live board for the Cyprus music crowd: open the next gig, see what songs are already in motion and jump into the line-up without friction.",
-                  ru: "Живой борд для музыкального коммьюнити Кипра: открой ближайший гиг, быстро посмотри, какие песни уже в движении, и впишись в лайнап без лишней суеты.",
-                })}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                <Link href={featuredEvent ? `/events/${featuredEvent.id}` : "#gigs"}>
-                  <Button variant="primary">
-                    {pick(locale, { en: "Go to next gig", ru: "Открыть ближайший гиг" })}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/profile">
-                  <Button variant="secondary">
-                    {user
-                      ? pick(locale, { en: "Open profile", ru: "Открыть профиль" })
-                      : pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
-                  </Button>
-                </Link>
               </div>
             </div>
           </div>
         </div>
-
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="brand-shell space-y-5">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "First gig?", ru: "Первый гиг?" })}
-            </p>
-            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-              {pick(locale, {
-                en: "How to join without slowing the board down",
-                ru: "Как влиться и не затормозить борд",
-              })}
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {joiningSteps.map((step, index) => (
-              <div className="brand-shell-soft rounded-xl p-4" key={step.title}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
-                  0{index + 1}
+      <section className="space-y-6">
+        <div className={`${HERO_FRAME_CLASS} border-b border-white/8 pb-8`}>
+          <div className="brand-stage overflow-hidden rounded-[2rem] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.38)] md:px-8 md:py-10">
+            <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 text-center">
+              <div className="space-y-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/56">
+                  {pick(locale, {
+                    en: "Cyprus music community",
+                    ru: "Музыкальное коммьюнити Кипра",
+                  })}
                 </p>
-                <h3 className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-sand">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-white/72">{step.body}</p>
+                <h1 className="font-display text-5xl font-semibold uppercase tracking-[0.04em] text-sand md:text-7xl">
+                  {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
+                </h1>
+                <div className="mx-auto flex flex-wrap justify-center gap-3">
+                  <Link href={featuredEvent ? `/events/${featuredEvent.id}` : "#gigs"}>
+                    <Button variant="primary">
+                      {pick(locale, { en: "Open next gig board", ru: "Открыть борд ближайшего гига" })}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/profile">
+                    <Button variant="secondary">
+                      {user
+                        ? pick(locale, { en: "Open my profile", ru: "Открыть мой профиль" })
+                        : pick(locale, { en: "Sign in with Telegram", ru: "Войти через Telegram" })}
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${HERO_FRAME_CLASS} space-y-4`}>
+        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+              {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
+            </p>
+            <p className="text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
+                ru: "Новичок? В FAQ объяснены логика борда, правила вписки и то, что стоит сделать до предложения песен.",
+              })}
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Link href="/faq">
+              <Button variant="secondary">
+                {pick(locale, {
+                  en: "Read the FAQ",
+                  ru: "Открыть FAQ",
+                })}
+              </Button>
+            </Link>
           </div>
         </Card>
 
@@ -439,67 +404,6 @@ export default async function HomePage() {
             </p>
           )}
         </Card>
-      </section>
-
-      <section className="space-y-4" id="gigs">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-            {pick(locale, { en: "Gigs", ru: "Гиги" })}
-          </p>
-          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-            {pick(locale, { en: "Upcoming gig boards", ru: "Ближайшие гиги" })}
-          </h2>
-        </div>
-
-        {events.length === 0 ? (
-          <Card className="brand-shell">
-            <p className="text-sm leading-6 text-white/68">
-              {pick(locale, {
-                en: "No gigs yet. The next event will appear here as the public entry point into the live board.",
-                ru: "Пока нет гигов. Следующее событие появится здесь как главный публичный вход в живой борд.",
-              })}
-            </p>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {events.map((event) => (
-              <Card className="brand-shell rounded-[1.5rem] border-white/10" key={event.id}>
-                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="border-blue/24 bg-blue/16 text-white">
-                        {getEventStatusLabel(event.effectiveStatus, locale)}
-                      </Badge>
-                      <span className="text-sm text-white/58">
-                        {formatDateTime(event.startsAt, locale)} ·{" "}
-                        {event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
-                      </span>
-                    </div>
-                    <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                      {event.title}
-                    </h3>
-                    <div className="flex flex-wrap gap-4 text-sm text-white/62">
-                      <span>
-                        {event.trackCount} {pick(locale, { en: "proposed", ru: "заявлено" })}
-                      </span>
-                      <span>
-                        {event.completedTrackCount} {pick(locale, { en: "assembled", ru: "собрано" })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Link href={`/events/${event.id}`}>
-                      <Button variant="secondary">
-                        {pick(locale, { en: "Open gig", ru: "Открыть гиг" })}
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
       </section>
 
       <ArchiveStatsSection locale={locale} stats={archiveStats} />

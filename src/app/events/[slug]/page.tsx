@@ -960,18 +960,25 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               .filter((item) => item.section === "MAIN")
               .map((item) => (
                 <Card className="brand-shell space-y-2" key={item.id}>
-                  <p className="font-semibold text-sand">
-                    {item.orderIndex}. {item.track.song.artist.name} - {item.track.song.title}
-                  </p>
-                  <p className="text-sm leading-6 text-white/68">
-                    {item.track.seats
-                      .filter((seat) => seat.user)
-                      .map(
-                        (seat) =>
-                          `${seat.label}: @${seat.user?.telegramUsername ?? seat.user?.fullName}`,
-                      )
-                      .join(", ")}
-                  </p>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/26 bg-gold/12 text-base font-semibold text-sand">
+                      {item.orderIndex}
+                    </div>
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="font-semibold text-sand">
+                        {item.track.song.artist.name} - {item.track.song.title}
+                      </p>
+                      <p className="text-sm leading-6 text-white/68">
+                        {item.track.seats
+                          .filter((seat) => seat.user)
+                          .map(
+                            (seat) =>
+                              `${seat.label}: @${seat.user?.telegramUsername ?? seat.user?.fullName}`,
+                          )
+                          .join(", ")}
+                      </p>
+                    </div>
+                  </div>
                 </Card>
               ))}
           </div>

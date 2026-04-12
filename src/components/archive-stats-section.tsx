@@ -1,13 +1,117 @@
 import { Flame, Music2, Radio, Users2 } from "lucide-react";
 
 import { pick, type Locale } from "@/lib/i18n";
-import type { ArchiveStatsSummary } from "@/lib/domain/archive-stats";
+import type { ArchiveRankingItem, ArchiveStatsSummary } from "@/lib/domain/archive-stats";
 
 import { AnimatedNumber } from "@/components/animated-number";
 import { Card } from "@/components/ui/card";
 
+const HOMEPAGE_PREVIEW_COUNT = 3;
+
 function maxValue(items: Array<{ value: number }>) {
   return items.reduce((best, item) => Math.max(best, item.value), 1);
+}
+
+function MetricTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Radio;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] px-4 py-3.5">
+      <div className="flex items-start gap-3">
+        <div className="rounded-sm border border-gold/18 bg-gold/10 p-2 text-gold">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">{label}</p>
+          <p className="font-display text-2xl font-semibold text-sand">
+            <AnimatedNumber value={value} />
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RankingRow({
+  accentClassName,
+  index,
+  item,
+  locale,
+  max,
+}: {
+  accentClassName: string;
+  index: number;
+  item: ArchiveRankingItem;
+  locale: Locale;
+  max: number;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-white/5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/68">
+          {String(index + 1).padStart(2, "0")}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-sand">{item.label}</p>
+          {item.hint ? (
+            <p className="text-[10px] uppercase tracking-[0.14em] text-white/42">
+              {item.hint} {pick(locale, { en: "gigs", ru: "гигов" })}
+            </p>
+          ) : null}
+        </div>
+        <div className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/78">
+          {item.value}
+        </div>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+        <div
+          className={`h-full rounded-full ${accentClassName}`}
+          style={{ width: `${(item.value / max) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RankingPanel({
+  accentClassName,
+  items,
+  locale,
+  title,
+}: {
+  accentClassName: string;
+  items: ArchiveRankingItem[];
+  locale: Locale;
+  title: string;
+}) {
+  const previewItems = items.slice(0, HOMEPAGE_PREVIEW_COUNT);
+  const max = maxValue(items);
+
+  return (
+    <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.02] p-4">
+      <div className="space-y-3">
+        <h3 className="font-display text-lg font-semibold text-sand">{title}</h3>
+        <div className="space-y-3">
+          {previewItems.map((item, index) => (
+            <RankingRow
+              accentClassName={accentClassName}
+              index={index}
+              item={item}
+              key={item.id}
+              locale={locale}
+              max={max}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ArchiveStatsSection({
@@ -21,9 +125,9 @@ export function ArchiveStatsSection({
     return null;
   }
 
-  const headline = [
+  const metricTiles = [
     {
-      label: pick(locale, { en: "Gigs in archive", ru: "Гигов в архиве" }),
+      label: pick(locale, { en: "Gigs played", ru: "Сыгранных гигов" }),
       value: stats.totalGigs,
       icon: Radio,
     },
@@ -33,246 +137,186 @@ export function ArchiveStatsSection({
       icon: Music2,
     },
     {
-      label: pick(locale, { en: "Musicians on stage", ru: "Музыкантов на сцене" }),
-      value: stats.totalMusicians,
-      icon: Users2,
-    },
-    {
       label: pick(locale, { en: "Unique songs", ru: "Уникальных песен" }),
       value: stats.uniqueSongs,
       icon: Flame,
     },
+    {
+      label: pick(locale, { en: "Musicians on stage", ru: "Музыкантов на сцене" }),
+      value: stats.totalMusicians,
+      icon: Users2,
+    },
   ];
 
-  const topMusiciansMax = maxValue(stats.topMusicians);
-  const topArtistsMax = maxValue(stats.topArtists);
-  const topOriginatorsMax = maxValue(stats.topOriginators);
-  const topSongsMax = maxValue(stats.topSongs);
+  const peakYear =
+    stats.timeline.reduce(
+      (best, entry) => (entry.tracks > best.tracks ? entry : best),
+      stats.timeline[0],
+    ) ?? null;
+  const timelineMax = Math.max(...stats.timeline.map((entry) => entry.tracks), 1);
 
   return (
-    <section className="space-y-4 border-t border-white/8 pt-8">
+    <section className="space-y-5 border-t border-white/8 pt-8">
       <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-          {pick(locale, { en: "Community stats", ru: "Статистика коммьюнити" })}
-        </p>
-        <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
+        <h2 className="font-display text-3xl font-semibold text-sand">
           {pick(locale, {
-            en: "What the archive says about The Jammers",
-            ru: "Что архив говорит о The Jammers",
+            en: "The Scene, Measured",
+            ru: "Сцена в цифрах",
           })}
         </h2>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {headline.map((item, index) => (
-          <Card
-            className="stats-card-animate brand-shell rounded-[1.4rem] border-white/10 p-5"
-            key={item.label}
-            style={{ animationDelay: `${index * 70}ms` }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{item.label}</p>
-                <p className="font-display text-4xl font-semibold uppercase tracking-[0.03em] text-sand">
-                  <AnimatedNumber value={item.value} />
-                </p>
-              </div>
-              <div className="rounded-sm border border-gold/18 bg-gold/10 p-3 text-gold">
-                <item.icon className="h-4 w-4" />
-              </div>
-            </div>
-          </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metricTiles.map((item) => (
+          <MetricTile icon={item.icon} key={item.label} label={item.label} value={item.value} />
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,0.8fr)]">
-        <Card className="brand-shell rounded-[1.5rem] border-white/10 p-5">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                {pick(locale, { en: "Most active musicians", ru: "Самые активные музыканты" })}
-              </p>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {pick(locale, { en: "Stage mileage", ru: "Сценический пробег" })}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <Card className="brand-shell rounded-[1.55rem] border-white/10 p-5 sm:p-6">
+          <div className="flex h-full flex-col gap-5">
+            <div className="space-y-1.5">
+              <h3 className="font-display text-2xl font-semibold text-sand">
+                {pick(locale, {
+                  en: "Pulse",
+                  ru: "Пульс",
+                })}
               </h3>
             </div>
-            <div className="space-y-3">
-              {stats.topMusicians.map((item, index) => (
-                <div className="space-y-2" key={item.id}>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="text-sm font-semibold text-sand">{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.14em] text-white/52">
-                      {item.value}
-                      {item.hint
-                        ? ` · ${item.hint} ${pick(locale, { en: "gigs", ru: "гигов" })}`
-                        : ""}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="stats-bar-fill h-full rounded-full bg-brand-wave"
-                      style={{
-                        width: `${(item.value / topMusiciansMax) * 100}%`,
-                        animationDelay: `${index * 90}ms`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
 
-        <Card className="brand-shell rounded-[1.5rem] border-white/10 p-5">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                {pick(locale, { en: "Most played artists", ru: "Самые играемые артисты" })}
-              </p>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {pick(locale, { en: "Archive favourites", ru: "Любимчики архива" })}
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {stats.topArtists.map((item, index) => (
-                <div className="space-y-2" key={item.id}>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="text-sm font-semibold text-sand">{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.14em] text-white/52">
-                      {item.value}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="stats-bar-fill h-full rounded-full bg-gold"
-                      style={{
-                        width: `${(item.value / topArtistsMax) * 100}%`,
-                        animationDelay: `${index * 90}ms`,
-                      }}
-                    />
-                  </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.96fr)_minmax(300px,1.04fr)]">
+              <div className="space-y-4">
+                <div className="rounded-[1.2rem] border border-white/10 bg-black/18 p-4 sm:p-5">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
+                    {pick(locale, {
+                      en: "Biggest released gig",
+                      ru: "Самый большой опубликованный гиг",
+                    })}
+                  </p>
+                  <h4 className="mt-2 font-display text-2xl font-semibold text-sand">
+                    {stats.busiestGig?.title ??
+                      pick(locale, { en: "The archive keeps growing", ru: "Архив продолжает расти" })}
+                  </h4>
+                  <p className="mt-3 text-sm leading-6 text-white/72">
+                    {stats.busiestGig
+                      ? pick(locale, {
+                          en: `${stats.busiestGig.tracks} tracks reached the final set that night — the biggest published line-up so far.`,
+                          ru: `${stats.busiestGig.tracks} треков дошли до финального сета в тот вечер — это самый большой опубликованный лайнап на сегодня.`,
+                        })
+                      : pick(locale, {
+                          en: "Even in its current shape, the scene already shows an upward line in both output and continuity.",
+                          ru: "Даже в текущем виде сцена уже показывает рост и по объёму, и по устойчивости.",
+                        })}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </Card>
 
-        <Card className="brand-stage rounded-[1.5rem] border-white/10 p-5">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                {pick(locale, { en: "Archive pulse", ru: "Пульс архива" })}
-              </p>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {stats.busiestGig
-                  ? pick(locale, { en: "Biggest night", ru: "Самый большой гиг" })
-                  : pick(locale, { en: "Yearly pulse", ru: "Пульс по годам" })}
-              </h3>
-            </div>
-            {stats.busiestGig ? (
-              <div className="space-y-2">
-                <p className="text-lg font-semibold text-sand">{stats.busiestGig.title}</p>
-                <p className="text-sm leading-6 text-white/72">
-                  {pick(locale, {
-                    en: `A marathon night: ${stats.busiestGig.tracks} tracks made the final set.`,
-                    ru: `Настоящий марафон: ${stats.busiestGig.tracks} треков дошли до финального сета.`,
-                  })}
-                </p>
-              </div>
-            ) : null}
-            <div className="space-y-3">
-              {stats.timeline.map((item, index) => (
-                <div className="space-y-1.5" key={item.year}>
-                  <div className="flex items-end justify-between gap-3 text-sm">
-                    <span className="font-semibold text-sand">{item.year}</span>
-                    <span className="text-white/60">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
+                      {pick(locale, { en: "Peak year", ru: "Пиковый год" })}
+                    </p>
+                    <p className="mt-2 font-display text-2xl font-semibold text-sand">
+                      {peakYear?.year ?? "—"}
+                    </p>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/52">
+                      {peakYear
+                        ? pick(locale, {
+                            en: `${peakYear.tracks} tracks released`,
+                            ru: `${peakYear.tracks} треков в релизе`,
+                          })
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
+                      {pick(locale, { en: "Years in motion", ru: "Лет в движении" })}
+                    </p>
+                    <p className="mt-2 font-display text-2xl font-semibold text-sand">
+                      <AnimatedNumber value={stats.timeline.length} />
+                    </p>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/52">
                       {pick(locale, {
-                        en: `${item.gigs} gigs · ${item.tracks} tracks`,
-                        ru: `${item.gigs} гигов · ${item.tracks} треков`,
+                        en: "Visible release rhythm",
+                        ru: "Видимый ритм релизов",
                       })}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="stats-bar-fill h-full rounded-full bg-brand-wave"
-                      style={{
-                        width: `${(item.tracks / Math.max(...stats.timeline.map((entry) => entry.tracks), 1)) * 100}%`,
-                        animationDelay: `${index * 100}ms`,
-                      }}
-                    />
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
+              </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="brand-shell rounded-[1.5rem] border-white/10 p-5">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                {pick(locale, { en: "Top originators", ru: "Главные инициаторы" })}
-              </p>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {pick(locale, { en: "Who brings songs in", ru: "Кто приносит песни" })}
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {stats.topOriginators.map((item, index) => (
-                <div className="space-y-2" key={item.id}>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="text-sm font-semibold text-sand">{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.14em] text-white/52">
-                      {item.value}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="stats-bar-fill h-full rounded-full bg-red"
-                      style={{
-                        width: `${(item.value / topOriginatorsMax) * 100}%`,
-                        animationDelay: `${index * 90}ms`,
-                      }}
-                    />
-                  </div>
+              <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.02] p-4 sm:p-5">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
+                    {pick(locale, { en: "By year", ru: "По годам" })}
+                  </p>
                 </div>
-              ))}
+
+                <div className="mt-4 space-y-3">
+                  {stats.timeline.map((item) => (
+                    <div className="space-y-1.5" key={item.year}>
+                      <div className="flex items-end justify-between gap-3 text-sm">
+                        <span className="font-semibold text-sand">{item.year}</span>
+                        <span className="text-white/60">
+                          {pick(locale, {
+                            en: `${item.tracks} tracks · ${item.gigs} gigs`,
+                            ru: `${item.tracks} треков · ${item.gigs} гигов`,
+                          })}
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+                        <div
+                          className="h-full rounded-full bg-brand-wave"
+                          style={{ width: `${(item.tracks / timelineMax) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </Card>
 
-        <Card className="brand-shell rounded-[1.5rem] border-white/10 p-5">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                {pick(locale, { en: "Songs that keep coming back", ru: "Песни, которые возвращаются" })}
-              </p>
-              <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {pick(locale, { en: "Repeated crowd magnets", ru: "Повторяющиеся магниты" })}
+        <Card className="brand-shell rounded-[1.55rem] border-white/10 p-5 sm:p-6">
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <h3 className="font-display text-2xl font-semibold text-sand">
+                {pick(locale, {
+                  en: "People, songs, momentum",
+                  ru: "Люди, песни, инерция",
+                })}
               </h3>
             </div>
-            <div className="space-y-3">
-              {stats.topSongs.map((item, index) => (
-                <div className="space-y-2" key={item.id}>
-                  <div className="flex items-end justify-between gap-3">
-                    <span className="text-sm font-semibold text-sand">{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.14em] text-white/52">
-                      {item.value}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="stats-bar-fill h-full rounded-full bg-brand-wave"
-                      style={{
-                        width: `${(item.value / topSongsMax) * 100}%`,
-                        animationDelay: `${index * 90}ms`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <RankingPanel
+                accentClassName="bg-brand-wave"
+                items={stats.topMusicians}
+                locale={locale}
+                title={pick(locale, { en: "Stage mileage", ru: "Сценический пробег" })}
+              />
+
+              <RankingPanel
+                accentClassName="bg-red"
+                items={stats.topOriginators}
+                locale={locale}
+                title={pick(locale, { en: "Who brings songs in", ru: "Кто приносит песни" })}
+              />
+
+              <RankingPanel
+                accentClassName="bg-gold"
+                items={stats.topArtists}
+                locale={locale}
+                title={pick(locale, { en: "Scene favourites", ru: "Любимчики сцены" })}
+              />
+
+              <RankingPanel
+                accentClassName="bg-brand-wave"
+                items={stats.topSongs}
+                locale={locale}
+                title={pick(locale, { en: "Repeated crowd magnets", ru: "Повторяющиеся магниты" })}
+              />
             </div>
           </div>
         </Card>
