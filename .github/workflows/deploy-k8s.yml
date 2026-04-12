@@ -103,11 +103,29 @@ jobs:
       - name: Apply Kubernetes manifests
         run: kubectl apply -k infra/k8s/overlays/production
 
+      - name: Free capacity for migrations
+        id: capacity
+        run: |
+          ORIGINAL_REPLICAS="$(kubectl -n "$K8S_NAMESPACE" get deployment jammers-web -o jsonpath='{.spec.replicas}')"
+          ORIGINAL_HPA_MIN="$(kubectl -n "$K8S_NAMESPACE" get hpa jammers-web -o jsonpath='{.spec.minReplicas}')"
+          ORIGINAL_HPA_MAX="$(kubectl -n "$K8S_NAMESPACE" get hpa jammers-web -o jsonpath='{.spec.maxReplicas}')"
+
+          echo "replicas=${ORIGINAL_REPLICAS}" >> "$GITHUB_OUTPUT"
+          echo "hpa_min=${ORIGINAL_HPA_MIN}" >> "$GITHUB_OUTPUT"
+          echo "hpa_max=${ORIGINAL_HPA_MAX}" >> "$GITHUB_OUTPUT"
+
+          kubectl -n "$K8S_NAMESPACE" patch hpa jammers-web --type=merge -p '{"spec":{"minReplicas":1,"maxReplicas":1}}'
+          kubectl -n "$K8S_NAMESPACE" scale deployment/jammers-web --replicas=1
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/jammers-web --timeout=10m
+
       - name: Run Prisma migrations
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
         run: |
           MIGRATION_JOB="jammers-web-migrate-${GITHUB_SHA::7}"
+          kubectl -n "$K8S_NAMESPACE" get jobs -o name \
+            | grep '^job.batch/jammers-web-migrate-' \
+            | xargs -r kubectl -n "$K8S_NAMESPACE" delete --ignore-not-found
           sed \
             -e "s/name: jammers-web-migrate/name: ${MIGRATION_JOB}/" \
             -e "s|ghcr.io/kinteus/jammers-web:latest|${IMAGE_REF}|g" \
@@ -115,6 +133,13 @@ jobs:
             | kubectl -n "$K8S_NAMESPACE" apply -f -
           kubectl -n "$K8S_NAMESPACE" wait --for=condition=complete --timeout=10m "job/${MIGRATION_JOB}"
           kubectl -n "$K8S_NAMESPACE" logs "job/${MIGRATION_JOB}"
+
+      - name: Restore production scale
+        if: always() && steps.capacity.outcome == 'success'
+        run: |
+          kubectl -n "$K8S_NAMESPACE" patch hpa jammers-web --type=merge -p '{"spec":{"minReplicas":${{ steps.capacity.outputs.hpa_min }},"maxReplicas":${{ steps.capacity.outputs.hpa_max }}}}'
+          kubectl -n "$K8S_NAMESPACE" scale deployment/jammers-web --replicas=${{ steps.capacity.outputs.replicas }}
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/jammers-web --timeout=10m
 
       - name: Roll out deployment
         env:

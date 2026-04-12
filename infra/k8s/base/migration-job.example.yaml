@@ -2,8 +2,18 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: jammers-web-migrate
+  labels:
+    app.kubernetes.io/name: jammers-web
+    app.kubernetes.io/component: jammers-web-migration
 spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jammers-web
+        app.kubernetes.io/component: jammers-web-migration
     spec:
       imagePullSecrets:
         - name: ghcr-registry

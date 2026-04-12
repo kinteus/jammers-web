@@ -348,11 +348,20 @@ export default async function HomePage() {
           </div>
         </Card>
 
-        <Card className="brand-stage space-y-5">
+        <Card className="brand-stage relative overflow-hidden space-y-5 border border-gold/18 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.44)] sm:px-6 sm:py-6">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/55 to-transparent"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 top-6 h-24 w-24 rounded-full bg-gold/10 blur-3xl"
+          />
           <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold/18 bg-gold/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+              <span className="h-1.5 w-1.5 rounded-full bg-gold" />
               {pick(locale, { en: "Right now", ru: "Прямо сейчас" })}
-            </p>
+            </div>
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
               {rightNowContent
                 ? rightNowContent.title
@@ -374,7 +383,10 @@ export default async function HomePage() {
                   className={rightNowContent.stats.length === 3 ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}
                 >
                   {rightNowContent.stats.map((stat) => (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4" key={stat.label}>
+                    <div
+                      className="rounded-xl border border-white/12 bg-black/28 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                      key={stat.label}
+                    >
                       <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{stat.label}</p>
                       <div className="mt-2 text-3xl font-semibold text-sand">{stat.value}</div>
                     </div>
@@ -383,7 +395,7 @@ export default async function HomePage() {
               ) : null}
               <div className="flex flex-wrap gap-3">
                 <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
-                  <Button variant="secondary">
+                  <Button variant="primary">
                     {rightNowContent?.primaryCta.label ??
                       pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
                   </Button>
