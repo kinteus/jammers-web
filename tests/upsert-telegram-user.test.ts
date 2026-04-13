@@ -54,7 +54,7 @@ describe("upsertTelegramUser", () => {
   it("rejects linking a new telegram id to an existing username", async () => {
     dbMock.user.findUnique
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: "conflicting-user" });
+      .mockResolvedValueOnce({ id: "conflicting-user", telegramId: "tg-old" });
 
     const { TelegramIdentityConflictError, upsertTelegramUser } = await import(
       "@/server/upsert-telegram-user"
@@ -67,6 +67,43 @@ describe("upsertTelegramUser", () => {
       }),
     ).rejects.toBeInstanceOf(TelegramIdentityConflictError);
 
+    expect(dbMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("links an imported user matched by username when telegram id is still empty", async () => {
+    dbMock.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "legacy-user", telegramId: null });
+    dbMock.user.update.mockResolvedValue({
+      id: "legacy-user",
+      telegramId: "tg-new",
+      telegramUsername: "disentinel",
+      fullName: "Disentinel",
+    });
+
+    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
+
+    await expect(
+      upsertTelegramUser({
+        telegramId: "tg-new",
+        telegramUsername: "@Disentinel",
+        fullName: "Disentinel",
+      }),
+    ).resolves.toMatchObject({
+      id: "legacy-user",
+      telegramId: "tg-new",
+      telegramUsername: "disentinel",
+    });
+
+    expect(dbMock.user.update).toHaveBeenCalledWith({
+      where: { id: "legacy-user" },
+      data: {
+        telegramId: "tg-new",
+        telegramUsername: "disentinel",
+        fullName: "Disentinel",
+        avatarUrl: undefined,
+      },
+    });
     expect(dbMock.user.create).not.toHaveBeenCalled();
   });
 
