@@ -17,6 +17,21 @@ declare global {
   }
 }
 
+function getTelegramAuthErrorMessage(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "Telegram authentication failed.";
+
+  if (/payload expired/i.test(message)) {
+    return "Telegram confirmation took too long. Please try once more.";
+  }
+
+  if (/signature/i.test(message)) {
+    return "Telegram confirmation was interrupted. Please try again.";
+  }
+
+  return message;
+}
+
 export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
@@ -73,9 +88,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
         window.location.replace(redirectUrl.toString());
       } catch (error) {
         setStatus("error");
-        setMessage(
-          error instanceof Error ? error.message : "Telegram authentication failed.",
-        );
+        setMessage(getTelegramAuthErrorMessage(error));
       }
     };
 
