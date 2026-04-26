@@ -4,20 +4,13 @@ import { createSession } from "@/lib/auth/session";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { env } from "@/lib/env";
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
+import { getSafeReturnTo } from "@/lib/return-to";
 import {
   TelegramIdentityConflictError,
   upsertTelegramUser,
 } from "@/server/upsert-telegram-user";
 
 type TelegramPayloadRecord = Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>;
-
-function getSafeReturnTo(value: string | null | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/profile";
-  }
-
-  return value;
-}
 
 async function completeTelegramAuth(
   payload: TelegramPayloadRecord,
@@ -37,12 +30,14 @@ async function completeTelegramAuth(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const requestedReturnTo = searchParams.get("returnTo");
+  const retryUrl = new URL(
+    getSafeReturnTo(requestedReturnTo),
+    env.NEXT_PUBLIC_APP_URL,
+  );
+  retryUrl.searchParams.set("authError", "retry");
 
   return NextResponse.redirect(
-    new URL(
-      `${getSafeReturnTo(requestedReturnTo)}${requestedReturnTo?.includes("?") ? "&" : "?"}authError=retry`,
-      env.NEXT_PUBLIC_APP_URL,
-    ),
+    retryUrl,
     {
       headers: {
         "Cache-Control": "no-store",

@@ -37,6 +37,36 @@ afterEach(() => {
 });
 
 describe("telegram auth route", () => {
+  it("preserves safe GET return targets while appending authError", async () => {
+    const { GET } = await import("@/app/api/auth/telegram/route");
+
+    const response = await GET(
+      new Request(
+        "https://thejammers.org/api/auth/telegram?returnTo=%2Fevents%2Fspring-jam-night%3Fview%3Dmine",
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://thejammers.org/events/spring-jam-night?view=mine&authError=retry",
+    );
+  });
+
+  it("preserves fragments while appending authError to the query string", async () => {
+    const { GET } = await import("@/app/api/auth/telegram/route");
+
+    const response = await GET(
+      new Request(
+        "https://thejammers.org/api/auth/telegram?returnTo=%2Fevents%2Ffoo%23bar",
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://thejammers.org/events/foo?authError=retry#bar",
+    );
+  });
+
   it("redirects unsafe GET return targets back to profile", async () => {
     const { GET } = await import("@/app/api/auth/telegram/route");
 
