@@ -23,6 +23,7 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
   const primaryLinks = [
     { href: "/", label: pick(locale, { en: "Home", ru: "Главная" }) },
     { href: "/#published", label: pick(locale, { en: "Setlists", ru: "Сетлисты" }) },
+    { href: "/about", label: pick(locale, { en: "About Us", ru: "О нас" }) },
     { href: "/faq", label: pick(locale, { en: "FAQ", ru: "FAQ" }) },
   ];
 
