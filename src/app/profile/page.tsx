@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { getSafeReturnTo } from "@/lib/return-to";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
 import { formatDateTime } from "@/lib/utils";
 import {
@@ -83,14 +84,21 @@ type ProfilePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function getInstrumentDisplayLabel(name: string) {
-  return name === "Sax" ? "Other" : name;
+function getInstrumentDisplayLabel(name: string, locale: Awaited<ReturnType<typeof getLocale>>) {
+  if (name === "Sax") {
+    return pick(locale, { en: "Other", ru: "Другое" });
+  }
+
+  return name;
 }
 
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
   const authError = typeof params.authError === "string" ? params.authError : null;
+  const returnTo = getSafeReturnTo(
+    typeof params.returnTo === "string" ? params.returnTo : null,
+  );
 
   if (!user) {
     return (
@@ -119,7 +127,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 "Keep your instruments current so bandmates can find you.",
               ],
               ru: [
-                "Занимай открытые места на любом живом борде.",
+                "Занимай открытые места в любом живом сетлисте.",
                 "Принимай и отклоняй приглашения в одном месте.",
                 "Держи инструменты актуальными, чтобы тебя было проще найти.",
               ],
@@ -147,7 +155,11 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               })}
             </p>
           ) : null}
-          <TelegramLoginWidget botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME} />
+          <TelegramLoginWidget
+            botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
+            locale={locale}
+            returnTo={returnTo}
+          />
           <Link href="/">
             <Button variant="secondary">
               {pick(locale, { en: "Browse gigs first", ru: "Сначала посмотреть гиги" })}
@@ -178,6 +190,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               </p>
             </div>
             <form action={devSignInAction} className="space-y-4">
+              <input name="returnTo" type="hidden" value={returnTo} />
               <label className="block space-y-2 text-sm">
                 <span>{pick(locale, { en: "Telegram username", ru: "Telegram-ник" })}</span>
                 <input
@@ -307,7 +320,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
               {pick(locale, {
                 en: "Your profile is ready. Join a live board next.",
-                ru: "Профиль готов. Следующий шаг — зайти на живой борд.",
+                ru: "Профиль готов. Следующий шаг — открыть живой сетлист.",
               })}
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-white/74">
@@ -434,7 +447,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     </form>
                     <Link href={`/events/${invite.track.event.id}`}>
                       <Button size="sm" type="button" variant="ghost">
-                        {pick(locale, { en: "Open board", ru: "Открыть борд" })}
+                        {pick(locale, { en: "Open board", ru: "Открыть сетлист" })}
                       </Button>
                     </Link>
                   </div>
@@ -468,7 +481,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               </p>
               <Link href="/">
                 <Button size="sm" type="button" variant="secondary">
-                  {pick(locale, { en: "Find a board to join", ru: "Найти борд" })}
+                  {pick(locale, { en: "Find a board to join", ru: "Найти сетлист" })}
                 </Button>
               </Link>
             </div>
@@ -505,7 +518,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   <div className="mt-4">
                     <Link href={`/events/${invite.track.event.id}#track-board`}>
                       <Button size="sm" type="button" variant="ghost">
-                        {pick(locale, { en: "Open board", ru: "Открыть борд" })}
+                        {pick(locale, { en: "Open board", ru: "Открыть сетлист" })}
                       </Button>
                     </Link>
                   </div>
@@ -536,7 +549,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               </p>
               <Link href="/">
                 <Button size="sm" variant="secondary">
-                  {pick(locale, { en: "Join a live board", ru: "Войти в живой борд" })}
+                  {pick(locale, { en: "Join a live board", ru: "Войти в живой сетлист" })}
                 </Button>
               </Link>
             </div>
@@ -563,7 +576,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 <div className="mt-4">
                   <Link href={`/events/${entry.track.event.id}?view=mine#track-board`}>
                     <Button size="sm" variant="secondary">
-                      {pick(locale, { en: "Open on board", ru: "Открыть на борде" })}
+                      {pick(locale, { en: "Open on board", ru: "Открыть в сетлисте" })}
                     </Button>
                   </Link>
                 </div>
@@ -640,7 +653,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     <InstrumentToken
                       className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08]"
                       compact
-                      label={getInstrumentDisplayLabel(instrument.name)}
+                      label={getInstrumentDisplayLabel(instrument.name, locale)}
                       locale={locale}
                       meta={pick(locale, {
                         en: "Tap to include in your main kit",

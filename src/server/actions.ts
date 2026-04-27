@@ -48,6 +48,8 @@ import {
   serializeTrackInfoKeys,
 } from "@/lib/track-info-flags";
 import {
+  DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+  DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
   DEFAULT_LINEUP_DETAILS_MARKDOWN,
   DEFAULT_PARTICIPATION_RULES_MARKDOWN,
   SITE_CONTENT_ID,
@@ -56,6 +58,7 @@ import {
 } from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
+import { getSafeReturnTo } from "@/lib/return-to";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
@@ -66,11 +69,17 @@ import {
 import { buildPublishedSetNotifications } from "@/server/published-set-notifications";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
-function pathBundle(eventSlug?: string) {
+function pathBundle(...eventKeys: Array<string | undefined>) {
   const paths = ["/", "/admin", "/profile", "/faq"];
-  if (eventSlug) {
-    paths.push(`/events/${eventSlug}`, `/admin/events/${eventSlug}`);
+
+  for (const eventKey of eventKeys) {
+    if (!eventKey) {
+      continue;
+    }
+
+    paths.push(`/events/${eventKey}`, `/admin/events/${eventKey}`);
   }
+
   return paths;
 }
 
@@ -95,7 +104,12 @@ function buildEventRedirectUrl(
   hash = "track-board",
 ) {
   const search = new URLSearchParams(params);
-  return `/events/${eventSlug}?${search.toString()}#${hash}`;
+  const searchString = search.toString();
+  const hashString = hash ? `#${hash}` : "";
+
+  return searchString
+    ? `/events/${eventSlug}?${searchString}${hashString}`
+    : `/events/${eventSlug}${hashString}`;
 }
 
 function redirectToEventError(eventSlug: string | undefined, error: string): never {
@@ -330,6 +344,34 @@ function getConfiguredMaxSetTrackCount(formData: FormData, fallback: number) {
   }
 
   return Math.max(1, Math.round(rawValue));
+}
+
+function getCommunityQuotesDesktopDisplayLimit(formData: FormData) {
+  return Math.min(
+    60,
+    Math.max(
+      1,
+      getInt(
+        formData,
+        "communityQuotesDesktopDisplayLimit",
+        DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+      ),
+    ),
+  );
+}
+
+function getCommunityQuotesMobileDisplayLimit(formData: FormData) {
+  return Math.min(
+    24,
+    Math.max(
+      1,
+      getInt(
+        formData,
+        "communityQuotesMobileDisplayLimit",
+        DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
+      ),
+    ),
+  );
 }
 
 function parseDateTimeInput(value: string, label: string) {
@@ -705,6 +747,7 @@ export async function devSignInAction(formData: FormData) {
     throw new Error("Development auth is disabled.");
   }
 
+  const returnTo = getSafeReturnTo(getString(formData, "returnTo"));
   const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
   if (!username) {
     throw new Error("Telegram username is required.");
@@ -725,11 +768,16 @@ export async function devSignInAction(formData: FormData) {
       });
 
   if (!user) {
-    redirect("/profile?authError=dev-user-not-found");
+    const params = new URLSearchParams({
+      authError: "dev-user-not-found",
+      returnTo,
+    });
+    redirect(`/profile?${params.toString()}`);
   }
 
   await createSession(user.id);
   revalidateAll(["/", "/admin", "/profile"]);
+  redirect(returnTo);
 }
 
 export async function updateProfileAction(formData: FormData) {
@@ -871,6 +919,93 @@ export async function updateFaqContentAction(formData: FormData) {
   redirect("/admin?notice=faq-saved#faq-content");
 }
 
+export async function updateCommunityQuoteSettingsAction(formData: FormData) {
+  await requireAdmin();
+
+  await db.sitePageContent.upsert({
+    where: { id: SITE_CONTENT_ID },
+    update: {
+      communityQuotesDesktopDisplayLimit: getCommunityQuotesDesktopDisplayLimit(formData),
+      communityQuotesMobileDisplayLimit: getCommunityQuotesMobileDisplayLimit(formData),
+    },
+    create: {
+      id: SITE_CONTENT_ID,
+      participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
+      lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
+      communityQuotesDesktopDisplayLimit: getCommunityQuotesDesktopDisplayLimit(formData),
+      communityQuotesMobileDisplayLimit: getCommunityQuotesMobileDisplayLimit(formData),
+    },
+  });
+
+  revalidateAll(["/", "/admin"]);
+  redirect("/admin?notice=community-quotes-saved#community-quotes");
+}
+
+export async function createCommunityQuoteAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const text = getString(formData, "text");
+
+  if (!text) {
+    throw new Error("Quote text is required.");
+  }
+
+  await db.communityQuote.create({
+    data: {
+      textEn: text,
+      textRu: text,
+      sourceLabel: getString(formData, "sourceLabel") || null,
+      displayOrder: getInt(formData, "displayOrder", 0),
+      isActive: getBoolean(formData, "isActive"),
+      createdById: admin.id,
+      updatedById: admin.id,
+    },
+  });
+
+  revalidateAll(["/", "/admin"]);
+  redirect("/admin?notice=community-quotes-saved#community-quotes");
+}
+
+export async function updateCommunityQuoteAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const quoteId = getString(formData, "quoteId");
+  const text = getString(formData, "text");
+
+  if (!quoteId || !text) {
+    throw new Error("Quote id and quote text are required.");
+  }
+
+  await db.communityQuote.update({
+    where: { id: quoteId },
+    data: {
+      textEn: text,
+      textRu: text,
+      sourceLabel: getString(formData, "sourceLabel") || null,
+      displayOrder: getInt(formData, "displayOrder", 0),
+      isActive: getBoolean(formData, "isActive"),
+      updatedById: admin.id,
+    },
+  });
+
+  revalidateAll(["/", "/admin"]);
+  redirect("/admin?notice=community-quotes-saved#community-quotes");
+}
+
+export async function deleteCommunityQuoteAction(formData: FormData) {
+  await requireAdmin();
+  const quoteId = getString(formData, "quoteId");
+
+  if (!quoteId) {
+    throw new Error("Quote id is required.");
+  }
+
+  await db.communityQuote.delete({
+    where: { id: quoteId },
+  });
+
+  revalidateAll(["/", "/admin"]);
+  redirect("/admin?notice=community-quotes-saved#community-quotes");
+}
+
 export async function sendFaqFeedbackAction(formData: FormData) {
   await assertServerActionRateLimit("faq-feedback", 5, 10 * 60 * 1000);
 
@@ -912,7 +1047,7 @@ export async function createTrackAction(formData: FormData) {
   assertUserCanParticipate(user);
 
   const eventId = getString(formData, "eventId");
-  const eventSlug = getString(formData, "eventSlug");
+  const eventKey = getString(formData, "eventSlug");
   const songId = await resolveSongId(formData);
   const event = await db.event.findUniqueOrThrow({
     where: { id: eventId },
@@ -928,8 +1063,8 @@ export async function createTrackAction(formData: FormData) {
   });
 
   if (existingTrack) {
-    if (eventSlug) {
-      redirect(buildEventRedirectUrl(eventSlug, { error: "track-exists" }));
+    if (eventKey) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
     }
     throw new Error("This song is already on the current event board.");
   }
@@ -961,11 +1096,13 @@ export async function createTrackAction(formData: FormData) {
 
       const roleFamily = getRoleFamilyKey(label, slot.key);
       if (claimedRoleFamilies.has(roleFamily)) {
-        throwDuplicateRoleFamilyError(eventSlug);
+        throwDuplicateRoleFamilyError(eventKey);
       }
       claimedRoleFamilies.add(roleFamily);
     }
   }
+
+  let createdTrackId: string | null = null;
 
   try {
     await db.$transaction(async (tx) => {
@@ -979,6 +1116,7 @@ export async function createTrackAction(formData: FormData) {
           trackInfoKeysJson: serializeTrackInfoKeys(selectedTrackInfoKeys),
         },
       });
+      createdTrackId = track.id;
 
       await createDefaultTrackSeats(track.id, eventId, tx);
       await ensureSetlistItem(track.id, eventId, user.id, tx);
@@ -1011,8 +1149,8 @@ export async function createTrackAction(formData: FormData) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      if (eventSlug) {
-        redirect(buildEventRedirectUrl(eventSlug, { error: "track-exists" }));
+      if (eventKey) {
+        redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
       }
       throw new Error("This song is already on the current event board.");
     }
@@ -1020,10 +1158,17 @@ export async function createTrackAction(formData: FormData) {
     throw error;
   }
 
-  revalidateAll(pathBundle(eventSlug));
-  if (eventSlug) {
-    redirect(buildEventRedirectUrl(eventSlug, { notice: "track-created" }));
+  revalidateAll(pathBundle(event.id, event.slug, eventKey));
+  const redirectParams: Record<string, string> = {
+    notice: "track-created",
+  };
+  if (createdTrackId) {
+    redirectParams.highlightTrack = createdTrackId;
   }
+
+  redirect(
+    buildEventRedirectUrl(event.id, redirectParams),
+  );
 }
 
 export async function claimSeatAction(formData: FormData) {

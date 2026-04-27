@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { MessageCircleMore } from "lucide-react";
 
 import type { TelegramAuthPayload } from "@/lib/auth/telegram";
+import { pick, type Locale } from "@/lib/i18n";
 
 type TelegramAuthPayloadRecord = Record<
   string,
@@ -17,22 +18,41 @@ declare global {
   }
 }
 
-function getTelegramAuthErrorMessage(error: unknown) {
+function getTelegramAuthErrorMessage(error: unknown, locale: Locale) {
   const message =
-    error instanceof Error ? error.message : "Telegram authentication failed.";
+    error instanceof Error
+      ? error.message
+      : pick(locale, {
+          en: "Telegram authentication failed.",
+          ru: "Не удалось пройти Telegram-аутентификацию.",
+        });
 
   if (/payload expired/i.test(message)) {
-    return "Telegram confirmation took too long. Please try once more.";
+    return pick(locale, {
+      en: "Telegram confirmation took too long. Please try once more.",
+      ru: "Подтверждение в Telegram заняло слишком много времени. Попробуй ещё раз.",
+    });
   }
 
   if (/signature/i.test(message)) {
-    return "Telegram confirmation was interrupted. Please try again.";
+    return pick(locale, {
+      en: "Telegram confirmation was interrupted. Please try again.",
+      ru: "Подтверждение в Telegram прервалось. Попробуй ещё раз.",
+    });
   }
 
   return message;
 }
 
-export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
+export function TelegramLoginWidget({
+  botUsername,
+  locale,
+  returnTo: returnToOverride,
+}: {
+  botUsername?: string;
+  locale: Locale;
+  returnTo?: string;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -40,11 +60,15 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const returnTo = useMemo(() => {
+    if (returnToOverride) {
+      return returnToOverride;
+    }
+
     const params = new URLSearchParams(searchParams.toString());
     params.delete("authError");
     const query = params.toString();
     return query ? `${pathname}?${query}` : pathname;
-  }, [pathname, searchParams]);
+  }, [pathname, returnToOverride, searchParams]);
 
   useEffect(() => {
     if (!containerRef.current || !botUsername) {
@@ -55,7 +79,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
 
     window.onTelegramAuth = async (payload: TelegramAuthPayloadRecord) => {
       setStatus("loading");
-      setMessage("Signing you in...");
+      setMessage(pick(locale, { en: "Signing you in...", ru: "Входим..." }));
 
       try {
         const response = await fetch("/api/auth/telegram", {
@@ -77,10 +101,16 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
         };
 
         if (!response.ok || !result.ok || !result.redirectTo) {
-          throw new Error(result.error ?? "Telegram authentication failed.");
+          throw new Error(
+            result.error ??
+              pick(locale, {
+                en: "Telegram authentication failed.",
+                ru: "Не удалось войти через Telegram.",
+              }),
+          );
         }
 
-        setMessage("Signed in. Redirecting...");
+        setMessage(pick(locale, { en: "Signed in. Redirecting...", ru: "Вход выполнен. Перенаправляем..." }));
         const redirectUrl = new URL(result.redirectTo, window.location.origin);
         if (result.cacheBuster) {
           redirectUrl.searchParams.set("auth", String(result.cacheBuster));
@@ -88,7 +118,7 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
         window.location.replace(redirectUrl.toString());
       } catch (error) {
         setStatus("error");
-        setMessage(getTelegramAuthErrorMessage(error));
+        setMessage(getTelegramAuthErrorMessage(error, locale));
       }
     };
 
@@ -107,12 +137,20 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
         delete window.onTelegramAuth;
       }
     };
-  }, [botUsername, returnTo]);
+  }, [botUsername, locale, returnTo]);
 
   if (!botUsername) {
     return (
       <p className="text-sm text-ink/70">
-        Add <code>NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code> to enable the Telegram sign-in widget.
+        {pick(locale, {
+          en: "Add ",
+          ru: "Добавь ",
+        })}
+        <code>NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>
+        {pick(locale, {
+          en: " to enable the Telegram sign-in widget.",
+          ru: ", чтобы включить Telegram-виджет входа.",
+        })}
       </p>
     );
   }
@@ -122,8 +160,10 @@ export function TelegramLoginWidget({ botUsername }: { botUsername?: string }) {
       <div className="flex items-start gap-3 text-sm text-white/70">
         <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
         <p>
-          Telegram handles identity confirmation in its own secure flow. After approval, this page
-          will refresh automatically and open your profile.
+          {pick(locale, {
+            en: "Telegram handles identity confirmation in its own secure flow. After approval, this page will refresh automatically and open your profile.",
+            ru: "Telegram подтверждает личность в собственном защищённом сценарии. После одобрения страница автоматически обновится и откроет твой профиль.",
+          })}
         </p>
       </div>
       <div className="telegram-login-widget-frame" ref={containerRef} />

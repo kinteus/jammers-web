@@ -56,15 +56,20 @@ test.describe("Jammers smoke", () => {
     await page.goto("/");
 
     await expect(page.getByRole("link", { name: /About Us|О нас/i })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Open next gig board|Открыть борд ближайшего гига/i }),
-    ).toBeVisible();
+    const nextGigLink = page.getByRole("link", {
+      name: /Open next gig board|Открыть (сетлист|борд) ближайшего гига/i,
+    });
+    await expect(nextGigLink).toBeVisible();
+    await expect(nextGigLink).toHaveAttribute("href", /\/events\/[a-z0-9-]+/i);
     await expect(page.getByRole("link", { name: /Read the FAQ|Открыть FAQ/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Released setlists|Опубликованные сетлисты/i })).toBeVisible();
 
-    await page.getByRole("button", { name: /Open next gig board|Открыть борд ближайшего гига/i }).click();
+    await nextGigLink.click();
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+/i);
     await expect(page.locator("main")).toContainText(/FAQ|Gig|Гиг|сет/i);
+    await expect(
+      page.locator("main a[href*='youtube.com']").filter({ hasText: /YouTube/i }).first(),
+    ).toBeVisible();
 
     await page.goto("/faq");
     await expect(page.getByRole("heading", { name: /How The Jammers works|Как всё устроено у The Jammers/i })).toBeVisible();
@@ -108,6 +113,19 @@ test.describe("Jammers smoke", () => {
     await expect(
       page.getByRole("button", { name: /Join|Вписаться|Request spot|Запросить место/i }).first(),
     ).toBeVisible();
+  });
+
+  test("header sign-in returns the user to the original about page", async ({ page }) => {
+    await page.goto("/about");
+
+    await page.getByRole("button", { name: /Sign in|Войти/i }).first().click();
+    await expect(page).toHaveURL(/\/profile\?returnTo=/i);
+
+    await page.getByLabel(/Telegram username|Telegram-ник/i).fill("anna_drums");
+    await page.getByRole("button", { name: /Continue locally|Продолжить локально/i }).click();
+
+    await expect(page).toHaveURL(/\/about(?:\?auth=\d+)?$/i);
+    await expect(page.getByRole("heading", { name: /About Us|О нас/i })).toBeVisible();
   });
 
   test("admin can sign in locally and open the admin cockpit", async ({ page }) => {

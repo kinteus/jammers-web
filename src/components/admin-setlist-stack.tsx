@@ -23,7 +23,10 @@ type AdminSetlistStackProps = {
   eventSlug: string;
   items: AdminSetlistStackItem[];
   moveLabel: string;
+  movePendingLabel: string;
+  savingLabel: string;
   section: "MAIN" | "BACKLOG";
+  sectionLabel: string;
   title: string;
   targetSection: "MAIN" | "BACKLOG";
 };
@@ -48,7 +51,10 @@ export function AdminSetlistStack({
   eventSlug,
   items,
   moveLabel,
+  movePendingLabel,
+  savingLabel,
   section,
+  sectionLabel,
   targetSection,
   title,
 }: AdminSetlistStackProps) {
@@ -97,7 +103,7 @@ export function AdminSetlistStack({
             {title}
           </p>
         </div>
-        {isSaving ? <Loader label="Saving order..." /> : null}
+        {isSaving ? <Loader label={savingLabel} /> : null}
       </div>
 
       {currentItems.length === 0 ? (
@@ -122,7 +128,7 @@ export function AdminSetlistStack({
                   </div>
                   <div className="min-w-0 space-y-1">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
-                      {section} · {index + 1}
+                      {sectionLabel} · {index + 1}
                     </p>
                     <p className="truncate text-base font-semibold text-sand">
                       {item.artistName} - {item.title}
@@ -137,7 +143,7 @@ export function AdminSetlistStack({
                   <input name="itemId" type="hidden" value={item.id} />
                   <input name="section" type="hidden" value={targetSection} />
                   <input name="orderIndex" type="hidden" value={1} />
-                  <SubmitButton pendingLabel="Moving..." size="sm" type="submit" variant="secondary">
+                  <SubmitButton pendingLabel={movePendingLabel} size="sm" type="submit" variant="secondary">
                     {moveLabel}
                   </SubmitButton>
                 </form>

@@ -51,12 +51,12 @@ export function EventBoardGuide({
       <Card className="brand-shell space-y-4 border-white/10">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-            {pick(locale, { en: "Board guide", ru: "Как читать борд" })}
+            {pick(locale, { en: "Board guide", ru: "Как читать сетлист" })}
           </p>
           <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
             {pick(locale, {
               en: "Read this board in 30 seconds",
-              ru: "Разобраться в борде за 30 секунд",
+              ru: "Разобраться в сетлисте за 30 секунд",
             })}
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-white/72">
@@ -125,7 +125,7 @@ export function EventBoardGuide({
                 })
               : pick(locale, {
                   en: "Close the real gaps first. A stronger board makes every new proposal easier to support.",
-                  ru: "Сначала закрой реальные дыры. Чем крепче текущий борд, тем легче поддержать каждую новую песню.",
+                  ru: "Сначала закрой реальные дыры. Чем крепче текущий сетлист, тем легче поддержать каждую новую песню.",
                 })}
           </p>
           {roleShortages.length > 0 ? (

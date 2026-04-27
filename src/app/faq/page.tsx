@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { MessageCircleMore, ShieldCheck, Video } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { resolveCurrentSetlistHref } from "@/lib/public-setlist-link";
 import { extractYoutubeId, resolveFaqMarkdown } from "@/lib/site-content";
 import { sendFaqFeedbackAction } from "@/server/actions";
-import { getFaqPageData } from "@/server/query-data";
+import { getFaqPageData, getHomePageData } from "@/server/query-data";
 
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -46,10 +48,15 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
   const params = await searchParams;
   const locale = await getLocale();
   let faq;
+  let homePageData;
   let user;
 
   try {
-    [faq, user] = await Promise.all([getFaqPageData(), getCurrentUser()]);
+    [faq, homePageData, user] = await Promise.all([
+      getFaqPageData(),
+      getHomePageData(),
+      getCurrentUser(),
+    ]);
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) {
       throw error;
@@ -78,19 +85,29 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
     locale,
     value: faq.lineupDetailsMarkdown,
   });
+  const latestSetlistHref = resolveCurrentSetlistHref({
+    publishedEvents: homePageData.publishedEvents.map((event) => ({
+      id: event.id,
+      startsAt: new Date(event.startsAt),
+    })),
+    currentEvents: homePageData.events.map((event) => ({
+      id: event.id,
+      startsAt: new Date(event.startsAt),
+    })),
+  });
   const quickStartCards = [
     {
       title: pick(locale, { en: "Scan first", ru: "Сначала смотри" }),
       body: pick(locale, {
         en: "Open the current gig board, scan open seats, and join a real need before proposing more songs.",
-        ru: "Открой текущий борд, посмотри открытые места и сначала закрой реальную нехватку, прежде чем нести новые песни.",
+        ru: "Открой текущий сетлист, посмотри открытые места и сначала закрой реальную нехватку, прежде чем нести новые песни.",
       }),
     },
     {
       title: pick(locale, { en: "Commit honestly", ru: "Вписывайся честно" }),
       body: pick(locale, {
         en: "Join only the parts you can truly cover. It keeps the board trustworthy for everyone else.",
-        ru: "Занимай только те партии, которые действительно можешь закрыть. Так борд остаётся надёжным для всех.",
+        ru: "Занимай только те партии, которые действительно можешь закрыть. Так сетлист остаётся надёжным для всех.",
       }),
     },
     {
@@ -126,10 +143,19 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
               {pick(locale, { en: "Quick start", ru: "Быстрый старт" })}
             </p>
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
-              {pick(locale, {
-                en: "How to join without slowing the board down",
-                ru: "Как влиться и не затормозить борд",
-              })}
+              {locale === "ru" ? (
+                <>
+                  Как влиться и не затормозить{" "}
+                  <Link
+                    className="text-gold transition hover:text-gold/80 hover:underline"
+                    href={latestSetlistHref}
+                  >
+                    сетлист
+                  </Link>
+                </>
+              ) : (
+                "How to join without slowing the board down"
+              )}
             </h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -239,7 +265,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
                         className="h-full w-full"
                         referrerPolicy="strict-origin-when-cross-origin"
                         src={`https://www.youtube.com/embed/${youtubeId}`}
-                        title="YouTube video"
+                        title={pick(locale, { en: "YouTube video", ru: "Видео YouTube" })}
                       />
                     </div>
                   </div>
@@ -285,7 +311,10 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
                   user?.telegramUsername ? `@${user.telegramUsername}` : user?.email ?? user?.phone ?? ""
                 }
                 name="contact"
-                placeholder="@telegram / email / phone"
+                placeholder={pick(locale, {
+                  en: "@telegram / email / phone",
+                  ru: "@telegram / email / телефон",
+                })}
               />
             </label>
             <label className="space-y-2 text-sm md:col-span-2">

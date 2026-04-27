@@ -7,7 +7,7 @@ import { Button, type ButtonProps } from "@/components/ui/button";
 
 export function SubmitButton({
   children,
-  pendingLabel = "Working...",
+  pendingLabel = "",
   ...props
 }: ButtonProps & { pendingLabel?: string }) {
   const { pending } = useFormStatus();
@@ -17,7 +17,7 @@ export function SubmitButton({
       {pending ? (
         <>
           <Loader className="text-white" />
-          <span>{pendingLabel}</span>
+          {pendingLabel ? <span>{pendingLabel}</span> : null}
         </>
       ) : (
         children

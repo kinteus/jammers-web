@@ -32,6 +32,7 @@ import { getEventWorkspace } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { SignInLink } from "@/components/sign-in-link";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
 import { Badge } from "@/components/ui/badge";
@@ -60,7 +61,7 @@ const SongCatalogRequestForm = nextDynamic(
   {
     loading: () => (
       <div className="rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/62">
-        Loading request form...
+        <span className="font-semibold text-sand">...</span>
       </div>
     ),
   },
@@ -210,7 +211,7 @@ function getFloatingFeedback({
       title: pick(locale, { en: "You're in", ru: "Ты в лайнапе" }),
       description: pick(locale, {
         en: "The seat was claimed and the board has been updated.",
-        ru: "Место занято, борд уже обновлён.",
+        ru: "Место занято, сетлист уже обновлён.",
       }),
     };
   }
@@ -265,7 +266,7 @@ function getFloatingFeedback({
       title: pick(locale, { en: "Seat already taken", ru: "Место уже занято" }),
       description: pick(locale, {
         en: "Someone claimed this position first. Pick another open seat or refresh the board.",
-        ru: "Кто-то занял это место раньше. Выбери другое открытое место или обнови борд.",
+        ru: "Кто-то занял это место раньше. Выбери другое открытое место или обнови сетлист.",
       }),
     };
   }
@@ -295,7 +296,7 @@ function getFloatingFeedback({
   if (error === "track-exists") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Song already on the board", ru: "Песня уже есть на борде" }),
+      title: pick(locale, { en: "Song already on the board", ru: "Песня уже есть в сетлисте" }),
       description: pick(locale, {
         en: "This song has already been proposed for the current gig.",
         ru: "Эта песня уже заявлена в текущий гиг.",
@@ -457,6 +458,30 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         : "all";
   const searchQuery =
     typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q.trim() : "";
+  const highlightTrackId =
+    typeof resolvedSearchParams.highlightTrack === "string"
+      ? resolvedSearchParams.highlightTrack
+      : null;
+  const signInReturnParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (key === "auth" || key === "authError") {
+      continue;
+    }
+
+    if (typeof value === "string") {
+      signInReturnParams.set(key, value);
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        signInReturnParams.append(key, entry);
+      }
+    }
+  }
+  const signInReturnTo = `/events/${event.id}${
+    signInReturnParams.toString() ? `?${signInReturnParams.toString()}` : ""
+  }#track-board`;
   const roleFilters = parseRoleFilters(resolvedSearchParams.roles);
   const searchNeedle = searchQuery.toLowerCase();
   const activeView =
@@ -562,7 +587,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "The song is now on the board.",
-            ru: "Песня появилась на борде.",
+            ru: "Песня появилась в сетлисте.",
           })}
         </div>
       ) : null}
@@ -571,7 +596,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "Admins received the song request. As soon as it lands in the catalog, you can add it to the board.",
-            ru: "Админы получили запрос на песню. Как только она появится в каталоге, её можно будет добавить на борд.",
+            ru: "Админы получили запрос на песню. Как только она появится в каталоге, её можно будет добавить в сетлист.",
           })}
         </div>
       ) : null}
@@ -596,7 +621,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 <Badge className="border-red/24 bg-red/14 text-white">
                   {pick(locale, {
                     en: "Fill the board before adding songs",
-                    ru: "Сначала закрывай борд, потом добавляй песни",
+                    ru: "Сначала закрывай сетлист, потом добавляй песни",
                   })}
                 </Badge>
               ) : null}
@@ -626,7 +651,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="brand-shell-soft rounded-xl px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  {pick(locale, { en: "Songs on board", ru: "Песен на борде" })}
+                  {pick(locale, { en: "Songs on board", ru: "Песен в сетлисте" })}
                 </p>
                 <p className="mt-1 text-3xl font-semibold text-sand">{event.tracks.length}</p>
               </div>
@@ -731,7 +756,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             <Link className="font-semibold text-gold transition hover:text-gold/80 hover:underline" href="/faq">
               {pick(locale, {
                 en: "Need the board rules? FAQ has the short version.",
-                ru: "Нужны правила борда? В FAQ есть короткое объяснение.",
+                ru: "Нужны правила сетлиста? В FAQ есть короткое объяснение.",
               })}
             </Link>
           </div>
@@ -766,12 +791,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 />
               ) : null}
               {!user && effectiveStatus === "OPEN" ? (
-                <Link href="/profile">
+                <SignInLink returnTo={signInReturnTo}>
                   <Button size="sm" variant="secondary">
                     <LogIn className="mr-2 h-4 w-4" />
                     {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
                   </Button>
-                </Link>
+                </SignInLink>
               ) : null}
             </div>
           </div>
@@ -800,6 +825,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           <TrackBoardTable
             allowClosedOptionalRequests={allowClosedOptionalRequests}
             eventSlug={event.id}
+            highlightTrackId={highlightTrackId}
             isOpen={effectiveStatus === "OPEN"}
             lineupSlots={event.lineupSlots}
             locale={locale}
@@ -821,7 +847,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
 
       <details className="group brand-shell overflow-hidden rounded-xl border-white/10">
         <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/65 transition hover:bg-white/6">
-          <span>{pick(locale, { en: "Board context and line-up map", ru: "Контекст борда и карта лайнапа" })}</span>
+          <span>{pick(locale, { en: "Board context and line-up map", ru: "Контекст сетлиста и карта лайнапа" })}</span>
           <span className="text-[10px] text-white/38 group-open:hidden">
             {pick(locale, { en: "Expand", ru: "Открыть" })}
           </span>
@@ -838,7 +864,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               <p className="text-sm leading-6 text-white/68">
                 {pick(locale, {
                   en: "No required open parts right now. The current proposals are assembled, so review can stay focused on the existing board.",
-                  ru: "Сейчас обязательных открытых мест нет. Текущие заявки уже собраны, так что можно просто спокойно просмотреть борд.",
+                  ru: "Сейчас обязательных открытых мест нет. Текущие заявки уже собраны, так что можно просто спокойно просмотреть сетлист.",
                 })}
               </p>
             ) : (
@@ -946,7 +972,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             <p className="max-w-3xl text-sm leading-6 text-white/68">
               {pick(locale, {
                 en: "Request a catalog addition only after searching the board and the song database first.",
-                ru: "Проси добавить песню в каталог только после того, как проверил и борд, и поисковую базу песен.",
+                ru: "Проси добавить песню в каталог только после того, как проверил и сетлист, и поисковую базу песен.",
               })}
             </p>
           </div>
@@ -967,7 +993,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               <p className="max-w-3xl text-sm leading-6 text-white/74">
                 {pick(locale, {
                   en: "This gig is already visible, but song proposals and seat claims stay locked until registration starts.",
-                  ru: "Этот гиг уже виден на борде, но добавление песен и вписка в партии откроются только со стартом регистрации.",
+                  ru: "Этот гиг уже виден в сетлисте, но добавление песен и вписка в партии откроются только со стартом регистрации.",
                 })}
               </p>
               <p className="text-lg font-semibold text-sand">
@@ -982,7 +1008,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       {effectiveStatus !== "OPEN" && !registrationOpensSoon ? (
         <Card className="brand-shell space-y-3">
           <Badge className="border-white/10 bg-transparent text-white/62">
-            {pick(locale, { en: "Board status", ru: "Статус борда" })}
+            {pick(locale, { en: "Board status", ru: "Статус сетлиста" })}
           </Badge>
           <div className="flex items-start gap-3">
             <Clock3 className="mt-1 h-5 w-5 text-blue" />
@@ -990,7 +1016,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               {effectiveStatus === "CLOSED" || effectiveStatus === "CURATING"
                 ? pick(locale, {
                     en: "Registration is closed for this gig. The board is now in review mode while admins lock the final set.",
-                    ru: "Набор в этот гиг уже закрыт. Борд перешёл в режим просмотра, пока админы собирают финальный сет.",
+                    ru: "Набор в этот гиг уже закрыт. Сетлист перешёл в режим просмотра, пока админы собирают финальный сет.",
                   })
                 : pick(locale, {
                     en: "This gig is no longer editable, so the page shifts into inspection mode: review the proposed songs, the final line-up state and, when published, the released order.",

@@ -47,8 +47,8 @@ const config: Config = {
         glow: "0 0 0 1px rgba(255, 179, 0, 0.12), 0 16px 38px rgba(185, 0, 22, 0.28)",
       },
       fontFamily: {
-        display: ["var(--font-space-grotesk)"],
-        body: ["var(--font-manrope)"],
+        display: ["var(--font-brand)"],
+        body: ["var(--font-brand)"],
       },
       backgroundImage: {
         "hero-glow":

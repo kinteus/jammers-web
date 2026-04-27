@@ -8,6 +8,7 @@ import { Button, type ButtonProps } from "@/components/ui/button";
 export function AdminActionDialog({
   badge,
   children,
+  closeLabel = "Close dialog",
   description,
   title,
   triggerLabel,
@@ -15,6 +16,7 @@ export function AdminActionDialog({
 }: {
   badge: string;
   children: React.ReactNode;
+  closeLabel?: string;
   description: string;
   title: string;
   triggerLabel: string;
@@ -47,7 +49,7 @@ export function AdminActionDialog({
               </div>
               <Dialog.Close asChild>
                 <button
-                  aria-label="Close admin dialog"
+                  aria-label={closeLabel}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-white/10 bg-white/6 text-white/68 transition hover:-translate-y-0.5 hover:bg-white/10 hover:text-white active:translate-y-0.5"
                   type="button"
                 >

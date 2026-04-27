@@ -126,7 +126,7 @@ export function SeatPlannerField({
         </div>
         <div className="brand-shell-soft rounded-lg px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-            {pick(locale, { en: "Optional", ru: "Optional" })}
+            {pick(locale, { en: "Optional", ru: "Опциональные" })}
           </p>
           <p className="mt-2 text-xl font-semibold text-sand">{arrangementSummary.optional}</p>
         </div>
@@ -200,10 +200,10 @@ export function SeatPlannerField({
                           {current === "claim"
                             ? pick(locale, { en: "You", ru: "Ты" })
                             : current === "optional"
-                              ? pick(locale, { en: "Optional", ru: "Optional" })
+                              ? pick(locale, { en: "Optional", ru: "Опционально" })
                               : current === "skip"
                                 ? pick(locale, { en: "Off", ru: "Выкл" })
-                                : pick(locale, { en: "Required", ru: "Required" })}
+                                : pick(locale, { en: "Required", ru: "Обязательно" })}
                         </span>
                       </div>
                       <div className={cn("mt-3 grid gap-1 rounded-md bg-white/6 p-1", slot.allowOptional ? "grid-cols-4" : "grid-cols-3")}>
@@ -224,7 +224,7 @@ export function SeatPlannerField({
                                   mode: "optional" as const,
                                   label: pick(locale, {
                                     en: "Optional seat",
-                                    ru: "Optional место",
+                                    ru: "Опциональное место",
                                   }),
                                   icon: Sparkles,
                                 },

@@ -30,4 +30,14 @@ describe("site content helpers", () => {
       resolveFaqMarkdown({ kind: "lineup", locale: "ru", value: customCopy }),
     ).toBe(customCopy);
   });
+
+  it("uses setlist wording in russian built-in defaults", () => {
+    const participation = getDefaultParticipationRulesMarkdown("ru");
+    const lineup = getDefaultLineupDetailsMarkdown("ru");
+
+    expect(participation).toContain("сетлист");
+    expect(participation).not.toContain("борд");
+    expect(lineup).toContain("## Что значат роли в сетлисте");
+    expect(lineup).not.toContain("борд");
+  });
 });

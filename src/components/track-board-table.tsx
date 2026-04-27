@@ -139,6 +139,38 @@ function getYoutubeSearchUrl(track: BoardTrack) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 
+function YoutubeSearchLink({
+  className,
+  locale,
+  track,
+}: {
+  className?: string;
+  locale: Locale;
+  track: BoardTrack;
+}) {
+  const label = pick(locale, { en: "Open on YouTube", ru: "Открыть на YouTube" });
+
+  return (
+    <a
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-red/28 bg-red/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:border-red/40 hover:bg-red/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red/25",
+        className,
+      )}
+      data-tip={label}
+      href={getYoutubeSearchUrl(track)}
+      rel="noreferrer"
+      target="_blank"
+      title={pick(locale, {
+        en: `Search on YouTube: ${track.song.artist.name} - ${track.song.title}`,
+        ru: `Искать на YouTube: ${track.song.artist.name} - ${track.song.title}`,
+      })}
+    >
+      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+      <span>{label}</span>
+    </a>
+  );
+}
+
 function statusDotClass(status: TrackSeatStatus) {
   if (status === TrackSeatStatus.CLAIMED) {
     return "bg-blue";
@@ -521,6 +553,7 @@ function InviteControl({
 export function TrackBoardTable({
   allowClosedOptionalRequests,
   eventSlug,
+  highlightTrackId,
   lineupSlots,
   locale,
   trackInfoFields,
@@ -530,6 +563,7 @@ export function TrackBoardTable({
 }: {
   allowClosedOptionalRequests: boolean;
   eventSlug: string;
+  highlightTrackId?: string | null;
   lineupSlots: LineupSlotLite[];
   locale: Locale;
   trackInfoFields: TrackInfoField[];
@@ -540,12 +574,53 @@ export function TrackBoardTable({
   const [currentTracks, setCurrentTracks] = useState(tracks);
   const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<BoardFeedback | null>(null);
+  const [activeHighlightTrackId, setActiveHighlightTrackId] = useState<string | null>(
+    highlightTrackId ?? null,
+  );
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
 
   useEffect(() => {
     setCurrentTracks(tracks);
   }, [tracks]);
+
+  useEffect(() => {
+    setActiveHighlightTrackId(highlightTrackId ?? null);
+  }, [highlightTrackId]);
+
+  useEffect(() => {
+    if (!activeHighlightTrackId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const element = document.getElementById(`track-${activeHighlightTrackId}`);
+      if (!element) {
+        return;
+      }
+
+      const mobileDetails = element.tagName === "DETAILS" ? element : element.closest("details");
+      if (mobileDetails instanceof HTMLDetailsElement) {
+        mobileDetails.open = true;
+      }
+
+      element.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveHighlightTrackId((current) =>
+        current === activeHighlightTrackId ? null : current,
+      );
+    }, 3600);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeHighlightTrackId]);
 
   useEffect(() => {
     if (!feedback) {
@@ -756,6 +831,7 @@ export function TrackBoardTable({
           <tbody>
             {currentTracks.map((track, index) => {
               const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
+              const isHighlighted = activeHighlightTrackId === track.id;
               const completion = getTrackCompletionSummary(track.seats);
               const seatIndex = buildSeatIndex(track);
               const activeTrackInfoLabels = trackInfoFields
@@ -775,7 +851,10 @@ export function TrackBoardTable({
 
               return (
                 <tr
-                  className={cn("transition hover:bg-white/[0.12]", rowBackground)}
+                  className={cn(
+                    "transition hover:bg-white/[0.12]",
+                    isHighlighted ? "bg-gold/[0.18]" : rowBackground,
+                  )}
                   id={`track-${track.id}`}
                   key={track.id}
                 >
@@ -804,16 +883,6 @@ export function TrackBoardTable({
                           >
                             {track.song.title}
                           </a>
-                          <a
-                            className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center rounded-sm text-white/46 transition hover:text-white"
-                            data-tip={pick(locale, { en: "Open on YouTube", ru: "Открыть на YouTube" })}
-                            href={getYoutubeSearchUrl(track)}
-                            rel="noreferrer"
-                            target="_blank"
-                            title={pick(locale, { en: "Open on YouTube", ru: "Открыть на YouTube" })}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
                           {isMyTrack ? (
                             <span
                               className="h-2 w-2 rounded-full bg-blue"
@@ -839,6 +908,7 @@ export function TrackBoardTable({
                                 ru: `${completion.requiredOpen} обязательных открыто`,
                               })}
                         </p>
+                        <YoutubeSearchLink className="mt-1.5 w-fit" locale={locale} track={track} />
                         {activeTrackInfoLabels.length > 0 ? (
                           <div className="flex flex-wrap gap-1 pt-0.5">
                             {activeTrackInfoLabels.map((label) => (
@@ -1177,9 +1247,10 @@ export function TrackBoardTable({
       </div>
 
       <div className="space-y-3 md:hidden">
-        {currentTracks.map((track, index) => {
-          const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
-          const completion = getTrackCompletionSummary(track.seats);
+          {currentTracks.map((track, index) => {
+            const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
+            const isHighlighted = activeHighlightTrackId === track.id;
+            const completion = getTrackCompletionSummary(track.seats);
           const activeTrackInfoLabels = trackInfoFields
             .filter((field) =>
               getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
@@ -1193,7 +1264,10 @@ export function TrackBoardTable({
 
           return (
             <details
-              className="brand-shell group rounded-xl border-white/10 shadow-card"
+              className={cn(
+                "brand-shell group rounded-xl border-white/10 shadow-card transition",
+                isHighlighted && "border-gold/28 bg-[rgba(255,179,0,0.08)]",
+              )}
               id={`track-${track.id}`}
               key={track.id}
             >
@@ -1240,16 +1314,7 @@ export function TrackBoardTable({
 
               <div className="space-y-3 border-t border-white/10 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    className={cn("ui-tooltip ui-tooltip-bottom inline-flex h-8 w-8 items-center justify-center rounded-sm text-white", iconButtonClass())}
-                    data-tip={pick(locale, { en: "Open on YouTube", ru: "Открыть на YouTube" })}
-                    href={getYoutubeSearchUrl(track)}
-                    rel="noreferrer"
-                    target="_blank"
-                    title={pick(locale, { en: "Open on YouTube", ru: "Открыть на YouTube" })}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  <YoutubeSearchLink className="min-h-8 px-3 py-1.5 text-[10px]" locale={locale} track={track} />
                   {isMyTrack ? <span className="h-2 w-2 rounded-full bg-blue" /> : null}
                   {track.comment ? (
                     <details className="group">

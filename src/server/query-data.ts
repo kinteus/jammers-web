@@ -11,6 +11,8 @@ import {
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
 import {
+  DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+  DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
   DEFAULT_LINEUP_DETAILS_MARKDOWN,
   DEFAULT_PARTICIPATION_RULES_MARKDOWN,
   SITE_CONTENT_ID,
@@ -165,7 +167,7 @@ const getCachedHomePageData = unstable_cache(
   async () => {
     await syncDateDrivenEventStatuses();
     const now = new Date();
-    const [events, archiveEvents] = await Promise.all([
+    const [events, communityQuotes, archiveEvents, content] = await Promise.all([
       db.event.findMany({
         where: {
           OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
@@ -185,6 +187,10 @@ const getCachedHomePageData = unstable_cache(
           },
         },
         orderBy: { startsAt: "desc" },
+      }),
+      db.communityQuote.findMany({
+        where: { isActive: true },
+        orderBy: [{ displayOrder: "asc" }, { createdAt: "desc" }],
       }),
       db.event.findMany({
         where: {
@@ -218,6 +224,13 @@ const getCachedHomePageData = unstable_cache(
         },
         orderBy: { startsAt: "desc" },
       }),
+      db.sitePageContent.findUnique({
+        where: { id: SITE_CONTENT_ID },
+        select: {
+          communityQuotesDesktopDisplayLimit: true,
+          communityQuotesMobileDisplayLimit: true,
+        },
+      }),
     ]);
 
     return {
@@ -236,6 +249,13 @@ const getCachedHomePageData = unstable_cache(
           getTrackCompletionSummary(track.seats).isComplete,
         ).length,
       })),
+      communityQuotes,
+      communityQuotesDesktopDisplayLimit:
+        content?.communityQuotesDesktopDisplayLimit ??
+        DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+      communityQuotesMobileDisplayLimit:
+        content?.communityQuotesMobileDisplayLimit ??
+        DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
       publishedEvents: archiveEvents.slice(0, 5),
       archiveStats: buildArchiveStats(archiveEvents),
     };
@@ -270,7 +290,7 @@ export const getEventWorkspace = cache(async function getEventWorkspace(slug: st
 
 export async function getAdminDashboardData() {
   await syncDateDrivenEventStatuses();
-  const [events, users, songRequests, groups, artists] = await Promise.all([
+  const [events, users, songRequests, groups, artists, communityQuotes] = await Promise.all([
     db.event.findMany({
       orderBy: { startsAt: "desc" },
       include: {
@@ -309,6 +329,17 @@ export async function getAdminDashboardData() {
       },
       orderBy: { name: "asc" },
     }),
+    db.communityQuote.findMany({
+      include: {
+        createdBy: {
+          select: archiveUserSelect,
+        },
+        updatedBy: {
+          select: archiveUserSelect,
+        },
+      },
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "desc" }],
+    }),
   ]);
 
   return {
@@ -317,6 +348,7 @@ export async function getAdminDashboardData() {
     songRequests,
     groups,
     artists,
+    communityQuotes,
   };
 }
 
@@ -484,12 +516,20 @@ const getCachedFaqPageData = unstable_cache(
           content?.participationRulesMarkdown ?? DEFAULT_PARTICIPATION_RULES_MARKDOWN,
         lineupDetailsMarkdown: content?.lineupDetailsMarkdown ?? DEFAULT_LINEUP_DETAILS_MARKDOWN,
         lineupVideoUrls: parseVideoUrls(content?.lineupVideoUrlsJson),
+        communityQuotesDesktopDisplayLimit:
+          content?.communityQuotesDesktopDisplayLimit ??
+          DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+        communityQuotesMobileDisplayLimit:
+          content?.communityQuotesMobileDisplayLimit ??
+          DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
       };
     } catch {
       return {
         participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
         lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
         lineupVideoUrls: [],
+        communityQuotesDesktopDisplayLimit: DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
+        communityQuotesMobileDisplayLimit: DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
       };
     }
   },

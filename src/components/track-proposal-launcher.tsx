@@ -14,7 +14,7 @@ const LazyTrackProposalForm = dynamic(
   {
     loading: () => (
       <div className="rounded-md border border-white/10 bg-white/6 px-4 py-4 text-sm leading-6 text-white/62">
-        Loading composer...
+        <span className="font-semibold text-sand">...</span>
       </div>
     ),
   },

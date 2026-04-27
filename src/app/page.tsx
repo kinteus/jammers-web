@@ -1,19 +1,30 @@
-import { EventStatus } from "@prisma/client";
+import { EventStatus, TrackSeatStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  AudioLines,
+  Drum,
+  Guitar,
+  MicVocal,
+  Piano,
+  Shapes,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
-import { pick } from "@/lib/i18n";
+import { getRoleFamilyLabel, pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { getRoleFamilyKey, type RoleFamilyKey } from "@/lib/role-families";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { formatDateTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
 import { ArchiveStatsSection } from "@/components/archive-stats-section";
+import { CommunityQuotesCloud } from "@/components/community-quotes-cloud";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
@@ -36,6 +47,100 @@ export const metadata: Metadata = {
 };
 
 const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
+const PUBLISHED_LINEUP_FAMILY_ORDER: RoleFamilyKey[] = [
+  "rhythm",
+  "guitars",
+  "bass",
+  "vocals",
+  "keys",
+  "extras",
+];
+const PUBLISHED_LINEUP_ICONS: Record<RoleFamilyKey, LucideIcon> = {
+  rhythm: Drum,
+  guitars: Guitar,
+  bass: AudioLines,
+  vocals: MicVocal,
+  keys: Piano,
+  extras: Shapes,
+};
+
+function formatPublishedPlayerLabel(
+  user: {
+    telegramUsername: string | null;
+    fullName: string | null;
+  },
+  locale: Awaited<ReturnType<typeof getLocale>>,
+) {
+  if (user.telegramUsername) {
+    return `@${user.telegramUsername}`;
+  }
+
+  return user.fullName ?? pick(locale, { en: "Assigned player", ru: "Назначенный музыкант" });
+}
+
+function buildPublishedLineupSummary(
+  event: Awaited<ReturnType<typeof getHomePageData>>["publishedEvents"][number],
+  locale: Awaited<ReturnType<typeof getLocale>>,
+) {
+  const familyMap = new Map<
+    RoleFamilyKey,
+    {
+      family: RoleFamilyKey;
+      label: string;
+      occupiedSeats: number;
+      players: string[];
+    }
+  >();
+
+  for (const item of event.setlistItems) {
+    for (const seat of item.track.seats) {
+      if (seat.status !== TrackSeatStatus.CLAIMED || !seat.user) {
+        continue;
+      }
+
+      const family = getRoleFamilyKey(seat.label);
+      const entry = familyMap.get(family) ?? {
+        family,
+        label: getRoleFamilyLabel(family, locale),
+        occupiedSeats: 0,
+        players: [],
+      };
+
+      entry.occupiedSeats += 1;
+      const playerLabel = formatPublishedPlayerLabel(seat.user, locale);
+      if (!entry.players.includes(playerLabel)) {
+        entry.players.push(playerLabel);
+      }
+
+      familyMap.set(family, entry);
+    }
+  }
+
+  return PUBLISHED_LINEUP_FAMILY_ORDER.map((family) => familyMap.get(family)).filter(
+    (entry): entry is NonNullable<typeof entry> => Boolean(entry),
+  );
+}
+
+function formatPublishedLineupMeta(
+  players: string[],
+  locale: Awaited<ReturnType<typeof getLocale>>,
+) {
+  if (players.length === 0) {
+    return pick(locale, { en: "Assigned players", ru: "Назначенные музыканты" });
+  }
+
+  const visiblePlayers = players.slice(0, 2);
+  const remainingPlayers = players.length - visiblePlayers.length;
+
+  return visiblePlayers.join(", ").concat(
+    remainingPlayers > 0
+      ? pick(locale, {
+          en: ` +${remainingPlayers} more`,
+          ru: ` +${remainingPlayers} ещё`,
+        })
+      : "",
+  );
+}
 
 function getRightNowContent({
   event,
@@ -114,7 +219,7 @@ function getRightNowContent({
       }),
       intro: pick(locale, {
         en: "The gig is already visible on the board, but sign-up and song proposals unlock only after registration opens. Use the waiting time to review the rules and board logic.",
-        ru: "Гиг уже виден на борде, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике борда.",
+        ru: "Гиг уже появился в сетлисте, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике сетлиста.",
       }),
       stats: [
         {
@@ -131,7 +236,7 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим бордом" }),
+        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим сетлистом" }),
       },
       secondaryCta: {
         href: "/faq",
@@ -151,7 +256,7 @@ function getRightNowContent({
       }),
       intro: pick(locale, {
         en: "The board is now in curation mode. The final setlist will be published soon, and everyone who made the final line-up will be notified.",
-        ru: "Борд перешёл в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все, кто попал в итоговый лайнап, получат уведомление.",
+        ru: "Сетлист перешёл в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все, кто попал в итоговый лайнап, получат уведомление.",
       }),
       stats: [
         {
@@ -165,7 +270,7 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый борд" }),
+        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый сетлист" }),
       },
       secondaryCta: null,
     };
@@ -196,7 +301,7 @@ function getRightNowContent({
     ],
     primaryCta: {
       href: `/events/${event.id}`,
-      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть борд и закрыть нехватку" }),
+      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть сетлист и закрыть нехватку" }),
     },
     secondaryCta: {
       href: "/faq",
@@ -207,13 +312,23 @@ function getRightNowContent({
 
 export default async function HomePage() {
   let events;
+  let communityQuotes;
+  let communityQuotesDesktopDisplayLimit;
+  let communityQuotesMobileDisplayLimit;
   let publishedEvents;
   let archiveStats;
   let user;
   let locale;
 
   try {
-    [{ events, publishedEvents, archiveStats }, user, locale] = await Promise.all([
+    [{
+      events,
+      communityQuotes,
+      communityQuotesDesktopDisplayLimit,
+      communityQuotesMobileDisplayLimit,
+      publishedEvents,
+      archiveStats,
+    }, user, locale] = await Promise.all([
       getHomePageData(),
       getCurrentUser(),
       getLocale(),
@@ -230,7 +345,7 @@ export default async function HomePage() {
         locale={locale}
         title={pick(locale, {
           en: "The live board is temporarily unavailable",
-          ru: "Живой борд временно недоступен",
+          ru: "Живой сетлист временно недоступен",
         })}
       />
     );
@@ -303,25 +418,32 @@ export default async function HomePage() {
                   {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
                 </h1>
                 <div className="mx-auto flex flex-wrap justify-center gap-3">
-                  <Link href={featuredEvent ? `/events/${featuredEvent.id}` : "#gigs"}>
-                    <Button variant="primary">
-                      {pick(locale, { en: "Open next gig board", ru: "Открыть борд ближайшего гига" })}
+                  <Button asChild variant="primary">
+                    <Link href={featuredEvent ? `/events/${featuredEvent.id}` : "#gigs"}>
+                      {pick(locale, { en: "Open next gig board", ru: "Открыть сетлист ближайшего гига" })}
                       <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                  <Link href="/profile">
-                    <Button variant="secondary">
+                    </Link>
+                  </Button>
+                  <Button asChild variant="secondary">
+                    <Link href="/profile">
                       {user
                         ? pick(locale, { en: "Open my profile", ru: "Открыть мой профиль" })
                         : pick(locale, { en: "Sign in with Telegram", ru: "Войти через Telegram" })}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      <CommunityQuotesCloud
+        desktopDisplayLimit={communityQuotesDesktopDisplayLimit}
+        locale={locale}
+        mobileDisplayLimit={communityQuotesMobileDisplayLimit}
+        quotes={communityQuotes}
+      />
 
       <section className={`${HERO_FRAME_CLASS} space-y-4`}>
         <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
@@ -332,19 +454,19 @@ export default async function HomePage() {
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
                 en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
-                ru: "Новичок? В FAQ объяснены логика борда, правила вписки и то, что стоит сделать до предложения песен.",
+                ru: "Новичок? В FAQ объяснены логика сетлиста, правила вписки и то, что стоит сделать до предложения песен.",
               })}
             </p>
           </div>
           <div className="shrink-0">
-            <Link href="/faq">
-              <Button variant="secondary">
+            <Button asChild variant="secondary">
+              <Link href="/faq">
                 {pick(locale, {
                   en: "Read the FAQ",
                   ru: "Открыть FAQ",
                 })}
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </Card>
 
@@ -367,7 +489,7 @@ export default async function HomePage() {
                 ? rightNowContent.title
                 : pick(locale, {
                     en: "Why the board matters",
-                    ru: "Зачем вообще нужен этот борд",
+                    ru: "Зачем вообще нужен этот сетлист",
                   })}
             </h2>
           </div>
@@ -375,7 +497,9 @@ export default async function HomePage() {
           {featuredEvent ? (
             <>
               <div className="space-y-2">
-                <p className="text-lg font-semibold text-sand">{featuredEvent.title}</p>
+                <p className="font-display text-2xl font-semibold tracking-[0.02em] text-sand">
+                  {featuredEvent.title}
+                </p>
                 <p className="text-sm leading-6 text-white/74">{rightNowContent?.intro}</p>
               </div>
               {rightNowContent && rightNowContent.stats.length > 0 ? (
@@ -394,16 +518,18 @@ export default async function HomePage() {
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-3">
-                <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
-                  <Button variant="primary">
+                <Button asChild variant="primary">
+                  <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
                     {rightNowContent?.primaryCta.label ??
-                      pick(locale, { en: "Review the board", ru: "Посмотреть борд" })}
-                  </Button>
-                </Link>
-                {rightNowContent?.secondaryCta ? (
-                  <Link href={rightNowContent.secondaryCta.href}>
-                    <Button variant="ghost">{rightNowContent.secondaryCta.label}</Button>
+                      pick(locale, { en: "Review the board", ru: "Посмотреть сетлист" })}
                   </Link>
+                </Button>
+                {rightNowContent?.secondaryCta ? (
+                  <Button asChild variant="ghost">
+                    <Link href={rightNowContent.secondaryCta.href}>
+                      {rightNowContent.secondaryCta.label}
+                    </Link>
+                  </Button>
                 ) : null}
               </div>
             </>
@@ -411,7 +537,7 @@ export default async function HomePage() {
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
                 en: "The board gives the community one shared source of truth: what songs exist, who is still missing, and which setlists already made it to the stage.",
-                ru: "Борд даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
+                ru: "Сетлист даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
               })}
             </p>
           )}
@@ -430,29 +556,64 @@ export default async function HomePage() {
           </h2>
         </div>
         <div className="space-y-3">
-          {publishedEvents.map((event) => (
-            <Card className="brand-shell rounded-[1.25rem] border-white/10 px-5 py-4" key={event.id}>
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1.5">
-                  <h3 className="font-display text-xl font-semibold uppercase tracking-[0.03em] text-sand">
-                    {event.title}
-                  </h3>
-                  <div className="flex flex-wrap gap-3 text-sm text-white/66">
-                    <span>
-                      {event.setlistItems.length}{" "}
-                      {pick(locale, { en: "main-set tracks", ru: "треков мейн-сета" })}
-                    </span>
-                    <span>{formatDateTime(event.startsAt, locale)}</span>
+          {publishedEvents.map((event) => {
+            const lineupSummary = buildPublishedLineupSummary(event, locale);
+
+            return (
+              <Card className="brand-shell rounded-[1.25rem] border-white/10 px-5 py-4" key={event.id}>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1.5">
+                      <h3 className="font-display text-xl font-semibold uppercase tracking-[0.03em] text-sand">
+                        {event.title}
+                      </h3>
+                      <div className="flex flex-wrap gap-3 text-sm text-white/66">
+                        <span>
+                          {event.setlistItems.length}{" "}
+                          {pick(locale, { en: "main-set tracks", ru: "треков мейн-сета" })}
+                        </span>
+                        <span>{formatDateTime(event.startsAt, locale)}</span>
+                      </div>
+                    </div>
+                    <Button asChild variant="secondary">
+                      <Link href={`/events/${event.id}`}>
+                        {pick(locale, { en: "Open setlist", ru: "Открыть сетлист" })}
+                      </Link>
+                    </Button>
                   </div>
+                  {lineupSummary.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {lineupSummary.map((entry) => {
+                        const Icon = PUBLISHED_LINEUP_ICONS[entry.family];
+
+                        return (
+                          <div
+                            className="rounded-xl border border-white/10 bg-black/24 px-3 py-3"
+                            key={`${event.id}-${entry.family}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gold/18 bg-gold/10 text-gold">
+                                <Icon className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-sand">{entry.label}</p>
+                                <p className="text-[11px] text-white/56">
+                                  {formatPublishedLineupMeta(entry.players, locale)}
+                                </p>
+                              </div>
+                              <span className="ml-auto rounded-full border border-white/12 bg-white/6 px-2 py-1 text-[11px] font-semibold text-white/82">
+                                {entry.occupiedSeats}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
-                <Link href={`/events/${event.id}`}>
-                  <Button variant="secondary">
-                    {pick(locale, { en: "Open setlist", ru: "Открыть сетлист" })}
-                  </Button>
-                </Link>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       </section>
     </div>

@@ -1,6 +1,8 @@
 import type { Locale } from "@/lib/i18n";
 
 export const SITE_CONTENT_ID = "main";
+export const DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT = 18;
+export const DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT = 8;
 
 const DEFAULT_PARTICIPATION_RULES_MARKDOWN_BY_LOCALE: Record<Locale, string> = {
   en: `## How it works
@@ -18,14 +20,14 @@ const DEFAULT_PARTICIPATION_RULES_MARKDOWN_BY_LOCALE: Record<Locale, string> = {
 `,
   ru: `## Как это работает
 
-- Сначала смотри уже заявленные песни и открытые партии.
-- Если видишь свою роль, вписывайся сразу на борде.
+- Сначала смотри текущий сетлист, уже заявленные песни и открытые партии.
+- Если видишь свою роль, вписывайся сразу в сетлист.
 - Если песни нет, предлагай её только после проверки поиска.
 - Если гиг закрыт, optional-позиции всё ещё можно запрашивать через автора трека.
 
 ## Что важно помнить
 
-- Вписывайся только на те партии, которые реально можешь закрыть.
+- Вписывайся только на те партии, которые реально можешь закрыть, чтобы сетлист оставался надёжным.
 - Если планы изменились, освобождай место как можно раньше.
 - Уважай финальный сет и решения автора трека по optional-позициям.
 `,
@@ -43,7 +45,7 @@ const DEFAULT_LINEUP_DETAILS_MARKDOWN_BY_LOCALE: Record<Locale, string> = {
 - Check the key, playback, track notes, and the overall line-up.
 - If you want to bring someone in, use the invite control directly on that seat.
 `,
-  ru: `## Что значат роли в борде
+  ru: `## Что значат роли в сетлисте
 
 - **Required** роли нужны, чтобы песня считалась собранной.
 - **OPT / optional** роли дают дополнительный цвет и энергию, но не блокируют собранность.
@@ -51,7 +53,7 @@ const DEFAULT_LINEUP_DETAILS_MARKDOWN_BY_LOCALE: Record<Locale, string> = {
 
 ## Перед тем как вписаться
 
-- Проверь тональность, плейбэк, заметки автора и общий состав.
+- Проверь тональность, плейбэк, заметки автора и общий состав сетлиста.
 - Если хочешь позвать человека, используй кнопку приглашения прямо в нужной ячейке.
 `,
 };

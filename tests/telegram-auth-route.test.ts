@@ -178,4 +178,43 @@ describe("telegram auth route", () => {
     });
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
   });
+
+  it("strips auth noise from a safe success redirect target", async () => {
+    consumeRateLimitMock.mockReturnValue({
+      allowed: true,
+    });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    verifyTelegramAuthMock.mockReturnValue({
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    upsertTelegramUserMock.mockResolvedValue({
+      id: "user-1",
+    });
+
+    const { POST } = await import("@/app/api/auth/telegram/route");
+    const response = await POST(
+      new Request("https://thejammers.org/api/auth/telegram", {
+        method: "POST",
+        body: JSON.stringify({
+          payload: {
+            id: "tg-1",
+            auth_date: `${Math.floor(Date.now() / 1000)}`,
+            hash: "hash",
+          },
+          returnTo: "/about?authError=retry&view=full#team",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      redirectTo: "/about?view=full#team",
+    });
+    expect(createSessionMock).toHaveBeenCalledWith("user-1");
+  });
 });

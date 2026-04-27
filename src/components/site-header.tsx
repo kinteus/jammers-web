@@ -5,6 +5,7 @@ import { signOutAction } from "@/server/actions";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { SignInLink } from "@/components/sign-in-link";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
@@ -64,11 +65,11 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
                   </form>
                 </>
               ) : (
-                <Link href="/profile">
+                <SignInLink>
                   <Button className="shadow-glow" size="sm" variant="primary">
                     {pick(locale, { en: "Sign in", ru: "Войти" })}
                   </Button>
-                </Link>
+                </SignInLink>
               )}
             </div>
 
@@ -114,11 +115,11 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
                     </form>
                   </>
                 ) : (
-                  <Link href="/profile">
+                  <SignInLink>
                     <Button className="shadow-glow" size="sm" variant="primary">
                       {pick(locale, { en: "Sign in", ru: "Войти" })}
                     </Button>
-                  </Link>
+                  </SignInLink>
                 )}
               </div>
             </div>

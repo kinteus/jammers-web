@@ -24,3 +24,23 @@ export function resolveLatestSetlistHref({
 
   return nearestCurrent ? `/events/${nearestCurrent.id}` : "/#published";
 }
+
+export function resolveCurrentSetlistHref({
+  publishedEvents,
+  currentEvents,
+}: {
+  publishedEvents: EventLinkCandidate[];
+  currentEvents: EventLinkCandidate[];
+}) {
+  if (currentEvents.length > 0) {
+    return resolveLatestSetlistHref({
+      publishedEvents: [],
+      currentEvents,
+    });
+  }
+
+  return resolveLatestSetlistHref({
+    publishedEvents,
+    currentEvents: [],
+  });
+}

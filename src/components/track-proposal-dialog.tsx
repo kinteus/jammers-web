@@ -42,7 +42,7 @@ export function TrackProposalDialog({
                 <Dialog.Description className="max-w-2xl text-sm leading-6 text-white/68">
                   {pick(locale, {
                     en: "1. Choose the song. 2. Set only the useful arrangement. 3. Publish it straight back to the board.",
-                    ru: "1. Выбери песню. 2. Оставь только полезную аранжировку. 3. Сразу публикуй трек обратно на борд.",
+                    ru: "1. Выбери песню. 2. Оставь только полезную аранжировку. 3. Сразу публикуй трек обратно в сетлист.",
                   })}
                 </Dialog.Description>
               </div>

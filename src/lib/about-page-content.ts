@@ -28,7 +28,23 @@ export type AboutPartner = {
   imageAlt?: string;
 };
 
-export const ABOUT_PAGE_CONTENT = {
+export type AboutPageContent = {
+  badge: LocalizedText;
+  title: LocalizedText;
+  eyebrow: LocalizedText;
+  intro: LocalizedText;
+  heroNote: LocalizedText;
+  galleryLabel: LocalizedText;
+  organizersLabel: LocalizedText;
+  contactsLabel: LocalizedText;
+  partnersLabel: LocalizedText;
+  gallery: AboutGalleryItem[];
+  organizers: AboutOrganizer[];
+  contacts: AboutContact[];
+  partners: AboutPartner[];
+};
+
+export const ABOUT_PAGE_CONTENT: AboutPageContent = {
   badge: { en: "The Jammers", ru: "The Jammers" },
   title: { en: "About Us", ru: "О нас" },
   eyebrow: {
@@ -109,4 +125,4 @@ export const ABOUT_PAGE_CONTENT = {
     { name: "Lyra" },
     { name: "Drum4Fun" },
   ],
-} as const;
+};

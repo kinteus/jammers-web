@@ -18,7 +18,7 @@ export function FormStatusButton({
   className,
   disabled,
   pendingClassName,
-  pendingLabel = "Working...",
+  pendingLabel = "",
   pendingVariant = "inline",
   ...props
 }: FormStatusButtonProps) {
@@ -37,7 +37,7 @@ export function FormStatusButton({
         ) : (
           <>
             <Loader className="text-current" />
-            <span>{pendingLabel}</span>
+            {pendingLabel ? <span>{pendingLabel}</span> : null}
           </>
         )
       ) : (
