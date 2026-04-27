@@ -6,12 +6,16 @@ import { MessageCircleMore } from "lucide-react";
 
 import { pick, type Locale } from "@/lib/i18n";
 
-function getTelegramAuthUrl(returnTo: string) {
-  const params = new URLSearchParams({
-    returnTo,
-  });
+function getTelegramAuthUrl(returnTo: string, authRequest: string) {
+  const origin =
+    typeof window === "undefined"
+      ? process.env.NEXT_PUBLIC_APP_URL
+      : window.location.origin;
+  const url = new URL("/api/auth/telegram", origin);
+  url.searchParams.set("returnTo", returnTo);
+  url.searchParams.set("authRequest", authRequest);
 
-  return `/api/auth/telegram?${params.toString()}`;
+  return url.toString();
 }
 
 export function TelegramLoginWidget({
@@ -24,6 +28,7 @@ export function TelegramLoginWidget({
   returnTo?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const authRequestRef = useRef(`${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -50,7 +55,7 @@ export function TelegramLoginWidget({
     script.setAttribute("data-telegram-login", botUsername);
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "12");
-    script.setAttribute("data-auth-url", getTelegramAuthUrl(returnTo));
+    script.setAttribute("data-auth-url", getTelegramAuthUrl(returnTo, authRequestRef.current));
     script.setAttribute("data-request-access", "write");
     containerRef.current.appendChild(script);
   }, [botUsername, returnTo]);

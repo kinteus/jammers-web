@@ -18,3 +18,23 @@ export function isDatabaseUnavailableError(error: unknown) {
 
   return false;
 }
+
+export function isUniqueConstraintErrorForFields(error: unknown, fields: string[]) {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  if (!Array.isArray(target)) {
+    return false;
+  }
+
+  const targetFields = target.map(String);
+  return (
+    targetFields.length === fields.length &&
+    fields.every((field, index) => targetFields[index] === field)
+  );
+}

@@ -1,3 +1,5 @@
+import { TrackSeatStatus } from "@prisma/client";
+
 export type LineupSlotLite = {
   id: string;
   key: string;
@@ -35,4 +37,24 @@ export function expandSeatColumns(lineupSlots: LineupSlotLite[]) {
       };
     }),
   );
+}
+
+export function getTrackReadinessState(
+  seats: Array<{
+    status: TrackSeatStatus;
+    isOptional: boolean;
+  }>,
+) {
+  const requiredSeats = seats.filter((seat) => !seat.isOptional);
+  const requiredOpen = requiredSeats.filter(
+    (seat) => seat.status === TrackSeatStatus.OPEN,
+  ).length;
+  const optionalOpen = seats.filter(
+    (seat) => seat.isOptional && seat.status === TrackSeatStatus.OPEN,
+  ).length;
+
+  return {
+    isReady: requiredSeats.length > 0 && requiredOpen === 0,
+    optionalOpen,
+  };
 }

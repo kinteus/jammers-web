@@ -24,6 +24,7 @@ import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
 import { assertEventRegistrationWindow } from "@/lib/domain/event-registration";
+import { getNextSetlistOrderIndex } from "@/lib/domain/setlist-order";
 import { DEFAULT_MAX_SET_TRACK_COUNT, getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getEffectiveEventStatus } from "@/lib/domain/event-status";
@@ -59,6 +60,7 @@ import {
 import { slugify } from "@/lib/utils";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { getSafeReturnTo } from "@/lib/return-to";
+import { isUniqueConstraintErrorForFields } from "@/lib/prisma-errors";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
@@ -484,6 +486,81 @@ type ReleaseSeatResult =
   | { ok: true; notice: "seat-released"; seatId: string }
   | { ok: false; error: string };
 
+async function assertNoPendingSeatInvite({
+  eventSlug,
+  recipientId,
+  seatId,
+}: {
+  eventSlug: string;
+  recipientId: string;
+  seatId: string;
+}) {
+  const existingInvite = await db.trackInvite.findFirst({
+    where: {
+      seatId,
+      recipientId,
+      status: TrackInviteStatus.PENDING,
+    },
+  });
+
+  if (existingInvite) {
+    redirectToEventError(eventSlug, "invite-already-pending");
+  }
+}
+
+async function createPendingSeatInvite({
+  recipient,
+  seat,
+  sender,
+}: {
+  recipient: {
+    id: string;
+    telegramId: string | null;
+  };
+  seat: {
+    id: string;
+    label: string;
+    trackId: string;
+    track: {
+      event: {
+        title: string;
+      };
+      song: {
+        title: string;
+        artist: {
+          name: string;
+        };
+      };
+    };
+  };
+  sender: {
+    id: string;
+    telegramUsername: string | null;
+    fullName: string | null;
+  };
+}) {
+  const delivery = await sendTelegramInviteMessage({
+    recipientTelegramId: recipient.telegramId,
+    eventTitle: seat.track.event.title,
+    songLabel: `${seat.track.song.artist.name} - ${seat.track.song.title}`,
+    seatLabel: seat.label,
+    inviterLabel: sender.telegramUsername ?? sender.fullName ?? "A bandmate",
+  });
+
+  await db.trackInvite.create({
+    data: {
+      trackId: seat.trackId,
+      seatId: seat.id,
+      senderId: sender.id,
+      recipientId: recipient.id,
+      status: TrackInviteStatus.PENDING,
+      deliveryNote: delivery.note,
+    },
+  });
+
+  return delivery;
+}
+
 async function runClaimSeat({
   eventSlug,
   seatId,
@@ -686,9 +763,11 @@ async function ensureSetlistItem(
   editedById?: string,
   executor: Prisma.TransactionClient | typeof db = db,
 ) {
-  const count = await executor.setlistItem.count({
+  const backlogItems = await executor.setlistItem.findMany({
     where: { eventId, section: SetlistSection.BACKLOG },
+    select: { orderIndex: true },
   });
+  const orderIndex = getNextSetlistOrderIndex(backlogItems);
 
   await executor.setlistItem.upsert({
     where: {
@@ -702,7 +781,7 @@ async function ensureSetlistItem(
       eventId,
       trackId,
       section: SetlistSection.BACKLOG,
-      orderIndex: count + 1,
+      orderIndex,
       editedById,
     },
   });
@@ -1148,7 +1227,7 @@ export async function createTrackAction(formData: FormData) {
       }
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintErrorForFields(error, ["eventId", "songId", "state"])) {
       if (eventKey) {
         redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
       }
@@ -1238,7 +1317,7 @@ async function runReleaseSeat({
   if (getEffectiveEventStatus(seat.track.event) !== EventStatus.OPEN) {
     return { ok: false, error: "event-locked" };
   }
-  if (seat.userId !== user.id && seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
+  if (seat.userId !== user.id && user.role !== UserRole.ADMIN) {
     return { ok: false, error: "release-not-allowed" };
   }
 
@@ -1353,76 +1432,39 @@ export async function inviteToSeatAction(formData: FormData) {
 
   if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
     if (user.id === seat.track.proposedById || user.role === UserRole.ADMIN) {
-      if (seat.status === TrackSeatStatus.UNAVAILABLE) {
-        redirectToEventError(eventSlug, "seat-unavailable");
-      }
-
-      if (seat.userId) {
-        redirectToEventError(eventSlug, "seat-occupied");
-      }
-
-      const alreadyOnTrack = await db.trackSeat.count({
-        where: {
-          userId: recipient.id,
-          trackId: seat.trackId,
-          status: TrackSeatStatus.CLAIMED,
-        },
-      });
-
-      if (!alreadyOnTrack) {
-        const joinedCount = await countUniqueJoinedTracks(recipient.id, seat.track.eventId);
-        if (joinedCount >= seat.track.event.maxTracksPerUser) {
-          redirectToEventError(eventSlug, "invite-track-limit");
-        }
-      }
-
-      try {
-        await assertCanClaimRoleFamilyForTrack({
+      if (recipient.id === user.id) {
+        const result = await runClaimSeat({
           eventSlug,
-          excludeSeatId: seat.id,
-          seatLabel: seat.label,
-          seatLineupKey: seat.lineupSlot.key,
-          trackId: seat.trackId,
-          userId: recipient.id,
+          seatId,
+          user,
         });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("different instrument types")) {
-          redirectToEventError(eventSlug, "invite-duplicate-role-family");
+
+        if (!result.ok) {
+          redirectToEventError(eventSlug, result.error);
         }
 
-        throw error;
+        redirectToEventNotice(eventSlug, result.notice);
       }
 
-      const claimResult = await db.trackSeat.updateMany({
-        where: {
-          id: seat.id,
-          userId: null,
-          status: TrackSeatStatus.OPEN,
-        },
-        data: {
-          userId: recipient.id,
-          status: TrackSeatStatus.CLAIMED,
-          claimedAt: new Date(),
-        },
+      await assertNoPendingSeatInvite({
+        eventSlug,
+        recipientId: recipient.id,
+        seatId,
       });
 
-      if (claimResult.count === 0) {
-        redirectToEventError(eventSlug, "seat-occupied");
-      }
-
-      await db.trackInvite.updateMany({
-        where: {
-          seatId,
-          status: TrackInviteStatus.PENDING,
-        },
-        data: {
-          status: TrackInviteStatus.CANCELED,
-          respondedAt: new Date(),
-        },
+      const delivery = await createPendingSeatInvite({
+        recipient,
+        seat,
+        sender: user,
       });
 
       revalidateAll(pathBundle(eventSlug));
-      redirectToEventNotice(eventSlug, "seat-claimed");
+
+      if (delivery.status === "DELIVERY_FAILED") {
+        redirectToEventNotice(eventSlug, "invite-saved-without-telegram");
+      }
+
+      redirectToEventNotice(eventSlug, "invite-sent");
     }
 
     await createClosedOptionalSeatRequest({
@@ -1461,38 +1503,16 @@ export async function inviteToSeatAction(formData: FormData) {
     redirectToEventNotice(eventSlug, result.notice);
   }
 
-  const existingInvite = await db.trackInvite.findFirst({
-    where: {
-      seatId,
-      recipientId: recipient.id,
-      status: TrackInviteStatus.PENDING,
-    },
+  await assertNoPendingSeatInvite({
+    eventSlug,
+    recipientId: recipient.id,
+    seatId,
   });
 
-  if (existingInvite) {
-    redirectToEventError(eventSlug, "invite-already-pending");
-  }
-
-  const delivery = await sendTelegramInviteMessage({
-    recipientTelegramId: recipient.telegramId,
-    eventTitle: seat.track.event.title,
-    songLabel: `${seat.track.song.artist.name} - ${seat.track.song.title}`,
-    seatLabel: seat.label,
-    inviterLabel: user.telegramUsername ?? user.fullName ?? "A bandmate",
-  });
-
-  await db.trackInvite.create({
-    data: {
-      trackId: seat.trackId,
-      seatId,
-      senderId: user.id,
-      recipientId: recipient.id,
-      status:
-        delivery.status === "DELIVERY_FAILED"
-          ? TrackInviteStatus.DELIVERY_FAILED
-          : TrackInviteStatus.PENDING,
-      deliveryNote: delivery.note,
-    },
+  const delivery = await createPendingSeatInvite({
+    recipient,
+    seat,
+    sender: user,
   });
 
   revalidateAll(pathBundle(eventSlug));
@@ -1538,7 +1558,7 @@ export async function respondToInviteAction(formData: FormData) {
   if (decision === "accept") {
     const targetUserId = requestMeta?.targetUserId ?? user.id;
 
-    if (requestMeta) {
+    if (requestMeta || canRequestClosedOptionalSeat(invite.seat.track.event, invite.seat)) {
       if (!canRequestClosedOptionalSeat(invite.seat.track.event, invite.seat)) {
         redirectToEventError(eventSlug, "event-locked");
       }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { TrackSeatStatus } from "@prisma/client";
 
-import { expandSeatColumns } from "@/lib/event-board";
+import { expandSeatColumns, getTrackReadinessState } from "@/lib/event-board";
 
 describe("event board helpers", () => {
   it("expands lineup slots into stable seat columns", () => {
@@ -49,5 +50,63 @@ describe("event board helpers", () => {
         seatKey: "Vocals:1",
       },
     ]);
+  });
+
+  it("marks tracks with all required seats filled as ready", () => {
+    const readiness = getTrackReadinessState([
+      {
+        status: TrackSeatStatus.CLAIMED,
+        isOptional: false,
+      },
+      {
+        status: TrackSeatStatus.OPEN,
+        isOptional: true,
+      },
+    ]);
+
+    expect(readiness).toEqual({
+      isReady: true,
+      optionalOpen: 1,
+    });
+  });
+
+  it("marks unavailable required seats as closed for readiness", () => {
+    const readiness = getTrackReadinessState([
+      {
+        status: TrackSeatStatus.UNAVAILABLE,
+        isOptional: false,
+      },
+      {
+        status: TrackSeatStatus.CLAIMED,
+        isOptional: false,
+      },
+      {
+        status: TrackSeatStatus.OPEN,
+        isOptional: true,
+      },
+    ]);
+
+    expect(readiness).toEqual({
+      isReady: true,
+      optionalOpen: 1,
+    });
+  });
+
+  it("does not mark tracks with required seats still open as ready", () => {
+    const readiness = getTrackReadinessState([
+      {
+        status: TrackSeatStatus.OPEN,
+        isOptional: false,
+      },
+      {
+        status: TrackSeatStatus.CLAIMED,
+        isOptional: true,
+      },
+    ]);
+
+    expect(readiness).toEqual({
+      isReady: false,
+      optionalOpen: 0,
+    });
   });
 });

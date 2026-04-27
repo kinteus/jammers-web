@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { TrackSeatStatus, type UserRole } from "@prisma/client";
-import { ExternalLink, FileText, LogOut, Minus, Send, UserPlus } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileText, LogOut, Minus, Send, UserPlus } from "lucide-react";
 
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
-import { expandSeatColumns, type LineupSlotLite } from "@/lib/event-board";
+import { expandSeatColumns, getTrackReadinessState, type LineupSlotLite } from "@/lib/event-board";
 import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
 import { getRoleFamilyKey } from "@/lib/role-families";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
@@ -722,8 +722,8 @@ export function TrackBoardTable({
                   tone: "error",
                   title: pick(locale, { en: "Can't release seat", ru: "Нельзя освободить место" }),
                   description: pick(locale, {
-                    en: "Only the player, proposer or admin can remove this participant.",
-                    ru: "Освобождать это место может только сам участник, автор трека или админ.",
+                    en: "Only the player or an admin can remove this participant.",
+                    ru: "Освобождать это место может только сам участник или админ.",
                   }),
                 }
               : result.error === "seat-open"
@@ -833,6 +833,7 @@ export function TrackBoardTable({
               const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
               const isHighlighted = activeHighlightTrackId === track.id;
               const completion = getTrackCompletionSummary(track.seats);
+              const readiness = getTrackReadinessState(track.seats);
               const seatIndex = buildSeatIndex(track);
               const activeTrackInfoLabels = trackInfoFields
                 .filter((field) =>
@@ -843,18 +844,23 @@ export function TrackBoardTable({
               const canManageTrack = Boolean(
                 isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
               );
-              const rowBackground = isMyTrack
-                ? "bg-blue/12"
-                : index % 2 === 0
-                  ? "bg-white/[0.05]"
-                  : "bg-white/[0.08]";
+              const rowBackground = readiness.isReady
+                ? "bg-emerald-500/[0.16]"
+                : isMyTrack
+                  ? "bg-blue/12"
+                  : index % 2 === 0
+                    ? "bg-white/[0.05]"
+                    : "bg-white/[0.08]";
 
               return (
                 <tr
                   className={cn(
                     "transition hover:bg-white/[0.12]",
+                    readiness.isReady &&
+                      "shadow-[inset_0_2px_0_rgba(110,231,183,0.62),inset_0_-1px_0_rgba(110,231,183,0.2)] ring-1 ring-inset ring-emerald-300/28",
                     isHighlighted ? "bg-gold/[0.18]" : rowBackground,
                   )}
+                  data-readiness={readiness.isReady ? "ready" : undefined}
                   id={`track-${track.id}`}
                   key={track.id}
                 >
@@ -862,6 +868,8 @@ export function TrackBoardTable({
                     className={cn(
                       "sticky-song-cell sticky left-0 z-20 border-b border-r border-cloud px-2 py-1.5 align-top",
                       "border-white/14",
+                      readiness.isReady &&
+                        "relative overflow-hidden border-l-4 border-l-emerald-300 pl-3 shadow-[inset_0_0_0_1px_rgba(110,231,183,0.18)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-emerald-300/90 after:absolute after:inset-x-0 after:top-0 after:h-[3px] after:bg-emerald-300/70",
                       rowBackground,
                     )}
                   >
@@ -872,7 +880,7 @@ export function TrackBoardTable({
                             {index + 1}.
                           </span>
                           <a
-                            className="truncate font-display text-[1.05rem] font-semibold text-sand transition hover:text-white hover:underline"
+                            className="min-w-0 truncate font-display text-[1.05rem] font-semibold text-sand transition hover:text-white hover:underline"
                             href={getYoutubeSearchUrl(track)}
                             rel="noreferrer"
                             target="_blank"
@@ -883,6 +891,19 @@ export function TrackBoardTable({
                           >
                             {track.song.title}
                           </a>
+                          {readiness.isReady ? (
+                            <span
+                              aria-label={pick(locale, {
+                                en: "Track is fully staffed",
+                                ru: "Песня полностью собрана",
+                              })}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/55 bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-stage shadow-[0_0_18px_rgba(110,231,183,0.28)]"
+                              data-ready-badge="primary"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              {pick(locale, { en: "Ready", ru: "Собрано" })}
+                            </span>
+                          ) : null}
                           {isMyTrack ? (
                             <span
                               className="h-2 w-2 rounded-full bg-blue"
@@ -894,20 +915,24 @@ export function TrackBoardTable({
                           ) : null}
                         </div>
 
-                        <p className="truncate text-[11px] text-white/74">
-                          {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)} ·{" "}
-                          {completion.isComplete
-                            ? completion.optionalOpen > 0
-                              ? pick(locale, {
-                                  en: `Ready + ${completion.optionalOpen} optional`,
-                                  ru: `Собрано + ${completion.optionalOpen} optional`,
-                                })
-                              : pick(locale, { en: "Ready", ru: "Собрано" })
-                            : pick(locale, {
-                                en: `${completion.requiredOpen} required open`,
-                                ru: `${completion.requiredOpen} обязательных открыто`,
-                              })}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-white/74">
+                          <span className="min-w-0 truncate">
+                            {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
+                          </span>
+                          <span className="min-w-0 truncate">
+                            {completion.isComplete
+                              ? completion.optionalOpen > 0
+                                ? pick(locale, {
+                                    en: `${completion.optionalOpen} optional left`,
+                                    ru: `${completion.optionalOpen} optional осталось`,
+                                  })
+                                : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })
+                              : pick(locale, {
+                                  en: `${completion.requiredOpen} required open`,
+                                  ru: `${completion.requiredOpen} обязательных открыто`,
+                                })}
+                          </span>
+                        </div>
                         <YoutubeSearchLink className="mt-1.5 w-fit" locale={locale} track={track} />
                         {activeTrackInfoLabels.length > 0 ? (
                           <div className="flex flex-wrap gap-1 pt-0.5">
@@ -987,9 +1012,7 @@ export function TrackBoardTable({
                     const canManage = Boolean(
                       isOpen &&
                       user &&
-                        (user.role === "ADMIN" ||
-                          track.proposedById === user.id ||
-                          seat.userId === user.id),
+                        (user.role === "ADMIN" || seat.userId === user.id),
                     );
                     const canInvite = Boolean(
                       user &&
@@ -1251,6 +1274,7 @@ export function TrackBoardTable({
             const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
             const isHighlighted = activeHighlightTrackId === track.id;
             const completion = getTrackCompletionSummary(track.seats);
+            const readiness = getTrackReadinessState(track.seats);
           const activeTrackInfoLabels = trackInfoFields
             .filter((field) =>
               getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
@@ -1266,8 +1290,11 @@ export function TrackBoardTable({
             <details
               className={cn(
                 "brand-shell group rounded-xl border-white/10 shadow-card transition",
+                readiness.isReady &&
+                  "border-l-4 border-emerald-300 border-emerald-300/34 bg-emerald-500/[0.12] shadow-[inset_0_3px_0_rgba(110,231,183,0.5)]",
                 isHighlighted && "border-gold/28 bg-[rgba(255,179,0,0.08)]",
               )}
+              data-readiness={readiness.isReady ? "ready" : undefined}
               id={`track-${track.id}`}
               key={track.id}
             >
@@ -1279,7 +1306,24 @@ export function TrackBoardTable({
                         {index + 1}.
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-display text-lg font-semibold text-sand">{track.song.title}</p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <p className="min-w-0 truncate font-display text-lg font-semibold text-sand">
+                            {track.song.title}
+                          </p>
+                          {readiness.isReady ? (
+                            <span
+                              aria-label={pick(locale, {
+                                en: "Track is fully staffed",
+                                ru: "Песня полностью собрана",
+                              })}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/55 bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-stage shadow-[0_0_18px_rgba(110,231,183,0.28)]"
+                              data-ready-badge="primary"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              {pick(locale, { en: "Ready", ru: "Собрано" })}
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-[11px] text-white/60">
                           {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
                         </p>
@@ -1295,6 +1339,16 @@ export function TrackBoardTable({
                         ? pick(locale, { en: "Ready", ru: "Собрано" })
                         : pick(locale, { en: `${mobileOpenCount} open`, ru: `${mobileOpenCount} открыто` })}
                     </span>
+                    {readiness.isReady ? (
+                      <span className="rounded-full border border-emerald-300/24 bg-emerald-400/12 px-2.5 py-1 text-emerald-100">
+                        {readiness.optionalOpen > 0
+                          ? pick(locale, {
+                              en: `${readiness.optionalOpen} optional left`,
+                              ru: `${readiness.optionalOpen} optional осталось`,
+                            })
+                          : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })}
+                      </span>
+                    ) : null}
                     {isMyTrack ? (
                       <span className="rounded-full border border-blue/18 bg-blue/10 px-2.5 py-1 text-blue">
                         {pick(locale, { en: "You're in", ru: "Ты в составе" })}
@@ -1361,9 +1415,7 @@ export function TrackBoardTable({
                     const canManage = Boolean(
                       isOpen &&
                         user &&
-                        (user.role === "ADMIN" ||
-                          track.proposedById === user.id ||
-                          seat.userId === user.id),
+                        (user.role === "ADMIN" || seat.userId === user.id),
                     );
                     const canInvite = Boolean(
                       user &&

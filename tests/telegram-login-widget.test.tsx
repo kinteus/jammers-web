@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe("TelegramLoginWidget", () => {
-  it("uses the redirect-based Telegram auth flow without inline eval callbacks", async () => {
+  it("uses an absolute redirect-based Telegram auth flow without inline eval callbacks", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -45,8 +45,13 @@ describe("TelegramLoginWidget", () => {
     expect(script).not.toBeNull();
     expect(script?.getAttribute("data-telegram-login")).toBe("the_jammers_bot");
     expect(script?.hasAttribute("data-onauth")).toBe(false);
-    expect(script?.getAttribute("data-auth-url")).toBe(
-      "/api/auth/telegram?returnTo=%2Fevents%2Fspring-jam-night%3Fview%3Dmine%23songs",
+    const authUrl = new URL(script?.getAttribute("data-auth-url") ?? "");
+
+    expect(authUrl.origin).toBe(window.location.origin);
+    expect(authUrl.pathname).toBe("/api/auth/telegram");
+    expect(authUrl.searchParams.get("returnTo")).toBe(
+      "/events/spring-jam-night?view=mine#songs",
     );
+    expect(authUrl.searchParams.get("authRequest")).toMatch(/^\d+-[a-z0-9]+$/);
   });
 });

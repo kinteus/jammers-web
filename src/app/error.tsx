@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
+
+import { getPublicErrorId } from "@/lib/error-reporting";
 
 type RootErrorProps = {
   error: Error & { digest?: string };
@@ -16,9 +18,40 @@ function isDatabaseError(error: Error) {
 }
 
 export default function RootError({ error, reset }: RootErrorProps) {
+  const reportedRef = useRef(false);
+  const errorId = useMemo(() => getPublicErrorId(error), [error]);
+
   useEffect(() => {
     console.error(error);
-  }, [error]);
+
+    if (reportedRef.current) {
+      return;
+    }
+    reportedRef.current = true;
+
+    const path =
+      typeof window === "undefined"
+        ? null
+        : `${window.location.pathname}${window.location.search}`;
+
+    void fetch("/api/client-error", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        errorId,
+        digest: error.digest ?? null,
+        message: error.message,
+        name: error.name,
+        path,
+        stack: error.stack ?? null,
+      }),
+      keepalive: true,
+    }).catch(() => {
+      // The visible error id still helps correlate browser reports if logging fails.
+    });
+  }, [error, errorId]);
 
   const databaseUnavailable = isDatabaseError(error);
 
@@ -40,6 +73,9 @@ export default function RootError({ error, reset }: RootErrorProps) {
                 {databaseUnavailable
                   ? "The page is reachable, but the database at 127.0.0.1:55432 is not responding. Restart the Postgres port-forward or switch the app back to a working local database."
                   : "Try the action again. If the issue keeps happening, reload the page after the local services are back in a healthy state."}
+              </p>
+              <p className="w-fit rounded-sm border border-white/12 bg-white/6 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                Error ID <span className="ml-2 text-sand">{errorId}</span>
               </p>
             </div>
             <div className="flex flex-wrap gap-3">

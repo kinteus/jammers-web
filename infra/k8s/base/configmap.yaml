@@ -11,3 +11,5 @@ data:
   SESSION_TTL_HOURS: "168"
   ENABLE_DEV_AUTH: "false"
   DEFAULT_ADMIN_USERNAME: "kinteus"
+  ERROR_LOG_DIR: "/tmp/jammers-error-logs"
+  ERROR_LOG_RETENTION_DAYS: "14"
