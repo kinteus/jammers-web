@@ -131,8 +131,15 @@ jobs:
             -e "s|ghcr.io/kinteus/jammers-web:latest|${IMAGE_REF}|g" \
             infra/k8s/base/migration-job.example.yaml \
             | kubectl -n "$K8S_NAMESPACE" apply -f -
-          kubectl -n "$K8S_NAMESPACE" wait --for=condition=complete --timeout=10m "job/${MIGRATION_JOB}"
-          kubectl -n "$K8S_NAMESPACE" logs "job/${MIGRATION_JOB}"
+          if ! kubectl -n "$K8S_NAMESPACE" wait --for=condition=complete --timeout=10m "job/${MIGRATION_JOB}"; then
+            kubectl -n "$K8S_NAMESPACE" get job "${MIGRATION_JOB}" -o wide || true
+            kubectl -n "$K8S_NAMESPACE" describe job "${MIGRATION_JOB}" || true
+            kubectl -n "$K8S_NAMESPACE" get pods -l "job-name=${MIGRATION_JOB}" -o wide || true
+            kubectl -n "$K8S_NAMESPACE" describe pods -l "job-name=${MIGRATION_JOB}" || true
+            kubectl -n "$K8S_NAMESPACE" logs "job/${MIGRATION_JOB}" --all-containers=true --prefix=true || true
+            exit 1
+          fi
+          kubectl -n "$K8S_NAMESPACE" logs "job/${MIGRATION_JOB}" --all-containers=true --prefix=true
 
       - name: Restore production scale
         if: always() && steps.capacity.outcome == 'success'

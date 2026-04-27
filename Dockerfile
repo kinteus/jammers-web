@@ -27,9 +27,11 @@ ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=your_bot_username
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=$NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 COPY --from=builder /app/package.json ./package.json
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 EXPOSE 3000
 CMD ["node", "server.js"]
