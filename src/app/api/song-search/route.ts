@@ -51,6 +51,29 @@ function parseArtistTitleQuery(query: string) {
   return { artistName, trackTitle };
 }
 
+function getArtistTitleQueryCandidates(query: string) {
+  const explicitQuery = parseArtistTitleQuery(query);
+  if (explicitQuery) {
+    return [explicitQuery];
+  }
+
+  const words = query.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) {
+    return [];
+  }
+
+  const candidates: Array<{ artistName: string; trackTitle: string }> = [];
+  const maxArtistWords = Math.min(words.length - 1, 5);
+  for (let wordCount = 1; wordCount <= maxArtistWords; wordCount += 1) {
+    candidates.push({
+      artistName: words.slice(0, wordCount).join(" "),
+      trackTitle: words.slice(wordCount).join(" "),
+    });
+  }
+
+  return candidates;
+}
+
 function createSearchUrl(pathname: "/search" | "/lookup", params: Record<string, string>) {
   const url = new URL(`https://itunes.apple.com${pathname}`);
   for (const [key, value] of Object.entries(params)) {
@@ -181,12 +204,9 @@ function addDedupedResults(
   }
 }
 
-async function fetchArtistLookupFallback(query: string) {
-  const parsedQuery = parseArtistTitleQuery(query);
-  if (!parsedQuery) {
-    return [];
-  }
-
+async function fetchArtistLookupFallback(
+  parsedQuery: NonNullable<ReturnType<typeof parseArtistTitleQuery>>,
+) {
   const artistResults = await fetchItunesResults<ItunesArtistResult>(
     createSearchUrl("/search", {
       term: parsedQuery.artistName,
@@ -221,6 +241,17 @@ async function fetchArtistLookupFallback(query: string) {
   );
 
   return rankLookupSongs(lookupResults.filter(isSongResult), parsedQuery);
+}
+
+async function fetchArtistLookupFallbacks(query: string) {
+  for (const candidate of getArtistTitleQueryCandidates(query)) {
+    const results = await fetchArtistLookupFallback(candidate);
+    if (results.length > 0) {
+      return results;
+    }
+  }
+
+  return [];
 }
 
 export async function GET(request: Request) {
@@ -279,13 +310,16 @@ export async function GET(request: Request) {
       durationSeconds: number | null;
     }
   >();
-  const parsedQuery = parseArtistTitleQuery(query);
+  const parsedQueries = getArtistTitleQueryCandidates(query);
   const shouldUseArtistLookup =
-    parsedQuery && !searchResults.some((entry) => trackMatchesParsedQuery(entry, parsedQuery));
+    parsedQueries.length > 0 &&
+    !parsedQueries.some((parsedQuery) =>
+      searchResults.some((entry) => trackMatchesParsedQuery(entry, parsedQuery)),
+    );
 
   if (shouldUseArtistLookup) {
     try {
-      addDedupedResults(dedupedResults, await fetchArtistLookupFallback(query));
+      addDedupedResults(dedupedResults, await fetchArtistLookupFallbacks(query));
     } catch {
       // Keep direct search results when the fallback provider path is unavailable.
     }

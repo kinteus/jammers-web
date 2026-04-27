@@ -25,6 +25,67 @@ function mockItunesJson(payload: unknown) {
 }
 
 describe("song search route", () => {
+  it("falls back through artist lookup for artist-title queries without a dash", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => mockItunesJson({ results: [] }))
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 255330831,
+              artistName: "Thornhill",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 255330831,
+              artistName: "Thornhill",
+            },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1787004043,
+              trackName: "nerv",
+              artistName: "Thornhill",
+              collectionName: "BODIES",
+              trackViewUrl: "https://music.apple.com/us/album/nerv/1787004036?i=1787004043",
+              trackTimeMillis: 192611,
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request("http://localhost/api/song-search?query=Thornhill%20nerv"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      results: [
+        {
+          artistName: "Thornhill",
+          externalId: "1787004043",
+          trackTitle: "nerv",
+        },
+      ],
+    });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "Thornhill",
+    );
+  });
+
   it("falls back through artist lookup for artist-title queries that direct iTunes search misses", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
