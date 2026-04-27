@@ -12,3 +12,9 @@ tmp
 *.tsbuildinfo
 requirements.pdf
 materials/
+
+# Local Codex/Playwright artifacts
+.playwright-mcp/
+.superpowers/
+docs/superpowers/plans/
+output/playwright/*.png

@@ -12,6 +12,16 @@ import {
 
 type TelegramPayloadRecord = Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>;
 
+const telegramAuthSearchParamKeys = [
+  "id",
+  "first_name",
+  "last_name",
+  "username",
+  "photo_url",
+  "auth_date",
+  "hash",
+] as const;
+
 async function completeTelegramAuth(
   payload: TelegramPayloadRecord,
   requestedReturnTo?: string | null,
@@ -27,6 +37,30 @@ async function completeTelegramAuth(
   };
 }
 
+function getTelegramPayloadFromSearchParams(searchParams: URLSearchParams) {
+  if (!searchParams.has("id") || !searchParams.has("auth_date") || !searchParams.has("hash")) {
+    return null;
+  }
+
+  const payload: TelegramPayloadRecord = {};
+  for (const key of telegramAuthSearchParamKeys) {
+    const value = searchParams.get(key);
+    if (value !== null) {
+      payload[key] = value;
+    }
+  }
+
+  return payload;
+}
+
+function redirectNoStore(url: URL) {
+  return NextResponse.redirect(url, {
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const requestedReturnTo = searchParams.get("returnTo");
@@ -36,14 +70,20 @@ export async function GET(request: Request) {
   );
   retryUrl.searchParams.set("authError", "retry");
 
-  return NextResponse.redirect(
-    retryUrl,
-    {
-      headers: {
-        "Cache-Control": "no-store",
-      },
-    },
-  );
+  const payload = getTelegramPayloadFromSearchParams(searchParams);
+  if (!payload) {
+    return redirectNoStore(retryUrl);
+  }
+
+  try {
+    const { returnTo } = await completeTelegramAuth(payload, requestedReturnTo);
+    const redirectUrl = new URL(returnTo, env.NEXT_PUBLIC_APP_URL);
+    redirectUrl.searchParams.set("auth", String(Date.now()));
+
+    return redirectNoStore(redirectUrl);
+  } catch {
+    return redirectNoStore(retryUrl);
+  }
 }
 
 export async function POST(request: Request) {

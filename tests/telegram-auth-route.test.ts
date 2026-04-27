@@ -80,6 +80,40 @@ describe("telegram auth route", () => {
     );
   });
 
+  it("creates a session from Telegram GET callback payloads", async () => {
+    consumeRateLimitMock.mockReturnValue({
+      allowed: true,
+    });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    verifyTelegramAuthMock.mockReturnValue({
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    upsertTelegramUserMock.mockResolvedValue({
+      id: "user-1",
+    });
+
+    const { GET } = await import("@/app/api/auth/telegram/route");
+    const response = await GET(
+      new Request(
+        "https://thejammers.org/api/auth/telegram?returnTo=%2Fabout%23team&id=tg-1&first_name=Anna&username=anna&auth_date=1710000000&hash=hash",
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toMatch(
+      /^https:\/\/thejammers\.org\/about\?auth=\d+#team$/,
+    );
+    expect(verifyTelegramAuthMock).toHaveBeenCalledWith({
+      id: "tg-1",
+      first_name: "Anna",
+      username: "anna",
+      auth_date: "1710000000",
+      hash: "hash",
+    });
+    expect(createSessionMock).toHaveBeenCalledWith("user-1");
+  });
+
   it("returns 429 when rate-limited", async () => {
     consumeRateLimitMock.mockReturnValue({
       allowed: false,
