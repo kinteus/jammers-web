@@ -119,24 +119,6 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               })}
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {pick(locale, {
-              en: [
-                "Take open seats from any live board.",
-                "Accept or decline invites in one place.",
-                "Keep your instruments current so bandmates can find you.",
-              ],
-              ru: [
-                "Занимай открытые места в любом живом сетлисте.",
-                "Принимай и отклоняй приглашения в одном месте.",
-                "Держи инструменты актуальными, чтобы тебя было проще найти.",
-              ],
-            }).map((item) => (
-              <div className="brand-shell-soft rounded-xl px-4 py-4 text-sm leading-6 text-white/72" key={item}>
-                {item}
-              </div>
-            ))}
-          </div>
           {authError ? (
             <p className="rounded-md bg-ember/10 p-3 text-sm text-ember">
               {pick(locale, {
@@ -155,11 +137,31 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               })}
             </p>
           ) : null}
-          <TelegramLoginWidget
-            botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
-            locale={locale}
-            returnTo={returnTo}
-          />
+          <div id="telegram-login" className="scroll-mt-28">
+            <TelegramLoginWidget
+              botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
+              locale={locale}
+              returnTo={returnTo}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {pick(locale, {
+              en: [
+                "Take open seats from any live board.",
+                "Accept or decline invites in one place.",
+                "Keep your instruments current so bandmates can find you.",
+              ],
+              ru: [
+                "Занимай открытые места в любом живом сетлисте.",
+                "Принимай и отклоняй приглашения в одном месте.",
+                "Держи инструменты актуальными, чтобы тебя было проще найти.",
+              ],
+            }).map((item) => (
+              <div className="brand-shell-soft rounded-xl px-4 py-4 text-sm leading-6 text-white/72" key={item}>
+                {item}
+              </div>
+            ))}
+          </div>
           <Link href="/">
             <Button variant="secondary">
               {pick(locale, { en: "Browse gigs first", ru: "Сначала посмотреть гиги" })}

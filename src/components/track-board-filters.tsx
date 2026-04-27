@@ -127,6 +127,7 @@ export function TrackBoardFilters({
 
         <form
           className="flex min-w-0 flex-col gap-2"
+          role="search"
           onSubmit={(event) => {
             event.preventDefault();
             replace({ search: query, roles: selectedRoles, view: activeView });
@@ -136,7 +137,12 @@ export function TrackBoardFilters({
             <div className="relative min-w-0 sm:min-w-[320px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/32" />
               <input
+                aria-label={pick(locale, {
+                  en: "Search songs, artists, or proposers",
+                  ru: "Искать песни, артистов или авторов",
+                })}
                 className="w-full border-white/12 bg-stage py-2.5 pl-10 pr-4"
+                name="q"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={pick(locale, {
                   en: "Search by song, artist or proposer",
@@ -175,6 +181,7 @@ export function TrackBoardFilters({
         </span>
         {roleOptions.map((role) => (
           <button
+            aria-pressed={selectedRoles.includes(role)}
             className={selectedRoles.includes(role)
               ? "rounded-full border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gold/16"
               : "rounded-full border border-white/10 bg-stage px-3 py-1.5 text-xs font-semibold text-white/72 transition hover:border-gold/18 hover:text-white"

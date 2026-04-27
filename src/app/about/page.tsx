@@ -11,8 +11,29 @@ import { Card } from "@/components/ui/card";
 
 export const metadata: Metadata = {
   title: "About Us",
+  description: "Meet The Jammers organizers, community, contacts, and partners.",
   alternates: {
     canonical: "/about",
+  },
+  openGraph: {
+    type: "website",
+    title: "About Us",
+    description: "Meet The Jammers organizers, community, contacts, and partners.",
+    url: "/about",
+    images: [
+      {
+        url: "/brand/the-jammers-logo.png",
+        width: 1200,
+        height: 630,
+        alt: "The Jammers",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Us",
+    description: "Meet The Jammers organizers, community, contacts, and partners.",
+    images: ["/brand/the-jammers-logo.png"],
   },
 };
 
@@ -122,8 +143,8 @@ export default async function AboutPage() {
             </div>
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
-                en: "These are placeholder contact entries for now. You can later swap them for the real Telegram handles, emails, and phone numbers without changing the layout.",
-                ru: "Пока здесь стоят заглушки для контактов. Позже можно просто заменить их на реальные Telegram, email и телефоны, не меняя саму вёрстку.",
+                en: "Write to the team about gigs, partnerships, song coordination, or anything that needs a human answer.",
+                ru: "Пиши команде про гиги, партнёрства, координацию песен и всё, где нужен живой ответ.",
               })}
             </p>
             <div className="space-y-3">
@@ -137,7 +158,7 @@ export default async function AboutPage() {
                       <p className="mt-1 text-sm font-semibold text-sand">{contact.value}</p>
                     </div>
                     <span className="text-xs uppercase tracking-[0.16em] text-gold">
-                      {pick(locale, { en: "Update later", ru: "Обновить позже" })}
+                      {pick(locale, { en: "Contact", ru: "Контакт" })}
                     </span>
                   </div>
                 );

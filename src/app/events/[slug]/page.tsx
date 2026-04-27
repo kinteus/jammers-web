@@ -10,6 +10,7 @@ import {
   allowsClosedOptionalSeatRequests,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
+import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
@@ -805,20 +806,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         {visibleTracks.length === 0 ? (
           <Card className="brand-shell">
             <p className="text-sm leading-6 text-white/68">
-              {activeView === "mine"
-                ? pick(locale, {
-                    en: "You are not part of any songs here yet.",
-                    ru: "Ты пока не участвуешь ни в одной из этих песен.",
-                  })
-                : activeView === "open"
-                  ? pick(locale, {
-                      en: "Every visible song is already assembled.",
-                      ru: "Все видимые песни уже собраны.",
-                    })
-                  : pick(locale, {
-                      en: "This gig does not have song proposals yet.",
-                      ru: "В этом гиге пока нет заявленных песен.",
-                    })}
+              {getTrackBoardEmptyState({
+                activeView,
+                hasFilters: searchQuery.length > 0 || roleFilters.length > 0,
+                locale,
+                totalTrackCount: event.tracks.length,
+              })}
             </p>
           </Card>
         ) : (

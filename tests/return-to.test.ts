@@ -76,7 +76,7 @@ describe("buildProfileSignInHref", () => {
         pathname: "/profile",
         search: "authError=retry&returnTo=%2Fabout%23team",
       }),
-    ).toBe("/profile?returnTo=%2Fabout%23team");
+    ).toBe("/profile?returnTo=%2Fabout%23team#telegram-login");
   });
 
   it("preserves hashes for anchored public pages", () => {
@@ -87,7 +87,7 @@ describe("buildProfileSignInHref", () => {
         hash: "#track-board",
       }),
     ).toBe(
-      "/profile?returnTo=%2Fevents%2Fspring-jam-night%3Fview%3Dopen%23track-board",
+      "/profile?returnTo=%2Fevents%2Fspring-jam-night%3Fview%3Dopen%23track-board#telegram-login",
     );
   });
 });

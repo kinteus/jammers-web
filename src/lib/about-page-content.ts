@@ -76,47 +76,47 @@ export const ABOUT_PAGE_CONTENT: AboutPageContent = {
   organizers: [
     {
       name: "Максим Наумов",
-      role: { en: "Community organizer", ru: "Организатор сообщества" },
+      role: { en: "Community organizer", ru: "Bad Boy, дед, ворчун" },
       contactLabel: "Telegram",
-      contactValue: "@replace_me",
+      contactValue: "@kinteus",
     },
     {
       name: "Анастасия Ивченко",
-      role: { en: "Community organizer", ru: "Организатор сообщества" },
+      role: { en: "Community organizer", ru: "Душа и сердце сообщества" },
       contactLabel: "Telegram",
-      contactValue: "@replace_me",
+      contactValue: "@ana_ivchenko",
     },
     {
       name: "Андрей Кротов",
-      role: { en: "Community organizer", ru: "Организатор сообщества" },
+      role: { en: "Community organizer", ru: "Машина, Властелин, Легенда" },
       contactLabel: "Telegram",
-      contactValue: "@replace_me",
+      contactValue: "@A_Krotov",
     },
     {
       name: "Алексей Бурсан",
-      role: { en: "Community organizer", ru: "Организатор сообщества" },
+      role: { en: "Community organizer", ru: "Серый кардинал" },
       contactLabel: "Telegram",
-      contactValue: "@replace_me",
+      contactValue: "@bodomic",
     },
     {
       name: "Алеся",
-      role: { en: "Community organizer", ru: "Организатор сообщества" },
+      role: { en: "Community organizer", ru: "Жизнерадостный ивент-мэйкер" },
       contactLabel: "Telegram",
-      contactValue: "@replace_me",
+      contactValue: "@alesichd",
     },
   ],
   contacts: [
     {
       label: "Telegram",
-      value: "@replace_me",
+      value: "@kinteus",
     },
     {
       label: "Email",
-      value: "replace-me@example.com",
+      value: "maksim.naumov.music@gmail.com",
     },
     {
       label: "Phone",
-      value: "+000 00 000000",
+      value: "+357 99 250122",
     },
   ],
   partners: [

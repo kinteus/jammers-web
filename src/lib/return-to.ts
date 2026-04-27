@@ -38,5 +38,5 @@ export function buildProfileSignInHref({
     fallbackPath,
   );
 
-  return `/profile?returnTo=${encodeURIComponent(returnTo)}`;
+  return `/profile?returnTo=${encodeURIComponent(returnTo)}#telegram-login`;
 }

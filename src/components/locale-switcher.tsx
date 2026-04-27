@@ -27,11 +27,17 @@ export function LocaleSwitcher({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-white/16 bg-black/25 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+    <div
+      aria-label="Language"
+      className="inline-flex items-center gap-1 rounded-full border border-white/16 bg-black/25 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      role="group"
+    >
       {(["en", "ru"] as Locale[]).map((item) => (
         <button
+          aria-label={item === "en" ? "Switch to English" : "Switch to Russian"}
+          aria-pressed={item === locale}
           className={cn(
-            "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition",
+            "min-h-8 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition sm:min-h-9",
             item === locale
               ? "border border-white/18 bg-white text-stage shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
               : "text-white/80 hover:bg-white/12 hover:text-white",

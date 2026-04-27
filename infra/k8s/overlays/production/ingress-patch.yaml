@@ -4,6 +4,8 @@ metadata:
   name: jammers-web
   annotations:
     kubernetes.io/ingress.class: public
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: public
   tls:

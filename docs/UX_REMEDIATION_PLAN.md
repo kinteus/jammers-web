@@ -88,6 +88,9 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 - Filtering was too limited for quick participation decisions.
 - Guests could see a missing-song form they could not successfully submit.
 - The page did not clearly communicate where the biggest role shortages were.
+- The event hero still does not answer the pre-attendance questions well enough:
+  where exactly to go, whether entry is free or paid, who can attend, what backline
+  exists, when soundcheck happens, and who to message when something is unclear.
 
 ### Fixes applied
 
@@ -103,6 +106,25 @@ If a guest cannot request a missing song, the UI should not show a fully interac
 
 ### Recommended next layer
 
+- Add a compact "Before you go" block directly under the event title. It should
+  use existing fields first: date/time, `venueName`, `venueMapUrl`,
+  `registrationClosesAt`, and `stageNotes`. The block should always show
+  clear fallback copy when something is missing, for example "Venue is being
+  confirmed" instead of silently omitting the row.
+- Split `stageNotes` into structured event-logistics fields once the admin
+  workflow is stable: `venueAddress`, `entryFeeLabel`, `audiencePolicy`,
+  `arrivalTime`, `soundcheckTime`, `backlineSummary`, `organizerContact`,
+  and `dressCodeOrTheme`. Until then, parse nothing from free text; render
+  `stageNotes` as an additional note below the structured rows.
+- Update the admin event form so organizers are prompted to fill the critical
+  public facts before opening registration: venue/map, fee/free, arrival time,
+  soundcheck, backline, and contact. Treat them as warnings, not hard blockers,
+  while the project remains in beta.
+- Add public event-page copy for missing logistics that is honest but useful:
+  "Venue is being confirmed; watch the Telegram chat for the final address" is
+  better than only "TBD".
+- Add JSON-LD enrichment after structured logistics exist: `Place.address`,
+  `offers` for paid/free entry, `image`, and richer organizer/contact data.
 - Add anchor links from shortage roles to filtered song lists.
 - Add per-track discussion or notes visibility without requiring board scanning.
 - Add sort options such as "most complete", "newest", and "needs my instrument".
