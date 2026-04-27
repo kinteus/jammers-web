@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import type { CSSProperties } from "react";
+import React from "react";
 
 import { pick, type Locale } from "@/lib/i18n";
 
@@ -12,107 +12,118 @@ type CommunityQuote = {
 
 const QUOTE_SLOTS = [
   {
-    left: 2,
-    top: 1,
-    width: 34,
+    edge: "left",
+    x: -13.4,
+    topNudge: -1,
+    width: 18,
     depth: "front",
     rotate: "-1.4deg",
-    driftX: "-2px",
-    floatDistance: "9px",
+    driftX: "-1px",
+    floatDistance: "5px",
   },
   {
-    left: 48,
-    top: 0.7,
-    width: 23,
+    edge: "right",
+    x: -13.8,
+    topNudge: 1,
+    width: 18,
     depth: "back",
     rotate: "1.8deg",
-    driftX: "3px",
-    floatDistance: "7px",
+    driftX: "1px",
+    floatDistance: "5px",
   },
   {
-    left: 74,
-    top: 0.9,
-    width: 24,
+    edge: "left",
+    x: -14.8,
+    topNudge: 0,
+    width: 19,
     depth: "mid",
     rotate: "-0.9deg",
-    driftX: "2px",
-    floatDistance: "10px",
+    driftX: "1px",
+    floatDistance: "6px",
   },
   {
-    left: 3,
-    top: 6.8,
-    width: 32,
+    edge: "right",
+    x: -14.6,
+    topNudge: -1,
+    width: 20,
     depth: "mid",
     rotate: "1.2deg",
-    driftX: "-3px",
-    floatDistance: "8px",
+    driftX: "-1px",
+    floatDistance: "5px",
   },
   {
-    left: 33,
-    top: 6.1,
-    width: 27,
+    edge: "left",
+    x: -13.8,
+    topNudge: 1,
+    width: 19,
     depth: "back",
     rotate: "-1.8deg",
-    driftX: "4px",
-    floatDistance: "9px",
+    driftX: "1px",
+    floatDistance: "5px",
   },
   {
-    left: 58,
-    top: 7.3,
-    width: 19,
+    edge: "right",
+    x: -13.4,
+    topNudge: 0,
+    width: 20,
     depth: "front",
     rotate: "0.9deg",
-    driftX: "-2px",
-    floatDistance: "7px",
+    driftX: "-1px",
+    floatDistance: "5px",
   },
   {
-    left: 74,
-    top: 6.6,
-    width: 24,
+    edge: "left",
+    x: -15,
+    topNudge: -1,
+    width: 19,
     depth: "mid",
     rotate: "-1.1deg",
-    driftX: "2px",
-    floatDistance: "8px",
+    driftX: "1px",
+    floatDistance: "5px",
   },
   {
-    left: 5,
-    top: 12.8,
-    width: 22,
+    edge: "right",
+    x: -15,
+    topNudge: 1,
+    width: 20,
     depth: "back",
     rotate: "1.5deg",
-    driftX: "-4px",
-    floatDistance: "10px",
+    driftX: "-1px",
+    floatDistance: "6px",
   },
   {
-    left: 29,
-    top: 12.2,
-    width: 30,
+    edge: "left",
+    x: -13.8,
+    topNudge: 0,
+    width: 20,
     depth: "front",
     rotate: "-1.2deg",
-    driftX: "3px",
-    floatDistance: "8px",
+    driftX: "1px",
+    floatDistance: "5px",
   },
   {
-    left: 62,
-    top: 12.9,
-    width: 21,
+    edge: "right",
+    x: -13.8,
+    topNudge: -1,
+    width: 19,
     depth: "mid",
     rotate: "0.8deg",
-    driftX: "-2px",
-    floatDistance: "9px",
+    driftX: "-1px",
+    floatDistance: "5px",
   },
   {
-    left: 80,
-    top: 14.1,
+    edge: "left",
+    x: -15.4,
+    topNudge: 1,
     width: 18,
     depth: "back",
     rotate: "-1deg",
-    driftX: "2px",
-    floatDistance: "7px",
+    driftX: "1px",
+    floatDistance: "5px",
   },
 ] as const;
 
-const BAND_HEIGHT_REM = 15.8;
+const MAX_DESKTOP_AMBIENT_QUOTES = 14;
 
 function shuffleQuotes<T>(items: T[]) {
   const copy = [...items];
@@ -127,6 +138,15 @@ function shuffleQuotes<T>(items: T[]) {
 
 function pickDisplayQuotes(quotes: CommunityQuote[], displayLimit: number) {
   return shuffleQuotes(quotes).slice(0, Math.min(displayLimit, quotes.length));
+}
+
+function getAmbientQuoteTop(index: number, total: number, topNudge: number) {
+  if (total <= 1) {
+    return 50;
+  }
+
+  const rawTop = 6 + (index / (total - 1)) * 88 + topNudge;
+  return Math.min(96, Math.max(4, rawTop));
 }
 
 function getQuoteText(locale: Locale, quote: CommunityQuote) {
@@ -173,7 +193,7 @@ function MobileQuotesStack({
   );
 }
 
-function DesktopQuotesWall({
+function DesktopQuotesPerimeter({
   desktopDisplayLimit,
   locale,
   quotes,
@@ -182,51 +202,67 @@ function DesktopQuotesWall({
   locale: Locale;
   quotes: CommunityQuote[];
 }) {
-  const desktopQuotes = pickDisplayQuotes(quotes, desktopDisplayLimit);
+  const desktopQuotes = pickDisplayQuotes(
+    quotes,
+    Math.min(desktopDisplayLimit, MAX_DESKTOP_AMBIENT_QUOTES),
+  );
   const layoutOffset = randomInt(QUOTE_SLOTS.length);
-  const desktopBandCount = Math.ceil(desktopQuotes.length / QUOTE_SLOTS.length);
-  const desktopStageHeight = Math.max(30, desktopBandCount * BAND_HEIGHT_REM + 3);
 
   return (
-    <div
-      className="community-quotes-canvas hidden sm:block"
-      style={
-        {
-          ["--quotes-stage-height" as string]: `${desktopStageHeight}rem`,
-        } as CSSProperties
-      }
-    >
+    <div className="community-quotes-perimeter hidden xl:block" aria-hidden="true">
       {desktopQuotes.map((quote, index) => {
         const slot = QUOTE_SLOTS[(index + layoutOffset) % QUOTE_SLOTS.length];
-        const bandIndex = Math.floor(index / QUOTE_SLOTS.length);
-        const topOffset = bandIndex * BAND_HEIGHT_REM + slot.top;
+        const peekWidth = "11rem";
+        const edgeOffset = 2.75;
+        const sideStyle =
+          slot.edge === "left"
+            ? {
+                left: `-${edgeOffset}rem`,
+              }
+            : {
+                right: `-${edgeOffset}rem`,
+              };
 
         return (
-          <article
-            className="community-quote-card"
+          <div
+            className="community-quote-peek"
             data-depth={slot.depth}
+            data-edge={slot.edge}
             key={quote.id}
             style={{
-              left: `${slot.left}%`,
-              top: `${topOffset}rem`,
-              width: `${slot.width}%`,
-              animationDelay: `${index * 0.45}s`,
-              animationDuration: `${9 + (index % 4) * 1.35}s`,
+              ...sideStyle,
+              ["--quote-card-width" as string]: `${slot.width}rem`,
+              ["--quote-peek-width" as string]: peekWidth,
+              ["--quote-top" as string]: `${getAmbientQuoteTop(
+                index,
+                desktopQuotes.length,
+                slot.topNudge,
+              )}%`,
               ["--quote-drift-x" as string]: slot.driftX,
               ["--quote-float-distance" as string]: slot.floatDistance,
               ["--quote-rotate" as string]: slot.rotate,
             }}
           >
-            <div className="community-quote-card__glow" aria-hidden="true" />
-            <div className="relative z-[1] flex items-start gap-2">
-              <p aria-hidden="true" className="pt-0.5 text-xl leading-none text-gold/72">
-                “
-              </p>
-              <blockquote className="community-quote-card__text text-[0.95rem] leading-7 text-sand/92 sm:text-[1.05rem] sm:leading-8">
-                {getQuoteText(locale, quote)}
-              </blockquote>
-            </div>
-          </article>
+            <article
+              className="community-quote-card community-quote-card--ambient"
+              data-depth={slot.depth}
+              data-edge={slot.edge}
+              style={{
+                animationDelay: `${index * 0.28}s`,
+                animationDuration: `${11 + (index % 4) * 1.6}s`,
+              }}
+            >
+              <div className="community-quote-card__glow" aria-hidden="true" />
+              <div className="relative z-[1] flex items-start gap-2">
+                <p aria-hidden="true" className="pt-0.5 text-xl leading-none text-gold/72">
+                  “
+                </p>
+                <blockquote className="community-quote-card__text text-[0.95rem] leading-7 text-sand/92 sm:text-[1.05rem] sm:leading-8">
+                  {getQuoteText(locale, quote)}
+                </blockquote>
+              </div>
+            </article>
+          </div>
         );
       })}
     </div>
@@ -251,25 +287,28 @@ export function CommunityQuotesCloud({
   return (
     <section
       aria-labelledby="community-quotes-title"
-      className="mx-auto max-w-[1360px] space-y-5"
+      className="community-quotes-root"
     >
-      <div className="space-y-2 px-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/52">
-          {pick(locale, {
-            en: "Community pulse",
-            ru: "Пульс коммьюнити",
-          })}
-        </p>
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-          <h2
-            className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand md:text-4xl"
-            id="community-quotes-title"
-          >
+      <h2 className="sr-only" id="community-quotes-title">
+        {pick(locale, {
+          en: "Quotes the scene already knows by heart",
+          ru: "Фразы, которые сцена уже знает наизусть",
+        })}
+      </h2>
+      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 sm:hidden">
+        <div className="space-y-2 px-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/52">
+            {pick(locale, {
+              en: "Community pulse",
+              ru: "Пульс коммьюнити",
+            })}
+          </p>
+          <h3 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
             {pick(locale, {
               en: "Quotes the scene already knows by heart",
               ru: "Фразы, которые сцена уже знает наизусть",
             })}
-          </h2>
+          </h3>
           <p className="max-w-2xl text-sm leading-6 text-white/66">
             {pick(locale, {
               en: "A moving wall of in-jokes, backstage wisdom, and the lines that keep coming back after every jam.",
@@ -277,20 +316,20 @@ export function CommunityQuotesCloud({
             })}
           </p>
         </div>
-      </div>
 
-      <div className="community-quotes-stage rounded-[2rem] border border-white/10 px-4 py-5 md:px-5 md:py-6">
-        <MobileQuotesStack
-          locale={locale}
-          mobileDisplayLimit={mobileDisplayLimit}
-          quotes={quotes}
-        />
-        <DesktopQuotesWall
-          desktopDisplayLimit={desktopDisplayLimit}
-          locale={locale}
-          quotes={quotes}
-        />
+        <div className="community-quotes-stage rounded-[2rem] border border-white/10 px-4 py-5">
+          <MobileQuotesStack
+            locale={locale}
+            mobileDisplayLimit={mobileDisplayLimit}
+            quotes={quotes}
+          />
+        </div>
       </div>
+      <DesktopQuotesPerimeter
+        desktopDisplayLimit={desktopDisplayLimit}
+        locale={locale}
+        quotes={quotes}
+      />
     </section>
   );
 }

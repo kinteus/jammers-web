@@ -153,6 +153,16 @@ details > summary::-webkit-details-marker {
     linear-gradient(180deg, rgba(28, 28, 28, 0.9), rgba(28, 28, 28, 0.98));
 }
 
+.home-page-shell > section:not(.community-quotes-root) {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.home-page-shell > section:not(.community-quotes-root) > * {
+  pointer-events: auto;
+}
+
 .community-quotes-stage {
   position: relative;
   background:
@@ -161,6 +171,41 @@ details > summary::-webkit-details-marker {
     radial-gradient(circle at 88% 12%, rgba(0, 61, 165, 0.12), transparent 22%),
     linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(11, 11, 11, 0.98));
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.36);
+}
+
+.community-quotes-perimeter {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.community-quote-peek {
+  position: absolute;
+  top: var(--quote-top);
+  width: var(--quote-peek-width);
+  overflow: hidden;
+  border-radius: 1.4rem;
+  pointer-events: auto;
+}
+
+.community-quote-peek[data-depth="back"] {
+  z-index: 1;
+}
+
+.community-quote-peek[data-depth="mid"] {
+  z-index: 2;
+}
+
+.community-quote-peek[data-depth="front"] {
+  z-index: 3;
+}
+
+.community-quote-peek:hover,
+.community-quote-peek:focus-within {
+  z-index: 45;
+  overflow: visible;
 }
 
 .community-quotes-mobile-stack {
@@ -242,6 +287,35 @@ details > summary::-webkit-details-marker {
   z-index: 3;
 }
 
+.community-quote-card--ambient {
+  --quote-open-width: min(30rem, 36vw, calc(100vw - 5rem));
+  position: relative;
+  width: var(--quote-peek-width);
+  max-width: min(22rem, 28vw);
+  pointer-events: none;
+  opacity: 0.46;
+}
+
+.community-quote-card--ambient[data-depth="back"] {
+  opacity: 0.36;
+}
+
+.community-quote-card--ambient[data-depth="mid"] {
+  opacity: 0.42;
+}
+
+.community-quote-card--ambient[data-depth="front"] {
+  opacity: 0.5;
+}
+
+.community-quote-card--ambient[data-edge="left"] {
+  transform-origin: left center;
+}
+
+.community-quote-card--ambient[data-edge="right"] {
+  transform-origin: right center;
+}
+
 .community-quote-card:hover {
   z-index: 30 !important;
   overflow: visible;
@@ -258,6 +332,23 @@ details > summary::-webkit-details-marker {
   opacity: 1;
 }
 
+.community-quote-peek:hover .community-quote-card--ambient,
+.community-quote-peek:focus-within .community-quote-card--ambient {
+  z-index: 45 !important;
+  width: var(--quote-open-width) !important;
+  max-width: var(--quote-open-width);
+  opacity: 1;
+  animation-play-state: paused;
+  transform: rotate(0deg) scale(1.02) !important;
+}
+
+.community-quote-peek[data-edge="right"]:hover .community-quote-card--ambient,
+.community-quote-peek[data-edge="right"]:focus-within .community-quote-card--ambient {
+  text-align: left;
+  transform: translateX(calc((var(--quote-open-width) - var(--quote-peek-width)) * -1)) rotate(0deg)
+    scale(1.02) !important;
+}
+
 .community-quote-card__glow {
   position: absolute;
   inset: auto -18% -28% auto;
@@ -271,29 +362,32 @@ details > summary::-webkit-details-marker {
 
 .community-quote-card__text {
   display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  transition: opacity 180ms ease;
 }
 
 .community-quote-card[data-depth="front"] .community-quote-card__text {
   -webkit-line-clamp: 3;
 }
 
-.community-quote-card:hover .community-quote-card__text,
-.community-quote-card:focus-within .community-quote-card__text {
-  overflow: visible;
-  -webkit-line-clamp: unset;
+.community-quote-peek:not(:hover):not(:focus-within) .community-quote-card__text {
+  opacity: 0.82;
+  -webkit-line-clamp: 1;
+  padding-inline-end: 0.45rem;
+  text-overflow: ellipsis;
 }
 
-@media (min-width: 640px) {
-  .community-quotes-canvas {
-    min-height: var(--quotes-stage-height, 32rem);
-  }
-
-  .community-quote-card {
-    position: absolute;
-  }
+.community-quote-card:hover .community-quote-card__text,
+.community-quote-card:focus-within .community-quote-card__text,
+.community-quote-peek:hover .community-quote-card__text,
+.community-quote-peek:focus-within .community-quote-card__text {
+  opacity: 1;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 
 @keyframes community-mobile-quote-float {

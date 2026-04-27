@@ -376,7 +376,7 @@ export default async function HomePage() {
       })
     : null;
   return (
-    <div className="space-y-8 text-sand">
+    <div className="home-page-shell relative isolate space-y-8 text-sand">
       <section className="space-y-4">
         <div className={HERO_FRAME_CLASS}>
           <div className="max-w-3xl rounded-[1.6rem] border border-dashed border-gold/26 bg-[linear-gradient(180deg,rgba(255,179,0,0.08),rgba(255,179,0,0.03)),rgba(16,14,13,0.92)] px-5 py-4 shadow-[0_16px_42px_rgba(0,0,0,0.24)]">
