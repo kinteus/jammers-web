@@ -8,9 +8,5 @@ export function isSuperAdminUser(
     return user?.telegramId === env.PRIMARY_ADMIN_TELEGRAM_ID;
   }
 
-  if (env.NODE_ENV === "production") {
-    return false;
-  }
-
   return normalizeTelegramUsername(user?.telegramUsername) === normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME);
 }

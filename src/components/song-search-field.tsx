@@ -200,6 +200,7 @@ export function SongSearchField({
 
       {selected ? (
         <>
+          <input name="selectedExternalId" type="hidden" value={selected.externalId} />
           <input name="selectedTrackTitle" type="hidden" value={selected.trackTitle} />
           <input name="selectedArtistName" type="hidden" value={selected.artistName} />
           <input

@@ -18,6 +18,7 @@ import { z } from "zod";
 import { FAQ_PAGE_DATA_TAG, HOME_PAGE_DATA_TAG } from "@/lib/cache-tags";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { isSuperAdminUser } from "@/lib/auth/admin-access";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
@@ -61,6 +62,7 @@ import { slugify } from "@/lib/utils";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { getSafeReturnTo } from "@/lib/return-to";
 import { isUniqueConstraintErrorForFields } from "@/lib/prisma-errors";
+import { buildSongUpsertArgs } from "@/lib/song-identity";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
@@ -756,6 +758,7 @@ async function resolveSongId(formData: FormData) {
     getString(formData, "songTitle") ||
     getString(formData, "trackTitle");
   const selectedDurationSeconds = getInt(formData, "selectedDurationSeconds", 0);
+  const selectedExternalId = getString(formData, "selectedExternalId");
   const durationMs = getInt(formData, "durationMs", 0);
   const durationSeconds =
     selectedDurationSeconds > 0
@@ -778,17 +781,13 @@ async function resolveSongId(formData: FormData) {
   });
 
   const song = await db.song.upsert({
-    where: { slug: slugify(`${artistName}-${trackTitle}`) },
-    update: {
-      title: trackTitle,
-      durationSeconds: durationSeconds > 0 ? durationSeconds : undefined,
-    },
-    create: {
+    ...buildSongUpsertArgs({
       artistId: artist.id,
-      slug: slugify(`${artistName}-${trackTitle}`),
-      title: trackTitle,
-      durationSeconds: durationSeconds > 0 ? durationSeconds : null,
-    },
+      artistName,
+      trackTitle,
+      durationSeconds,
+      externalId: selectedExternalId,
+    }),
   });
 
   return song.id;
@@ -963,13 +962,7 @@ export async function revokeAdminRoleAction(formData: FormData) {
     },
   });
 
-  if (
-    (env.PRIMARY_ADMIN_TELEGRAM_ID && targetUser.telegramId === env.PRIMARY_ADMIN_TELEGRAM_ID) ||
-    (!env.PRIMARY_ADMIN_TELEGRAM_ID &&
-      env.NODE_ENV !== "production" &&
-      normalizeTelegramUsername(targetUser.telegramUsername) ===
-        normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME))
-  ) {
+  if (isSuperAdminUser(targetUser)) {
     throw new Error("The primary admin cannot lose admin access.");
   }
 

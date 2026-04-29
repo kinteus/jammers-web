@@ -22,6 +22,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "import:legacy-gigs": "tsx scripts/import-legacy-gigs.ts",
+    "import:jams-snapshot": "tsx scripts/import-jams-snapshot.ts",
     "prepare": "prisma generate"
   },
   "dependencies": {

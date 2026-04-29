@@ -20,6 +20,28 @@ afterEach(() => {
 });
 
 describe("SongSearchField", () => {
+  it("submits the selected iTunes external id with the song", () => {
+    const { container } = render(
+      <SongSearchField
+        locale="ru"
+        onSelectedChange={() => undefined}
+        selected={{
+          artistName: "Thornhill",
+          artworkUrl: null,
+          collectionName: "BODIES",
+          durationSeconds: 193,
+          externalId: "1787004043",
+          externalUrl: null,
+          trackTitle: "nerv",
+        }}
+      />,
+    );
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="selectedExternalId"]')?.value,
+    ).toBe("1787004043");
+  });
+
   it("debounces iTunes search while the user keeps typing", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ results: [] }), {

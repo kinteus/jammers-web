@@ -195,27 +195,41 @@ function YoutubeSearchLink({
   );
 }
 
-function statusDotClass(status: TrackSeatStatus) {
-  if (status === TrackSeatStatus.CLAIMED) {
+function statusDotClass(status: TrackSeatStatus, isSelfSeat = false) {
+  if (isSelfSeat) {
     return "bg-blue";
   }
   if (status === TrackSeatStatus.UNAVAILABLE) {
-    return "bg-white/38";
+    return "bg-white/30";
   }
-  return "bg-gold";
+  return "bg-white/46";
 }
 
-function cellClass(status: TrackSeatStatus, isOptional: boolean) {
-  if (status === TrackSeatStatus.CLAIMED) {
-    return "bg-blue/[0.08] hover:bg-blue/[0.12]";
+export function getSeatCellClass(
+  _status: TrackSeatStatus,
+  _isOptional: boolean,
+  isSelfSeat = false,
+) {
+  if (isSelfSeat) {
+    return "bg-blue/[0.14] ring-1 ring-inset ring-blue/45 hover:bg-blue/[0.18]";
   }
-  if (status === TrackSeatStatus.UNAVAILABLE) {
-    return "bg-white/[0.03] hover:bg-white/[0.05]";
+
+  return "bg-white/[0.045] hover:bg-white/[0.075]";
+}
+
+export function getTrackRowBackgroundClass({
+  index,
+  isReady,
+}: {
+  index: number;
+  isMyTrack: boolean;
+  isReady: boolean;
+}) {
+  if (isReady) {
+    return "bg-emerald-500/[0.16]";
   }
-  if (isOptional) {
-    return "bg-gold/[0.06] hover:bg-gold/[0.1]";
-  }
-  return "bg-gold/[0.12] hover:bg-gold/[0.16]";
+
+  return index % 2 === 0 ? "bg-white/[0.05]" : "bg-white/[0.08]";
 }
 
 function iconButtonClass(variant: "primary" | "secondary" = "secondary") {
@@ -1249,13 +1263,11 @@ export function TrackBoardTable({
               const canManageTrack = Boolean(
                 isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
               );
-              const rowBackground = readiness.isReady
-                ? "bg-emerald-500/[0.16]"
-                : isMyTrack
-                  ? "bg-blue/12"
-                  : index % 2 === 0
-                    ? "bg-white/[0.05]"
-                    : "bg-white/[0.08]";
+              const rowBackground = getTrackRowBackgroundClass({
+                index,
+                isMyTrack,
+                isReady: readiness.isReady,
+              });
 
               return (
                 <tr
@@ -1308,15 +1320,6 @@ export function TrackBoardTable({
                               <CheckCircle2 className="h-3 w-3" />
                               {pick(locale, { en: "Ready", ru: "Собрано" })}
                             </span>
-                          ) : null}
-                          {isMyTrack ? (
-                            <span
-                              className="h-2 w-2 rounded-full bg-blue"
-                              title={pick(locale, {
-                                en: "You are in this song",
-                                ru: "Ты в этой песне",
-                              })}
-                            />
                           ) : null}
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
@@ -1450,13 +1453,14 @@ export function TrackBoardTable({
                             request.kind === "request" && request.requesterId === user.id,
                         ),
                     );
+                    const isSelfSeat = Boolean(user && seat.userId === user.id);
                     const openCellCenterClass = seatRequests.length > 0 ? "top-[54%]" : "top-1/2";
 
                     return (
                       <td
                         className={cn(
                           "group relative border-b border-r border-white/12 px-0.5 py-0 align-middle transition",
-                          cellClass(seat.status, seat.isOptional),
+                          getSeatCellClass(seat.status, seat.isOptional, isSelfSeat),
                           cellFrameClass(),
                         )}
                         key={column.seatKey}
@@ -1488,7 +1492,7 @@ export function TrackBoardTable({
                                   <span
                                     className={cn(
                                       "h-2 w-2 shrink-0 rounded-full",
-                                      statusDotClass(seat.status),
+                                      statusDotClass(seat.status, isSelfSeat),
                                     )}
                                   />
                                   {seat.isOptional ? (
@@ -1597,7 +1601,7 @@ export function TrackBoardTable({
                                   <span
                                     className={cn(
                                       "h-2 w-2 shrink-0 rounded-full",
-                                      statusDotClass(seat.status),
+                                      statusDotClass(seat.status, isSelfSeat),
                                     )}
                                   />
                                 </div>
@@ -1668,7 +1672,7 @@ export function TrackBoardTable({
                                   <span
                                     className={cn(
                                       "h-2 w-2 shrink-0 rounded-full",
-                                      statusDotClass(seat.status),
+                                      statusDotClass(seat.status, isSelfSeat),
                                     )}
                                   />
                                 </div>
@@ -1698,7 +1702,6 @@ export function TrackBoardTable({
 
       <div className="space-y-3 md:hidden">
           {currentTracks.map((track, index) => {
-            const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
             const isHighlighted = activeHighlightTrackId === track.id;
             const completion = getTrackCompletionSummary(track.seats);
             const readiness = getTrackReadinessState(track.seats);
@@ -1776,11 +1779,6 @@ export function TrackBoardTable({
                           : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })}
                       </span>
                     ) : null}
-                    {isMyTrack ? (
-                      <span className="rounded-full border border-blue/18 bg-blue/10 px-2.5 py-1 text-blue">
-                        {pick(locale, { en: "You're in", ru: "Ты в составе" })}
-                      </span>
-                    ) : null}
                     {activeTrackInfoLabels.map((label) => (
                       <span
                         className="rounded-full border border-gold/18 bg-gold/8 px-2.5 py-1 text-gold"
@@ -1796,7 +1794,6 @@ export function TrackBoardTable({
               <div className="space-y-3 border-t border-white/10 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <YoutubeSearchLink className="min-h-8 px-3 py-1.5 text-[10px]" locale={locale} track={track} />
-                  {isMyTrack ? <span className="h-2 w-2 rounded-full bg-blue" /> : null}
                   {track.comment ? (
                     <details className="group">
                       <summary
@@ -1879,14 +1876,19 @@ export function TrackBoardTable({
                       <div
                         className={cn(
                           "group space-y-2 border px-2.5 py-2",
-                          cellClass(seat.status, seat.isOptional),
+                          getSeatCellClass(seat.status, seat.isOptional, isSelfSeat),
                           cellFrameClass(),
                         )}
                         key={seat.id}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0 flex items-center gap-1.5">
-                            <span className={cn("h-2 w-2 shrink-0 rounded-full", statusDotClass(seat.status))} />
+                            <span
+                              className={cn(
+                                "h-2 w-2 shrink-0 rounded-full",
+                                statusDotClass(seat.status, isSelfSeat),
+                              )}
+                            />
                             {seat.user ? (
                               getTelegramProfileUrl(seat.user) ? (
                                 <a
