@@ -15,7 +15,6 @@ import XLSX from "xlsx";
 
 import { db } from "@/lib/db";
 import {
-  cleanLegacyCell,
   isJamsSnapshotSheet,
   parseJamsSnapshotSheet,
   type ParsedJamsSnapshotEvent,
