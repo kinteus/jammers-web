@@ -33,7 +33,6 @@ describe("TelegramLoginWidget", () => {
         <TelegramLoginWidget
           botUsername="the_jammers_bot"
           locale="en"
-          returnTo="/events/spring-jam-night?view=mine#songs"
         />,
       );
     });
@@ -49,9 +48,7 @@ describe("TelegramLoginWidget", () => {
 
     expect(authUrl.origin).toBe(window.location.origin);
     expect(authUrl.pathname).toBe("/api/auth/telegram");
-    expect(authUrl.searchParams.get("returnTo")).toBe(
-      "/events/spring-jam-night?view=mine#songs",
-    );
+    expect(authUrl.searchParams.has("returnTo")).toBe(false);
     expect(authUrl.searchParams.get("authRequest")).toMatch(/^\d+-[a-z0-9]+$/);
   });
 });

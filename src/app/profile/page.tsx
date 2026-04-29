@@ -143,7 +143,6 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             <TelegramLoginWidget
               botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
               locale={locale}
-              returnTo={returnTo}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">

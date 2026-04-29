@@ -24,7 +24,6 @@ const telegramAuthSearchParamKeys = [
 
 async function completeTelegramAuth(
   payload: TelegramPayloadRecord,
-  requestedReturnTo?: string | null,
 ) {
   const verified = verifyTelegramAuth(payload as never);
   const user = await upsertTelegramUser(verified);
@@ -33,7 +32,7 @@ async function completeTelegramAuth(
 
   return {
     user,
-    returnTo: getSafeReturnTo(requestedReturnTo),
+    returnTo: "/profile",
   };
 }
 
@@ -76,7 +75,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { returnTo } = await completeTelegramAuth(payload, requestedReturnTo);
+    const { returnTo } = await completeTelegramAuth(payload);
     const redirectUrl = new URL(returnTo, env.NEXT_PUBLIC_APP_URL);
     redirectUrl.searchParams.set("auth", String(Date.now()));
 
@@ -116,7 +115,6 @@ export async function POST(request: Request) {
 
     const { returnTo } = await completeTelegramAuth(
       body.payload ?? (body as TelegramPayloadRecord),
-      body.returnTo,
     );
 
     return NextResponse.json({

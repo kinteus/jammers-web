@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import React, { useEffect, useRef } from "react";
 import { MessageCircleMore } from "lucide-react";
 
 import { pick, type Locale } from "@/lib/i18n";
 
-function getTelegramAuthUrl(returnTo: string, authRequest: string) {
+function getTelegramAuthUrl(authRequest: string) {
   const origin =
     typeof window === "undefined"
       ? process.env.NEXT_PUBLIC_APP_URL
       : window.location.origin;
   const url = new URL("/api/auth/telegram", origin);
-  url.searchParams.set("returnTo", returnTo);
   url.searchParams.set("authRequest", authRequest);
 
   return url.toString();
@@ -21,27 +19,12 @@ function getTelegramAuthUrl(returnTo: string, authRequest: string) {
 export function TelegramLoginWidget({
   botUsername,
   locale,
-  returnTo: returnToOverride,
 }: {
   botUsername?: string;
   locale: Locale;
-  returnTo?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const authRequestRef = useRef(`${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const returnTo = useMemo(() => {
-    if (returnToOverride) {
-      return returnToOverride;
-    }
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("authError");
-    const query = params.toString();
-    return query ? `${pathname}?${query}` : pathname;
-  }, [pathname, returnToOverride, searchParams]);
 
   useEffect(() => {
     if (!containerRef.current || !botUsername) {
@@ -55,10 +38,10 @@ export function TelegramLoginWidget({
     script.setAttribute("data-telegram-login", botUsername);
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "12");
-    script.setAttribute("data-auth-url", getTelegramAuthUrl(returnTo, authRequestRef.current));
+    script.setAttribute("data-auth-url", getTelegramAuthUrl(authRequestRef.current));
     script.setAttribute("data-request-access", "write");
     containerRef.current.appendChild(script);
-  }, [botUsername, returnTo]);
+  }, [botUsername]);
 
   if (!botUsername) {
     return (

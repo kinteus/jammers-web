@@ -102,7 +102,7 @@ describe("telegram auth route", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toMatch(
-      /^https:\/\/thejammers\.org\/about\?auth=\d+#team$/,
+      /^https:\/\/thejammers\.org\/profile\?auth=\d+$/,
     );
     expect(verifyTelegramAuthMock).toHaveBeenCalledWith({
       id: "tg-1",
@@ -213,7 +213,7 @@ describe("telegram auth route", () => {
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
   });
 
-  it("strips auth noise from a safe success redirect target", async () => {
+  it("returns profile on success instead of honoring a safe return target", async () => {
     consumeRateLimitMock.mockReturnValue({
       allowed: true,
     });
@@ -247,7 +247,7 @@ describe("telegram auth route", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      redirectTo: "/about?view=full#team",
+      redirectTo: "/profile",
     });
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
   });
