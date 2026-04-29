@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const dbMock = vi.hoisted(() => ({
   user: {
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(),
     create: vi.fn(),
   },
@@ -68,6 +69,42 @@ describe("upsertTelegramUser", () => {
     ).rejects.toBeInstanceOf(TelegramIdentityConflictError);
 
     expect(dbMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("links an imported user matched case-insensitively by username", async () => {
+    dbMock.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    dbMock.user.findFirst.mockResolvedValueOnce({ id: "legacy-user", telegramId: null });
+    dbMock.user.update.mockResolvedValue({
+      id: "legacy-user",
+      telegramId: "tg-kyle",
+      telegramUsername: "kyle_reese",
+      fullName: "Kyle Reese",
+    });
+
+    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
+
+    await expect(
+      upsertTelegramUser({
+        telegramId: "tg-kyle",
+        telegramUsername: "@Kyle_Reese",
+        fullName: "Kyle Reese",
+      }),
+    ).resolves.toMatchObject({
+      id: "legacy-user",
+      telegramId: "tg-kyle",
+    });
+
+    expect(dbMock.user.findFirst).toHaveBeenCalledWith({
+      where: {
+        telegramUsername: {
+          equals: "kyle_reese",
+          mode: "insensitive",
+        },
+      },
+      select: { id: true, telegramId: true },
+    });
   });
 
   it("links an imported user matched by username when telegram id is still empty", async () => {

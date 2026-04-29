@@ -29,7 +29,7 @@ import {
   createTrackAction,
   updateEventStatusAction,
 } from "@/server/actions";
-import { getEventWorkspace } from "@/server/query-data";
+import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
@@ -411,12 +411,14 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
   let event;
+  let inviteableUsers;
   let user;
   let locale;
 
   try {
-    [event, user, locale] = await Promise.all([
+    [event, inviteableUsers, user, locale] = await Promise.all([
       getEventWorkspace(slug),
+      getInviteableUsers(),
       getCurrentUser(),
       getLocale(),
     ]);
@@ -819,6 +821,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             allowClosedOptionalRequests={allowClosedOptionalRequests}
             eventSlug={event.id}
             highlightTrackId={highlightTrackId}
+            inviteableUsers={inviteableUsers}
             isOpen={effectiveStatus === "OPEN"}
             lineupSlots={event.lineupSlots}
             locale={locale}

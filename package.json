@@ -1,10 +1,11 @@
 {
   "name": "jammers-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "local": "node scripts/run-local.mjs",
+    "local:prod": "node scripts/run-local-prod.mjs",
     "local:docker": "docker compose up --build",
     "local:down": "node scripts/run-local.mjs down",
     "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",

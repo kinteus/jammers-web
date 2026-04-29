@@ -134,6 +134,25 @@ function redirectToEventNotice(eventSlug: string | undefined, notice: string): n
   throw new Error(notice);
 }
 
+function buildProfileInviteRedirectUrl(
+  params: Record<string, string>,
+  hash = "invitations",
+) {
+  const search = new URLSearchParams(params);
+  const searchString = search.toString();
+  const hashString = hash ? `#${hash}` : "";
+
+  return searchString ? `/profile?${searchString}${hashString}` : `/profile${hashString}`;
+}
+
+function redirectToProfileInviteError(error: string): never {
+  redirect(buildProfileInviteRedirectUrl({ inviteError: error }));
+}
+
+function redirectToProfileInviteNotice(notice: string): never {
+  redirect(buildProfileInviteRedirectUrl({ inviteNotice: notice }));
+}
+
 const eventStatusSchema = z.nativeEnum(EventStatus);
 const setlistSectionSchema = z.nativeEnum(SetlistSection);
 const lineupSlotSchema = z.object({
@@ -486,13 +505,27 @@ type ReleaseSeatResult =
   | { ok: true; notice: "seat-released"; seatId: string }
   | { ok: false; error: string };
 
+type InviteToSeatResult =
+  | {
+      ok: true;
+      notice:
+        | "invite-sent"
+        | "invite-saved-without-telegram"
+        | "seat-claimed"
+        | "opt-request-sent"
+        | "opt-request-saved";
+    }
+  | { ok: false; error: string };
+
 async function assertNoPendingSeatInvite({
   eventSlug,
   recipientId,
+  redirectOnError = true,
   seatId,
 }: {
   eventSlug: string;
   recipientId: string;
+  redirectOnError?: boolean;
   seatId: string;
 }) {
   const existingInvite = await db.trackInvite.findFirst({
@@ -504,6 +537,10 @@ async function assertNoPendingSeatInvite({
   });
 
   if (existingInvite) {
+    if (!redirectOnError) {
+      throw new Error("invite-already-pending");
+    }
+
     redirectToEventError(eventSlug, "invite-already-pending");
   }
 }
@@ -1394,13 +1431,38 @@ export async function markSeatUnavailableAction(formData: FormData) {
   revalidateAll(pathBundle(eventSlug));
 }
 
-export async function inviteToSeatAction(formData: FormData) {
+async function runInviteToSeat(
+  formData: FormData,
+  {
+    redirectOnComplete,
+  }: {
+    redirectOnComplete: boolean;
+  },
+): Promise<InviteToSeatResult> {
   const user = await requireUser();
   const eventSlug = getString(formData, "eventSlug");
+  const recipientUserId = getString(formData, "recipientUserId");
   const username = normalizeTelegramUsername(getString(formData, "recipientUsername"));
   const seatId = getString(formData, "seatId");
-  if (!username) {
-    redirectToEventError(eventSlug, "invite-recipient-required");
+  const fail = (error: string): InviteToSeatResult => {
+    if (redirectOnComplete) {
+      redirectToEventError(eventSlug, error);
+    }
+
+    return { ok: false, error };
+  };
+  const finishNotice = (
+    notice: Extract<InviteToSeatResult, { ok: true }>["notice"],
+  ): InviteToSeatResult => {
+    if (redirectOnComplete) {
+      redirectToEventNotice(eventSlug, notice);
+    }
+
+    return { ok: true, notice };
+  };
+
+  if (!recipientUserId && !username) {
+    return fail("invite-recipient-required");
   }
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
@@ -1422,12 +1484,16 @@ export async function inviteToSeatAction(formData: FormData) {
     },
   });
 
-  const recipient = await db.user.findUnique({
-    where: { telegramUsername: username },
-  });
+  const recipient = recipientUserId
+    ? await db.user.findUnique({
+        where: { id: recipientUserId },
+      })
+    : await db.user.findUnique({
+        where: { telegramUsername: username ?? "" },
+      });
 
   if (!recipient) {
-    redirectToEventError(eventSlug, "invite-recipient-not-found");
+    return fail("invite-recipient-not-found");
   }
 
   if (canRequestClosedOptionalSeat(seat.track.event, seat)) {
@@ -1440,17 +1506,26 @@ export async function inviteToSeatAction(formData: FormData) {
         });
 
         if (!result.ok) {
-          redirectToEventError(eventSlug, result.error);
+          return fail(result.error);
         }
 
-        redirectToEventNotice(eventSlug, result.notice);
+        return finishNotice(result.notice);
       }
 
-      await assertNoPendingSeatInvite({
-        eventSlug,
-        recipientId: recipient.id,
-        seatId,
-      });
+      try {
+        await assertNoPendingSeatInvite({
+          eventSlug,
+          recipientId: recipient.id,
+          redirectOnError: redirectOnComplete,
+          seatId,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "invite-already-pending") {
+          return fail("invite-already-pending");
+        }
+
+        throw error;
+      }
 
       const delivery = await createPendingSeatInvite({
         recipient,
@@ -1461,32 +1536,41 @@ export async function inviteToSeatAction(formData: FormData) {
       revalidateAll(pathBundle(eventSlug));
 
       if (delivery.status === "DELIVERY_FAILED") {
-        redirectToEventNotice(eventSlug, "invite-saved-without-telegram");
+        return finishNotice("invite-saved-without-telegram");
       }
 
-      redirectToEventNotice(eventSlug, "invite-sent");
+      return finishNotice("invite-sent");
     }
 
-    await createClosedOptionalSeatRequest({
+    const requestResult = await createClosedOptionalSeatRequest({
+      redirectOnComplete,
       seat,
       eventSlug,
       requester: user,
       targetUser: recipient,
       mode: recipient.id === user.id ? "self" : "friend",
     });
-    return;
+    if (!requestResult.ok) {
+      return fail(requestResult.error);
+    }
+
+    return finishNotice(requestResult.notice);
   }
 
   if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    redirectToEventError(eventSlug, "invite-not-allowed");
+    return fail("invite-not-allowed");
   }
 
-  assertEventAllowsChangesOrRedirect(seat.track.event, eventSlug);
+  try {
+    assertEventAllowsChanges(seat.track.event);
+  } catch {
+    return fail("event-locked");
+  }
   if (seat.status === TrackSeatStatus.UNAVAILABLE) {
-    redirectToEventError(eventSlug, "seat-unavailable");
+    return fail("seat-unavailable");
   }
   if (seat.userId) {
-    redirectToEventError(eventSlug, "seat-occupied");
+    return fail("seat-occupied");
   }
 
   if (recipient.id === user.id) {
@@ -1497,17 +1581,26 @@ export async function inviteToSeatAction(formData: FormData) {
     });
 
     if (!result.ok) {
-      redirectToEventError(eventSlug, result.error);
+      return fail(result.error);
     }
 
-    redirectToEventNotice(eventSlug, result.notice);
+    return finishNotice(result.notice);
   }
 
-  await assertNoPendingSeatInvite({
-    eventSlug,
-    recipientId: recipient.id,
-    seatId,
-  });
+  try {
+    await assertNoPendingSeatInvite({
+      eventSlug,
+      recipientId: recipient.id,
+      redirectOnError: redirectOnComplete,
+      seatId,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "invite-already-pending") {
+      return fail("invite-already-pending");
+    }
+
+    throw error;
+  }
 
   const delivery = await createPendingSeatInvite({
     recipient,
@@ -1518,17 +1611,58 @@ export async function inviteToSeatAction(formData: FormData) {
   revalidateAll(pathBundle(eventSlug));
 
   if (delivery.status === "DELIVERY_FAILED") {
-    redirectToEventNotice(eventSlug, "invite-saved-without-telegram");
+    return finishNotice("invite-saved-without-telegram");
   }
 
-  redirectToEventNotice(eventSlug, "invite-sent");
+  return finishNotice("invite-sent");
 }
 
-export async function respondToInviteAction(formData: FormData) {
+export async function inviteToSeatAction(formData: FormData) {
+  await runInviteToSeat(formData, { redirectOnComplete: true });
+}
+
+export async function inviteToSeatInlineAction(formData: FormData): Promise<InviteToSeatResult> {
+  return runInviteToSeat(formData, { redirectOnComplete: false });
+}
+
+type RespondToInviteResult =
+  | { ok: true; notice: "invite-accepted" | "invite-declined" }
+  | {
+      ok: false;
+      error:
+        | "duplicate-role-family"
+        | "event-locked"
+        | "invite-stale"
+        | "seat-occupied"
+        | "seat-unavailable"
+        | "track-limit";
+    };
+type RespondToInviteError = Extract<RespondToInviteResult, { ok: false }>["error"];
+type RespondToInviteNotice = Extract<RespondToInviteResult, { ok: true }>["notice"];
+
+async function runRespondToInvite(
+  formData: FormData,
+  { redirectOnComplete }: { redirectOnComplete: boolean },
+): Promise<RespondToInviteResult> {
   const user = await requireUser();
   const inviteId = getString(formData, "inviteId");
   const decision = getString(formData, "decision");
   const eventSlug = getString(formData, "eventSlug");
+  const fail = (error: RespondToInviteError) => {
+    if (redirectOnComplete) {
+      redirectToProfileInviteError(error);
+    }
+
+    return { ok: false, error } as const;
+  };
+  const finish = (notice: RespondToInviteNotice) => {
+    revalidateAll(["/profile", `/events/${eventSlug}`]);
+    if (redirectOnComplete) {
+      redirectToProfileInviteNotice(notice);
+    }
+
+    return { ok: true, notice } as const;
+  };
   const invite = await db.trackInvite.findUniqueOrThrow({
     where: { id: inviteId },
     include: {
@@ -1560,29 +1694,46 @@ export async function respondToInviteAction(formData: FormData) {
 
     if (requestMeta || canRequestClosedOptionalSeat(invite.seat.track.event, invite.seat)) {
       if (!canRequestClosedOptionalSeat(invite.seat.track.event, invite.seat)) {
-        redirectToEventError(eventSlug, "event-locked");
+        return fail("event-locked");
       }
     } else {
-      assertEventAllowsChanges(invite.seat.track.event);
+      try {
+        assertEventAllowsChanges(invite.seat.track.event);
+      } catch {
+        return fail("event-locked");
+      }
     }
 
-    assertSeatClaimable(invite.seat);
+    try {
+      assertSeatClaimable(invite.seat);
+    } catch {
+      return fail(invite.seat.status === TrackSeatStatus.UNAVAILABLE ? "seat-unavailable" : "seat-occupied");
+    }
 
     const joinedCount = await countUniqueJoinedTracks(targetUserId, invite.track.eventId);
     const alreadyOnTrack = await db.trackSeat.count({
       where: { userId: targetUserId, trackId: invite.trackId, status: TrackSeatStatus.CLAIMED },
     });
-    if (!alreadyOnTrack) {
-      assertWithinTrackLimit(joinedCount, invite.seat.track.event.maxTracksPerUser);
+    if (!alreadyOnTrack && joinedCount >= invite.seat.track.event.maxTracksPerUser) {
+      return fail("track-limit");
     }
-    await assertCanClaimRoleFamilyForTrack({
-      eventSlug,
-      excludeSeatId: invite.seat.id,
-      seatLabel: invite.seat.label,
-      seatLineupKey: invite.seat.lineupSlot.key,
-      trackId: invite.trackId,
-      userId: targetUserId,
-    });
+    try {
+      await assertCanClaimRoleFamilyForTrack({
+        eventSlug,
+        excludeSeatId: invite.seat.id,
+        redirectOnError: false,
+        seatLabel: invite.seat.label,
+        seatLineupKey: invite.seat.lineupSlot.key,
+        trackId: invite.trackId,
+        userId: targetUserId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "duplicate-role-family") {
+        return fail("duplicate-role-family");
+      }
+
+      throw error;
+    }
     try {
       await db.$transaction(async (tx) => {
         const freshInvite = await tx.trackInvite.findUniqueOrThrow({
@@ -1645,10 +1796,10 @@ export async function respondToInviteAction(formData: FormData) {
       });
     } catch (error) {
       if (error instanceof Error && error.message === "seat-occupied") {
-        redirectToEventError(eventSlug, "seat-occupied");
+        return fail("seat-occupied");
       }
       if (error instanceof Error && error.message === "invite-stale") {
-        redirectToEventError(eventSlug, "invite-stale");
+        return fail("invite-stale");
       }
       throw error;
     }
@@ -1662,7 +1813,15 @@ export async function respondToInviteAction(formData: FormData) {
     });
   }
 
-  revalidateAll(["/profile", `/events/${eventSlug}`]);
+  return finish(decision === "accept" ? "invite-accepted" : "invite-declined");
+}
+
+export async function respondToInviteAction(formData: FormData) {
+  await runRespondToInvite(formData, { redirectOnComplete: true });
+}
+
+export async function respondToInviteInlineAction(formData: FormData): Promise<RespondToInviteResult> {
+  return runRespondToInvite(formData, { redirectOnComplete: false });
 }
 
 export async function createEventAction(formData: FormData) {

@@ -12,6 +12,7 @@ const requireUserMock = vi.hoisted(() => vi.fn());
 const sendTelegramInviteMessageMock = vi.hoisted(() => vi.fn());
 
 const dbMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   trackSeat: {
     count: vi.fn(),
     findMany: vi.fn(),
@@ -21,6 +22,8 @@ const dbMock = vi.hoisted(() => ({
   trackInvite: {
     create: vi.fn(),
     findFirst: vi.fn(),
+    findUniqueOrThrow: vi.fn(),
+    update: vi.fn(),
     updateMany: vi.fn(),
   },
   user: {
@@ -265,5 +268,171 @@ describe("inviteToSeatAction", () => {
         status: TrackInviteStatus.PENDING,
       }),
     });
+  });
+
+  it("uses a registered user id for inline invites instead of accepting arbitrary usernames", async () => {
+    requireUserMock.mockResolvedValue({
+      fullName: "Anna",
+      id: "proposer-1",
+      role: UserRole.USER,
+      telegramUsername: "anna_drums",
+    });
+    dbMock.trackSeat.findUniqueOrThrow.mockResolvedValue({
+      id: "seat-1",
+      isOptional: false,
+      label: "Bass",
+      status: TrackSeatStatus.OPEN,
+      trackId: "track-1",
+      userId: null,
+      lineupSlot: {
+        key: "bass",
+      },
+      track: {
+        event: buildOpenEvent(),
+        eventId: "event-1",
+        proposedBy: {
+          id: "proposer-1",
+        },
+        proposedById: "proposer-1",
+        song: {
+          artist: { name: "Blur" },
+          title: "Song 2",
+        },
+      },
+    });
+    dbMock.user.findUnique.mockResolvedValue({
+      id: "player-1",
+      telegramId: "tg-player-1",
+      telegramUsername: "boris_bass",
+    });
+    dbMock.trackInvite.findFirst.mockResolvedValue(null);
+    sendTelegramInviteMessageMock.mockResolvedValue({
+      note: "Invite was sent through Telegram.",
+      status: "PENDING",
+    });
+
+    const { inviteToSeatInlineAction } = await import("@/server/actions");
+
+    await expect(
+      inviteToSeatInlineAction(
+        buildFormData({
+          eventSlug: "spring-jam-night",
+          recipientUserId: "player-1",
+          recipientUsername: "made_up_user",
+          seatId: "seat-1",
+        }),
+      ),
+    ).resolves.toEqual({ ok: true, notice: "invite-sent" });
+
+    expect(dbMock.user.findUnique).toHaveBeenCalledWith({
+      where: { id: "player-1" },
+    });
+  });
+});
+
+describe("respondToInviteAction", () => {
+  it("redirects to profile feedback instead of throwing when accepting would exceed the track limit", async () => {
+    dbMock.trackInvite.findUniqueOrThrow.mockReset();
+    dbMock.trackSeat.findMany.mockReset();
+    dbMock.trackSeat.count.mockReset();
+    requireUserMock.mockResolvedValue({
+      id: "player-1",
+      role: UserRole.USER,
+    });
+    dbMock.trackInvite.findUniqueOrThrow.mockResolvedValueOnce({
+      id: "invite-1",
+      recipientId: "player-1",
+      deliveryNote: null,
+      trackId: "track-new",
+      track: {
+        eventId: "event-1",
+      },
+      seat: {
+        id: "seat-new",
+        label: "Bass",
+        status: TrackSeatStatus.OPEN,
+        userId: null,
+        lineupSlot: {
+          key: "bass",
+        },
+        track: {
+          event: {
+            ...buildOpenEvent(),
+            maxTracksPerUser: 3,
+          },
+        },
+      },
+    });
+    dbMock.trackSeat.findMany.mockResolvedValue([
+      { trackId: "track-1" },
+      { trackId: "track-2" },
+      { trackId: "track-3" },
+    ]);
+    dbMock.trackSeat.count.mockResolvedValueOnce(0);
+
+    const { respondToInviteAction } = await import("@/server/actions");
+
+    await expect(
+      respondToInviteAction(
+        buildFormData({
+          decision: "accept",
+          eventSlug: "event-1",
+          inviteId: "invite-1",
+        }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:/profile?inviteError=track-limit#invitations");
+  });
+
+  it("returns a track-limit error for inline invite responses instead of redirecting", async () => {
+    dbMock.trackInvite.findUniqueOrThrow.mockReset();
+    dbMock.trackSeat.findMany.mockReset();
+    dbMock.trackSeat.count.mockReset();
+    requireUserMock.mockResolvedValue({
+      id: "player-1",
+      role: UserRole.USER,
+    });
+    dbMock.trackInvite.findUniqueOrThrow.mockResolvedValueOnce({
+      id: "invite-1",
+      recipientId: "player-1",
+      deliveryNote: null,
+      trackId: "track-new",
+      track: {
+        eventId: "event-1",
+      },
+      seat: {
+        id: "seat-new",
+        label: "Bass",
+        status: TrackSeatStatus.OPEN,
+        userId: null,
+        lineupSlot: {
+          key: "bass",
+        },
+        track: {
+          event: {
+            ...buildOpenEvent(),
+            maxTracksPerUser: 3,
+          },
+        },
+      },
+    });
+    dbMock.trackSeat.findMany.mockResolvedValue([
+      { trackId: "track-1" },
+      { trackId: "track-2" },
+      { trackId: "track-3" },
+    ]);
+    dbMock.trackSeat.count.mockResolvedValueOnce(0);
+
+    const { respondToInviteInlineAction } = await import("@/server/actions");
+
+    await expect(
+      respondToInviteInlineAction(
+        buildFormData({
+          decision: "accept",
+          eventSlug: "event-1",
+          inviteId: "invite-1",
+        }),
+      ),
+    ).resolves.toEqual({ ok: false, error: "track-limit" });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });

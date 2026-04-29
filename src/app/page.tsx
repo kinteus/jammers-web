@@ -142,6 +142,21 @@ function formatPublishedLineupMeta(
   );
 }
 
+function formatGigDate(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatGigTime(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function getRightNowContent({
   event,
   featuredRequiredOpenSeats,
@@ -153,9 +168,9 @@ function getRightNowContent({
     title: string;
     venueName: string | null;
     venueMapUrl: string | null;
-    startsAt: Date;
+    startsAt: Date | string;
     effectiveStatus: EventStatus;
-    registrationOpensAt: Date | null;
+    registrationOpensAt: Date | string | null;
     participantCount: number;
   };
   featuredRequiredOpenSeats: number;
@@ -179,6 +194,20 @@ function getRightNowContent({
   ) : (
     pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })
   );
+  const eventDetails = [
+    {
+      label: pick(locale, { en: "Date", ru: "Дата" }),
+      value: formatGigDate(event.startsAt, locale),
+    },
+    {
+      label: pick(locale, { en: "Time", ru: "Время" }),
+      value: formatGigTime(event.startsAt, locale),
+    },
+    {
+      label: pick(locale, { en: "Venue", ru: "Место" }),
+      value: venueValue,
+    },
+  ];
 
   if (event.effectiveStatus === EventStatus.PUBLISHED) {
     return {
@@ -200,6 +229,7 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
+      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "See the final setlist", ru: "Открыть финальный сетлист" }),
@@ -234,6 +264,7 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
+      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим сетлистом" }),
@@ -268,6 +299,7 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
+      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый сетлист" }),
@@ -278,8 +310,8 @@ function getRightNowContent({
 
   return {
     title: pick(locale, {
-      en: "What needs attention on the next gig",
-      ru: "Что сейчас просит внимания в ближайшем гиге",
+      en: "Open seats on the board",
+      ru: "Открытые места в сетлисте",
     }),
     intro: pick(locale, {
       en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
@@ -299,13 +331,14 @@ function getRightNowContent({
         value: String(event.participantCount),
       },
     ],
+    eventDetails,
     primaryCta: {
       href: `/events/${event.id}`,
       label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть сетлист и закрыть нехватку" }),
     },
     secondaryCta: {
       href: "/faq",
-      label: pick(locale, { en: "New here? Read how it works", ru: "Новичок? Читать как это работает" }),
+      label: pick(locale, { en: "New here? Read how it works", ru: "Читать как это работает" }),
     },
   };
 }
@@ -485,21 +518,38 @@ export default async function HomePage() {
               {pick(locale, { en: "Right now", ru: "Прямо сейчас" })}
             </div>
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-              {rightNowContent
-                ? rightNowContent.title
-                : pick(locale, {
-                    en: "Why the board matters",
-                    ru: "Зачем вообще нужен этот сетлист",
-                  })}
+              {featuredEvent ? (
+                <>
+                  {pick(locale, { en: "Next gig", ru: "Следующий гиг" })}:{" "}
+                  <span className="text-gold">{featuredEvent.title}</span>
+                </>
+              ) : rightNowContent ? (
+                rightNowContent.title
+              ) : (
+                pick(locale, {
+                  en: "Why the board matters",
+                  ru: "Зачем вообще нужен этот сетлист",
+                })
+              )}
             </h2>
           </div>
 
           {featuredEvent ? (
             <>
-              <div className="space-y-2">
-                <p className="font-display text-2xl font-semibold tracking-[0.02em] text-sand">
-                  {featuredEvent.title}
-                </p>
+              <div className="space-y-3">
+                {rightNowContent?.eventDetails ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {rightNowContent.eventDetails.map((detail) => (
+                      <div
+                        className="rounded-xl border border-white/12 bg-black/28 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                        key={detail.label}
+                      >
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{detail.label}</p>
+                        <div className="mt-1 text-base font-semibold leading-6 text-sand">{detail.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="text-sm leading-6 text-white/74">{rightNowContent?.intro}</p>
               </div>
               {rightNowContent && rightNowContent.stats.length > 0 ? (

@@ -36,17 +36,27 @@ npm run dev
 
 ## Option 3: Local UI against the live production database
 
-For realistic local review of the current production content, you can port-forward Postgres from the existing MicroK8s cluster and point the local app at that tunnel:
+For realistic local review of the current production content, run:
 
 ```bash
-kubectl --kubeconfig ~/.kube/config-jammers-microk8s -n prod port-forward svc/jammers-web-postgres 55432:5432
-DATABASE_URL='postgresql://<prod-user>:<prod-password>@127.0.0.1:55432/prod' ENABLE_DEV_AUTH=false npm run dev -- --hostname 127.0.0.1 --port 3001
+npm run local:prod
 ```
+
+This single command:
+
+- starts `kubectl port-forward` to `svc/jammers-web-postgres` in namespace `prod`,
+- rewrites the configured production `DATABASE_URL` to the local tunnel port,
+- enables local development auth for existing users only,
+- starts the app on `http://127.0.0.1:3001`, or the next free port if `3001` is busy.
+
+The runner reads the production database URL from `JAMMERS_PROD_DATABASE_URL`, `DATABASE_URL`, or `.env.local`. The default kubeconfig is `~/.kube/config-jammers-microk8s`; override it with `JAMMERS_KUBECONFIG`.
+
+If a user asks an AI agent to "подними приложение локально", the expected command is `npm run local:prod`.
 
 Operational notes:
 
 - use this only for read-oriented local QA unless you intentionally want to mutate production data,
-- keep `ENABLE_DEV_AUTH=false` whenever the app points at the production tunnel,
+- local dev auth is constrained to users that already exist in the production database when the app points at this tunnel,
 - admin publish and delete flows are real writes when pointed at the live database,
 - if the tunnel drops, the app now degrades to explicit `Local data unavailable` screens instead of Prisma crash overlays.
 

@@ -81,8 +81,8 @@ describe("CommunityQuotesCloud", () => {
 
     expect(html).toContain("community-quote-peek");
     expect(html).toContain("--quote-peek-width:11rem");
-    expect(html).toContain("left:-2.75rem");
-    expect(html).toContain("right:-2.75rem");
+    expect(html).toContain("left:-4rem");
+    expect(html).toContain("right:-4rem");
   });
 
   it("uses narrow edge hover targets instead of clipped full-width cards", () => {

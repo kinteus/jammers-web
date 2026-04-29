@@ -50,28 +50,30 @@ npm run local:down
 
 ### Run locally against the production database
 
-If you need to inspect the real live data locally, you can point the app at the production Postgres instance through a Kubernetes port-forward.
+If you need to inspect the real live data locally, use the single-command production tunnel runner:
 
-1. Start the port-forward:
+```bash
+npm run local:prod
+```
+
+This command starts a Kubernetes port-forward to `svc/jammers-web-postgres` in namespace `prod`, points `DATABASE_URL` at the tunnel, enables local sign-in for existing users, and starts the app at [http://127.0.0.1:3001](http://127.0.0.1:3001), or the next free port if `3001` is busy.
+
+The runner reads the production database URL from `JAMMERS_PROD_DATABASE_URL`, `DATABASE_URL`, or the existing `.env.local` `DATABASE_URL`. The default kubeconfig is `~/.kube/config-jammers-microk8s`; override it with `JAMMERS_KUBECONFIG` if needed.
+
+When asking an AI coding agent to "подними приложение локально", it should use:
+
+```bash
+npm run local:prod
+```
+
+Manual equivalent, if the runner is unavailable:
 
 ```bash
 kubectl --kubeconfig ~/.kube/config-jammers-microk8s -n prod port-forward svc/jammers-web-postgres 55432:5432
-```
-
-2. In a separate terminal, create a local override in `.env.local`:
-
-```bash
-DATABASE_URL=postgresql://<prod-user>:<prod-password>@127.0.0.1:55432/prod
-ENABLE_DEV_AUTH=false
-```
-
-3. Start the app:
-
-```bash
 npm run dev -- --hostname 127.0.0.1 --port 3001
 ```
 
-As long as the `kubectl port-forward` process stays alive, the local app will read from the real production database. Keep this mode read-oriented, leave `ENABLE_DEV_AUTH=false`, and stop the port-forward when you are done.
+As long as the `kubectl port-forward` process stays alive, the local app uses the real production database. Keep this mode read-oriented unless you intentionally want to mutate production data.
 
 ## Validation commands
 

@@ -20,6 +20,7 @@ type SongSearchResult = {
 export type SongSearchSelection = SongSearchResult;
 
 const songSearchCache = new Map<string, SongSearchResult[]>();
+const SONG_SEARCH_DEBOUNCE_MS = 400;
 
 export function SongSearchField({
   locale,
@@ -51,7 +52,7 @@ export function SongSearchField({
 
     const timeoutId = window.setTimeout(() => {
       setDebouncedQuery(trimmedQuery);
-    }, 250);
+    }, SONG_SEARCH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [selected, trimmedQuery]);

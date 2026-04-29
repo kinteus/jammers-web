@@ -35,10 +35,20 @@ export async function upsertTelegramUser(identity: TelegramIdentity) {
   }
 
   if (normalizedUsername) {
-    const conflictingUser = await db.user.findUnique({
-      where: { telegramUsername: normalizedUsername },
-      select: { id: true, telegramId: true },
-    });
+    const conflictingUser =
+      (await db.user.findUnique({
+        where: { telegramUsername: normalizedUsername },
+        select: { id: true, telegramId: true },
+      })) ??
+      (await db.user.findFirst({
+        where: {
+          telegramUsername: {
+            equals: normalizedUsername,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true, telegramId: true },
+      }));
 
     if (conflictingUser) {
       if (!conflictingUser.telegramId) {

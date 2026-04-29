@@ -2,7 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { TrackSeatStatus, type UserRole } from "@prisma/client";
-import { CheckCircle2, ExternalLink, FileText, LogOut, Minus, Send, UserPlus } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUpDown,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  LogOut,
+  Minus,
+  Search,
+  Send,
+  UserPlus,
+  X,
+} from "lucide-react";
 
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { expandSeatColumns, getTrackReadinessState, type LineupSlotLite } from "@/lib/event-board";
@@ -15,7 +27,7 @@ import { cn } from "@/lib/utils";
 import {
   cancelTrackAction,
   claimSeatInlineAction,
-  inviteToSeatAction,
+  inviteToSeatInlineAction,
   releaseSeatInlineAction,
 } from "@/server/actions";
 
@@ -87,6 +99,18 @@ type BoardFeedback = {
   description: string;
   title: string;
   tone: "error" | "success";
+};
+
+type InviteableUser = {
+  id: string;
+  telegramUsername: string | null;
+  fullName: string | null;
+};
+
+type SeatAvailabilitySort = {
+  direction: "open-first" | "occupied-first";
+  seatIndex: number;
+  slotId: string;
 };
 
 function groupColumns(columns: ReturnType<typeof expandSeatColumns>) {
@@ -208,6 +232,56 @@ function cellFrameClass() {
 
 function buildSeatIndex(track: BoardTrack) {
   return new Map(track.seats.map((seat) => [`${seat.lineupSlotId}:${seat.seatIndex}`, seat] as const));
+}
+
+function getSeatAvailabilityRank(status: TrackSeatStatus | undefined) {
+  if (status === TrackSeatStatus.OPEN) {
+    return 0;
+  }
+  if (status === TrackSeatStatus.CLAIMED) {
+    return 1;
+  }
+  return 2;
+}
+
+export function sortTracksBySeatAvailability<
+  T extends {
+    id: string;
+    seats: Array<{
+      lineupSlotId: string;
+      seatIndex: number;
+      status: TrackSeatStatus;
+    }>;
+  },
+>(tracks: T[], sort: SeatAvailabilitySort | null) {
+  if (!sort) {
+    return tracks;
+  }
+
+  const directionMultiplier = sort.direction === "open-first" ? 1 : -1;
+
+  return [...tracks].sort((left, right) => {
+    const leftSeat = left.seats.find(
+      (seat) => seat.lineupSlotId === sort.slotId && seat.seatIndex === sort.seatIndex,
+    );
+    const rightSeat = right.seats.find(
+      (seat) => seat.lineupSlotId === sort.slotId && seat.seatIndex === sort.seatIndex,
+    );
+    const leftRank = getSeatAvailabilityRank(leftSeat?.status);
+    const rightRank = getSeatAvailabilityRank(rightSeat?.status);
+
+    if (leftRank === 2 && rightRank !== 2) {
+      return 1;
+    }
+    if (rightRank === 2 && leftRank !== 2) {
+      return -1;
+    }
+    if (leftRank !== rightRank) {
+      return (leftRank - rightRank) * directionMultiplier;
+    }
+
+    return tracks.indexOf(left) - tracks.indexOf(right);
+  });
 }
 
 function getSeatRequests(seat: BoardTrack["seats"][number]): SeatRequestEntry[] {
@@ -391,6 +465,87 @@ function buildClaimFeedback(
   };
 }
 
+function buildInviteFeedback(
+  locale: Locale,
+  result:
+    | { ok: true; notice: "invite-sent" | "invite-saved-without-telegram" | "seat-claimed" | "opt-request-sent" | "opt-request-saved" }
+    | { ok: false; error: string },
+): BoardFeedback {
+  if (result.ok) {
+    if (result.notice === "invite-saved-without-telegram") {
+      return {
+        tone: "success",
+        title: pick(locale, { en: "Invite saved", ru: "Инвайт сохранён" }),
+        description: pick(locale, {
+          en: "The invite is visible in the profile, but Telegram delivery did not confirm.",
+          ru: "Инвайт виден в профиле, но Telegram-доставка не подтвердилась.",
+        }),
+      };
+    }
+    if (result.notice === "opt-request-sent" || result.notice === "opt-request-saved") {
+      return buildClaimFeedback(locale, { ok: true, notice: result.notice });
+    }
+    if (result.notice === "seat-claimed") {
+      return buildClaimFeedback(locale, { ok: true, notice: result.notice });
+    }
+
+    return {
+      tone: "success",
+      title: pick(locale, { en: "Invite sent", ru: "Инвайт отправлен" }),
+      description: pick(locale, {
+        en: "The musician can accept it from their profile.",
+        ru: "Музыкант сможет принять его в профиле.",
+      }),
+    };
+  }
+
+  const errorCopy: Record<string, BoardFeedback> = {
+    "invite-recipient-required": {
+      tone: "error",
+      title: pick(locale, { en: "Pick a musician", ru: "Выбери музыканта" }),
+      description: pick(locale, {
+        en: "Use the registered musicians list before sending an invite.",
+        ru: "Перед отправкой выбери человека из списка зарегистрированных музыкантов.",
+      }),
+    },
+    "invite-already-pending": {
+      tone: "error",
+      title: pick(locale, { en: "Invite already pending", ru: "Инвайт уже ожидает" }),
+      description: pick(locale, {
+        en: "This person already has an active invite for the seat.",
+        ru: "У этого человека уже есть активный инвайт на это место.",
+      }),
+    },
+    "invite-track-limit": {
+      tone: "error",
+      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      description: pick(locale, {
+        en: "The musician is already at the event track limit.",
+        ru: "У музыканта уже достигнут лимит треков на этот гиг.",
+      }),
+    },
+    "invite-duplicate-role-family": {
+      tone: "error",
+      title: pick(locale, { en: "Role already taken", ru: "Роль уже занята" }),
+      description: pick(locale, {
+        en: "The musician already has this instrument family on the song.",
+        ru: "У музыканта уже есть эта группа инструментов в песне.",
+      }),
+    },
+  };
+
+  return (
+    errorCopy[result.error] ?? {
+      tone: "error",
+      title: pick(locale, { en: "Could not send invite", ru: "Не получилось отправить" }),
+      description: pick(locale, {
+        en: "Please pick a registered musician and try again.",
+        ru: "Выбери зарегистрированного музыканта и попробуй ещё раз.",
+      }),
+    }
+  );
+}
+
 function applyOptimisticClaim({
   currentTracks,
   seatId,
@@ -478,25 +633,95 @@ function SeatRequestsControl({
 }
 
 function InviteControl({
+  activeInviteControlId,
   allowClosedOptionalRequests,
   align = "end",
+  controlId,
+  inviteableUsers,
+  onInviteComplete,
+  onOpenChange,
   seat,
   eventSlug,
   locale,
   preferAbove = false,
 }: {
+  activeInviteControlId: string | null;
   allowClosedOptionalRequests: boolean;
   align?: "end" | "start";
+  controlId: string;
+  inviteableUsers: InviteableUser[];
+  onInviteComplete: (result:
+    | { ok: true; notice: "invite-sent" | "invite-saved-without-telegram" | "seat-claimed" | "opt-request-sent" | "opt-request-saved" }
+    | { ok: false; error: string }, seatId: string, recipient: InviteableUser | null) => void;
+  onOpenChange: (controlId: string | null) => void;
   seat: BoardTrack["seats"][number];
   eventSlug: string;
   locale: Locale;
   preferAbove?: boolean;
 }) {
   const requestLabel = allowClosedOptionalRequests && seat.isOptional;
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState<InviteableUser | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isOpen = activeInviteControlId === controlId;
+  const normalizedQuery = debouncedQuery.trim().toLowerCase().replace(/^@+/, "");
+  const filteredUsers = inviteableUsers
+    .filter((candidate) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return [candidate.telegramUsername, candidate.fullName]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(normalizedQuery));
+    })
+    .slice(0, 8);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery("");
+      setDebouncedQuery("");
+      setSelectedUser(null);
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  async function submitInvite() {
+    if (!selectedUser || isSubmitting) {
+      onInviteComplete({ ok: false, error: "invite-recipient-required" }, seat.id, selectedUser);
+      return;
+    }
+
+    setIsSubmitting(true);
+    const formData = new FormData();
+    formData.set("seatId", seat.id);
+    formData.set("eventSlug", eventSlug);
+    formData.set("recipientUserId", selectedUser.id);
+
+    try {
+      const result = await inviteToSeatInlineAction(formData);
+      onInviteComplete(result, seat.id, selectedUser);
+      if (result.ok) {
+        onOpenChange(null);
+      }
+    } catch {
+      onInviteComplete({ ok: false, error: "invite-failed" }, seat.id, selectedUser);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    <details className="group/details relative">
-      <summary
+    <div className="relative">
+      <button
         aria-label={pick(locale, {
           en: requestLabel
             ? `Suggest player for ${seat.label}`
@@ -518,35 +743,103 @@ function InviteControl({
             ? `Предложить музыканта на ${seat.label}`
             : `Позвать музыканта на ${seat.label}`,
         })}
+        onClick={(event) => {
+          event.preventDefault();
+          onOpenChange(isOpen ? null : controlId);
+        }}
+        type="button"
       >
         <Send className="h-3.5 w-3.5 -translate-x-[0.5px]" />
-      </summary>
+      </button>
+      {isOpen ? (
       <form
-        action={inviteToSeatAction}
         className={cn(
-          "absolute z-40 flex w-44 flex-col gap-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
+          "absolute z-40 flex w-64 flex-col gap-2 rounded-md border border-white/10 bg-stage p-2 shadow-card",
           align === "start" ? "left-0" : "right-0",
           preferAbove ? "bottom-7" : "top-7",
         )}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submitInvite();
+        }}
       >
-        <input name="seatId" type="hidden" value={seat.id} />
-        <input name="eventSlug" type="hidden" value={eventSlug} />
-        <input
-          className="w-full rounded-md px-2.5 py-1.5 text-xs"
-          name="recipientUsername"
-          placeholder="@username"
-        />
+        <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2">
+          <Search className="h-3.5 w-3.5 shrink-0 text-white/42" />
+          <input
+            aria-label={pick(locale, {
+              en: "Search registered musicians",
+              ru: "Поиск зарегистрированных музыкантов",
+            })}
+            className="min-w-0 flex-1 border-0 bg-transparent px-0 py-1.5 text-xs focus:ring-0"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSelectedUser(null);
+            }}
+            placeholder={pick(locale, {
+              en: "Name or @telegram",
+              ru: "Имя или @telegram",
+            })}
+            value={
+              selectedUser
+                ? selectedUser.telegramUsername
+                  ? `@${selectedUser.telegramUsername}`
+                  : selectedUser.fullName ?? ""
+                : query
+            }
+          />
+        </div>
+        <div className="max-h-44 overflow-y-auto rounded-md border border-white/10 bg-black/24">
+          {filteredUsers.length > 0 ? (
+            filteredUsers.map((candidate) => {
+              const label = candidate.telegramUsername
+                ? `@${candidate.telegramUsername}`
+                : candidate.fullName ?? "Unknown";
+              const secondary =
+                candidate.telegramUsername && candidate.fullName ? candidate.fullName : null;
+
+              return (
+                <button
+                  className={cn(
+                    "flex w-full flex-col px-2.5 py-2 text-left text-xs transition hover:bg-white/8",
+                    selectedUser?.id === candidate.id && "bg-gold/12 text-sand",
+                  )}
+                  key={candidate.id}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setSelectedUser(candidate);
+                  }}
+                  type="button"
+                >
+                  <span className="truncate font-semibold text-sand">{label}</span>
+                  {secondary ? (
+                    <span className="truncate text-[10px] text-white/54">{secondary}</span>
+                  ) : null}
+                </button>
+              );
+            })
+          ) : (
+            <p className="px-2.5 py-2 text-[11px] text-white/54">
+              {pick(locale, {
+                en: "No registered musicians found.",
+                ru: "Зарегистрированные музыканты не найдены.",
+              })}
+            </p>
+          )}
+        </div>
         <button
-          className="rounded-sm border border-white/10 bg-white/6 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/78 transition hover:bg-white/10"
+          className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting || !selectedUser}
           type="submit"
         >
+          {isSubmitting ? <Loader className="text-current" /> : null}
           {pick(locale, {
             en: requestLabel ? "Send request" : "Send invite",
             ru: requestLabel ? "Отправить запрос" : "Отправить",
           })}
         </button>
       </form>
-    </details>
+      ) : null}
+    </div>
   );
 }
 
@@ -554,6 +847,7 @@ export function TrackBoardTable({
   allowClosedOptionalRequests,
   eventSlug,
   highlightTrackId,
+  inviteableUsers = [],
   lineupSlots,
   locale,
   trackInfoFields,
@@ -564,6 +858,7 @@ export function TrackBoardTable({
   allowClosedOptionalRequests: boolean;
   eventSlug: string;
   highlightTrackId?: string | null;
+  inviteableUsers?: InviteableUser[];
   lineupSlots: LineupSlotLite[];
   locale: Locale;
   trackInfoFields: TrackInfoField[];
@@ -574,11 +869,15 @@ export function TrackBoardTable({
   const [currentTracks, setCurrentTracks] = useState(tracks);
   const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<BoardFeedback | null>(null);
+  const [activeInviteControlId, setActiveInviteControlId] = useState<string | null>(null);
   const [activeHighlightTrackId, setActiveHighlightTrackId] = useState<string | null>(
     highlightTrackId ?? null,
   );
+  const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
+  const displayTracks = sortTracksBySeatAvailability(currentTracks, seatSort);
+  const tableMinWidthRem = 22 + columns.length * 7.5;
 
   useEffect(() => {
     setCurrentTracks(tracks);
@@ -770,6 +1069,79 @@ export function TrackBoardTable({
     }
   }
 
+  function handleInviteComplete(
+    result:
+      | { ok: true; notice: "invite-sent" | "invite-saved-without-telegram" | "seat-claimed" | "opt-request-sent" | "opt-request-saved" }
+      | { ok: false; error: string },
+    seatId: string,
+    recipient: InviteableUser | null,
+  ) {
+    setFeedback(buildInviteFeedback(locale, result));
+    if (
+      !user ||
+      !recipient ||
+      !result.ok ||
+      (result.notice !== "invite-sent" && result.notice !== "invite-saved-without-telegram")
+    ) {
+      return;
+    }
+
+    setCurrentTracks((value) =>
+      value.map((track) => ({
+        ...track,
+        seats: track.seats.map((seat) =>
+          seat.id === seatId
+            ? {
+                ...seat,
+                invites: [
+                  ...seat.invites,
+                  {
+                    id: `optimistic-${seatId}-${recipient.id}`,
+                    status: "PENDING",
+                    deliveryNote: null,
+                    senderId: user.id,
+                    sender: {
+                      telegramUsername: user.telegramUsername,
+                      fullName: user.fullName,
+                    },
+                    recipient: {
+                      telegramUsername: recipient.telegramUsername,
+                      fullName: recipient.fullName,
+                    },
+                  },
+                ],
+              }
+            : seat,
+        ),
+      })),
+    );
+  }
+
+  function toggleSeatSort(column: (typeof columns)[number]) {
+    setSeatSort((current) => {
+      if (
+        !current ||
+        current.slotId !== column.slotId ||
+        current.seatIndex !== column.seatIndex
+      ) {
+        return {
+          direction: "open-first",
+          slotId: column.slotId,
+          seatIndex: column.seatIndex,
+        };
+      }
+
+      if (current.direction === "open-first") {
+        return {
+          ...current,
+          direction: "occupied-first",
+        };
+      }
+
+      return null;
+    });
+  }
+
   return (
     <div className="space-y-4">
       {feedback ? (
@@ -781,13 +1153,23 @@ export function TrackBoardTable({
         />
       ) : null}
 
-      <div className="brand-shell hidden overflow-visible rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
+      <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
         <div className="h-1 w-full stage-rule" />
-        <table className="w-full table-fixed border-separate border-spacing-0">
+        <div className="table-scroll max-h-[calc(100vh-8rem)] overflow-auto">
+        <table
+          className="table-fixed border-separate border-spacing-0"
+          style={{ minWidth: `${tableMinWidthRem}rem`, width: `${tableMinWidthRem}rem` }}
+        >
+          <colgroup>
+            <col style={{ width: "22rem" }} />
+            {columns.map((column) => (
+              <col key={column.seatKey} style={{ width: "7.5rem" }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-[#1b1b1b] text-white">
               <th
-                className="sticky left-0 z-30 w-[21.5%] border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
+                className="sticky left-0 top-0 z-40 border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
                 rowSpan={2}
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
@@ -795,7 +1177,7 @@ export function TrackBoardTable({
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
-                    "border-b border-white/16 px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
+                    "sticky top-0 z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
                     index > 0 && "border-l border-white/16",
                   )}
                   colSpan={group.columns.length}
@@ -817,19 +1199,42 @@ export function TrackBoardTable({
                 return (
                   <th
                     className={cn(
-                      "border-b border-r border-white/14 px-1 py-2 text-left text-[11px] font-semibold text-white/92",
+                      "sticky top-[2.125rem] z-30 border-b border-r border-white/14 bg-[#1b1b1b] px-1 py-1.5 text-left text-[11px] font-semibold text-white/92",
                       startsNewGroup && "border-l border-white/16",
                     )}
                     key={column.seatKey}
                   >
-                    <span className="block truncate">{column.shortLabel}</span>
+                    <button
+                      className="ui-tooltip flex min-h-7 w-full items-center justify-between gap-1 rounded-sm px-1 text-left transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
+                      data-tip={pick(locale, {
+                        en: "Sort by free or occupied",
+                        ru: "Сортировать по свободно/занято",
+                      })}
+                      onClick={() => toggleSeatSort(column)}
+                      type="button"
+                    >
+                      <span className="block min-w-0 truncate" title={column.shortLabel}>
+                        {column.shortLabel}
+                      </span>
+                      {seatSort?.slotId === column.slotId &&
+                      seatSort.seatIndex === column.seatIndex ? (
+                        <ArrowDown
+                          className={cn(
+                            "h-3 w-3 shrink-0 text-gold transition",
+                            seatSort.direction === "occupied-first" && "rotate-180",
+                          )}
+                        />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 shrink-0 text-white/42" />
+                      )}
+                    </button>
                   </th>
                 );
               })}
             </tr>
           </thead>
           <tbody>
-            {currentTracks.map((track, index) => {
+            {displayTracks.map((track, index) => {
               const isMyTrack = Boolean(user && track.seats.some((seat) => seat.userId === user.id));
               const isHighlighted = activeHighlightTrackId === track.id;
               const completion = getTrackCompletionSummary(track.seats);
@@ -840,7 +1245,7 @@ export function TrackBoardTable({
                   getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
                 )
                 .map((field) => getTrackInfoLabel(field, locale));
-              const preferInviteAbove = index >= tracks.length - 2;
+              const preferInviteAbove = index >= displayTracks.length - 2;
               const canManageTrack = Boolean(
                 isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
               );
@@ -913,10 +1318,24 @@ export function TrackBoardTable({
                               })}
                             />
                           ) : null}
+                          {activeTrackInfoLabels.length > 0 ? (
+                            <span
+                              className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
+                              title={activeTrackInfoLabels.join(", ")}
+                            >
+                              {activeTrackInfoLabels[0]}
+                              {activeTrackInfoLabels.length > 1
+                                ? ` +${activeTrackInfoLabels.length - 1}`
+                                : ""}
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-white/74">
-                          <span className="min-w-0 truncate">
+                          <span
+                            className="min-w-0 truncate"
+                            title={`${track.song.artist.name} · ${formatPersonLabel(track.proposedBy, locale)}`}
+                          >
                             {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
                           </span>
                           <span className="min-w-0 truncate">
@@ -934,18 +1353,6 @@ export function TrackBoardTable({
                           </span>
                         </div>
                         <YoutubeSearchLink className="mt-1.5 w-fit" locale={locale} track={track} />
-                        {activeTrackInfoLabels.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {activeTrackInfoLabels.map((label) => (
-                              <span
-                                className="rounded-full border border-gold/18 bg-gold/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-gold"
-                                key={label}
-                              >
-                                {label}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
                       </div>
 
                       <div className="flex shrink-0 items-center gap-1">
@@ -967,7 +1374,21 @@ export function TrackBoardTable({
                           </details>
                         ) : null}
                         {canManageTrack ? (
-                          <form action={cancelTrackAction}>
+                          <form
+                            action={cancelTrackAction}
+                            onSubmit={(event) => {
+                              if (
+                                !window.confirm(
+                                  pick(locale, {
+                                    en: `Remove "${track.song.title}" from the setlist?`,
+                                    ru: `Убрать "${track.song.title}" из сетлиста?`,
+                                  }),
+                                )
+                              ) {
+                                event.preventDefault();
+                              }
+                            }}
+                          >
                             <input name="trackId" type="hidden" value={track.id} />
                             <input name="eventSlug" type="hidden" value={eventSlug} />
                             <button
@@ -977,7 +1398,7 @@ export function TrackBoardTable({
                               })}
                               className={cn(
                                 iconButtonClass(),
-                                "text-red hover:bg-red/10 hover:text-white",
+                                "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
                               )}
                               data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
                               title={pick(locale, {
@@ -986,7 +1407,7 @@ export function TrackBoardTable({
                               })}
                               type="submit"
                             >
-                              <LogOut className="h-3.5 w-3.5 rotate-180" />
+                              <X className="h-4 w-4 stroke-[3]" />
                             </button>
                           </form>
                         ) : null}
@@ -1087,10 +1508,15 @@ export function TrackBoardTable({
                                 <div className="absolute right-1 top-1 flex flex-col items-end gap-1">
                                   {canInvite ? (
                                     <InviteControl
+                                      activeInviteControlId={activeInviteControlId}
                                       allowClosedOptionalRequests={allowClosedOptionalRequests}
                                       align={overlayAlign}
+                                      controlId={`desktop-${seat.id}`}
                                       eventSlug={eventSlug}
+                                      inviteableUsers={inviteableUsers}
                                       locale={locale}
+                                      onInviteComplete={handleInviteComplete}
+                                      onOpenChange={setActiveInviteControlId}
                                       preferAbove={preferInviteAbove}
                                       seat={seat}
                                     />
@@ -1215,7 +1641,7 @@ export function TrackBoardTable({
                               {getTelegramProfileUrl(seat.user) ? (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <a
-                                    className="max-w-full break-all text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                     href={getTelegramProfileUrl(seat.user) ?? undefined}
                                     rel="noreferrer"
                                     target="_blank"
@@ -1227,7 +1653,7 @@ export function TrackBoardTable({
                               ) : (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <span
-                                    className="max-w-full break-all text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
                                     title={formatPersonLabel(seat.user, locale)}
                                   >
                                     {formatPersonLabel(seat.user, locale)}
@@ -1267,6 +1693,7 @@ export function TrackBoardTable({
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="space-y-3 md:hidden">
@@ -1385,7 +1812,21 @@ export function TrackBoardTable({
                     </details>
                   ) : null}
                   {canManageTrack ? (
-                    <form action={cancelTrackAction}>
+                    <form
+                      action={cancelTrackAction}
+                      onSubmit={(event) => {
+                        if (
+                          !window.confirm(
+                            pick(locale, {
+                              en: `Remove "${track.song.title}" from the setlist?`,
+                              ru: `Убрать "${track.song.title}" из сетлиста?`,
+                            }),
+                          )
+                        ) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
                       <input name="trackId" type="hidden" value={track.id} />
                       <input name="eventSlug" type="hidden" value={eventSlug} />
                       <button
@@ -1395,12 +1836,12 @@ export function TrackBoardTable({
                         })}
                         className={cn(
                           iconButtonClass(),
-                          "text-red hover:bg-red/10 hover:text-white",
+                          "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
                         )}
                         data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
                         type="submit"
                       >
-                        <LogOut className="h-3.5 w-3.5 rotate-180" />
+                        <X className="h-4 w-4 stroke-[3]" />
                       </button>
                     </form>
                   ) : null}
@@ -1530,9 +1971,14 @@ export function TrackBoardTable({
                                 {pick(locale, { en: "Invite", ru: "Позвать" })}
                               </span>
                               <InviteControl
+                                activeInviteControlId={activeInviteControlId}
                                 allowClosedOptionalRequests={allowClosedOptionalRequests}
+                                controlId={`mobile-${seat.id}`}
                                 eventSlug={eventSlug}
+                                inviteableUsers={inviteableUsers}
                                 locale={locale}
+                                onInviteComplete={handleInviteComplete}
+                                onOpenChange={setActiveInviteControlId}
                                 preferAbove={preferInviteAbove}
                                 seat={seat}
                               />

@@ -213,7 +213,7 @@ function DesktopQuotesPerimeter({
       {desktopQuotes.map((quote, index) => {
         const slot = QUOTE_SLOTS[(index + layoutOffset) % QUOTE_SLOTS.length];
         const peekWidth = "11rem";
-        const edgeOffset = 2.75;
+        const edgeOffset = 4;
         const sideStyle =
           slot.edge === "left"
             ? {

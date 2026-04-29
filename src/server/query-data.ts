@@ -504,6 +504,21 @@ export async function getProfileWorkspace(userId: string) {
   };
 }
 
+export async function getInviteableUsers() {
+  return db.user.findMany({
+    where: {
+      status: "ACTIVE",
+      OR: [{ telegramUsername: { not: null } }, { fullName: { not: null } }],
+    },
+    select: {
+      id: true,
+      telegramUsername: true,
+      fullName: true,
+    },
+    orderBy: [{ telegramUsername: "asc" }, { fullName: "asc" }],
+  });
+}
+
 const getCachedFaqPageData = unstable_cache(
   async () => {
     try {

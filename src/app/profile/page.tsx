@@ -13,12 +13,12 @@ import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
 import { formatDateTime } from "@/lib/utils";
 import {
   devSignInAction,
-  respondToInviteAction,
   updateProfileAction,
 } from "@/server/actions";
 import { getProfileWorkspace } from "@/server/query-data";
 
 import { ProfileArchiveStats } from "@/components/profile-archive-stats";
+import { ProfileInvitationsPanel } from "@/components/profile-invitations-panel";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { InstrumentToken } from "@/components/instrument-token";
 import { TelegramLoginWidget } from "@/components/telegram-login-widget";
@@ -96,6 +96,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
   const authError = typeof params.authError === "string" ? params.authError : null;
+  const inviteError = typeof params.inviteError === "string" ? params.inviteError : null;
+  const inviteNotice = typeof params.inviteNotice === "string" ? params.inviteNotice : null;
   const returnTo = getSafeReturnTo(
     typeof params.returnTo === "string" ? params.returnTo : null,
   );
@@ -267,6 +269,39 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         requestMeta: NonNullable<ReturnType<typeof parseClosedOptionalSeatRequestMeta>>;
       } => Boolean(entry.requestMeta),
     );
+  const invitationItems = profile.invitations.map((invite) => {
+    const requestMeta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
+    const senderLabel = invite.sender.telegramUsername
+      ? `@${invite.sender.telegramUsername}`
+      : invite.sender.fullName ?? pick(locale, { en: "a bandmate", ru: "кто-то из команды" });
+    const senderHref = invite.sender.telegramUsername
+      ? `https://t.me/${invite.sender.telegramUsername}`
+      : null;
+    const requestDescription = requestMeta
+      ? requestMeta.mode === "self"
+        ? pick(locale, {
+            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
+            ru: `${requestMeta.requesterLabel} хочет вписаться на optional ${invite.seat.label} в ${invite.track.event.title}.`,
+          })
+        : pick(locale, {
+            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
+            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на optional ${invite.seat.label} в ${invite.track.event.title}.`,
+          })
+      : null;
+
+    return {
+      eventId: invite.track.event.id,
+      eventTitle: invite.track.event.title,
+      id: invite.id,
+      isApprovalRequest: Boolean(requestMeta),
+      maxTracksPerUser: invite.track.event.maxTracksPerUser,
+      requestDescription,
+      seatLabel: invite.seat.label,
+      senderHref,
+      senderLabel,
+      songLabel: `${invite.track.song.artist.name} - ${invite.track.song.title}`,
+    };
+  });
   const hasNoCurrentActivity =
     profile.invitations.length === 0 &&
     outgoingSeatRequests.length === 0 &&
@@ -349,7 +384,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
 
       <ProfileArchiveStats locale={locale} stats={profile.archiveStats} />
 
-      <section className="space-y-4">
+      <section className="space-y-4" id="invitations">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red">
             {pick(locale, { en: "Invitations", ru: "Приглашения" })}
@@ -361,103 +396,43 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             })}
           </h2>
         </div>
-        <Card className="brand-shell space-y-4">
-          {profile.invitations.length === 0 ? (
-            <div className="space-y-4">
-              <p className="text-sm text-white/60">
-                {pick(locale, {
-                  en: "No pending invites right now.",
-                  ru: "Сейчас нет ожидающих приглашений.",
-                })}
-              </p>
-              <Link href="/">
-                <Button size="sm" variant="secondary">
-                  {pick(locale, { en: "Open live gigs", ru: "Открыть живые гиги" })}
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            profile.invitations.map((invite) => {
-              const requestMeta = parseClosedOptionalSeatRequestMeta(invite.deliveryNote);
-              const senderLabel = invite.sender.telegramUsername
-                ? `@${invite.sender.telegramUsername}`
-                : invite.sender.fullName ?? pick(locale, { en: "a bandmate", ru: "кто-то из команды" });
-              const senderLink = invite.sender.telegramUsername
-                ? `https://t.me/${invite.sender.telegramUsername}`
-                : null;
-
-              return (
-                <div className="border-b border-white/10 pb-4 last:border-b-0 last:pb-0" key={invite.id}>
-                  <p className="font-semibold text-sand">
-                    {invite.track.song.artist.name} - {invite.track.song.title}
-                  </p>
-                  <p className="mt-1 text-sm text-white/70">
-                    {requestMeta
-                      ? requestMeta.mode === "self"
-                        ? pick(locale, {
-                            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
-                            ru: `${requestMeta.requesterLabel} хочет вписаться на optional ${invite.seat.label} в ${invite.track.event.title}.`,
-                          })
-                        : pick(locale, {
-                            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
-                            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на optional ${invite.seat.label} в ${invite.track.event.title}.`,
-                          })
-                      : pick(locale, {
-                          en: "",
-                          ru: "",
-                        })}
-                    {!requestMeta ? (
-                      <>
-                        {pick(locale, {
-                          en: `${invite.seat.label} for ${invite.track.event.title}, invited by `,
-                          ru: `${invite.seat.label} для ${invite.track.event.title}, пригласил(а) `,
-                        })}
-                        {senderLink ? (
-                          <a
-                            className="font-medium text-gold transition hover:text-white"
-                            href={senderLink}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            {senderLabel}
-                          </a>
-                        ) : (
-                          senderLabel
-                        )}
-                        .
-                      </>
-                    ) : null}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <form action={respondToInviteAction}>
-                      <input name="inviteId" type="hidden" value={invite.id} />
-                      <input name="decision" type="hidden" value="accept" />
-                      <input name="eventSlug" type="hidden" value={invite.track.event.id} />
-                      <SubmitButton pendingLabel={pick(locale, { en: "Saving...", ru: "Сохраняем..." })} size="sm" type="submit">
-                        {requestMeta
-                          ? pick(locale, { en: "Approve", ru: "Одобрить" })
-                          : pick(locale, { en: "Accept", ru: "Принять" })}
-                      </SubmitButton>
-                    </form>
-                    <form action={respondToInviteAction}>
-                      <input name="inviteId" type="hidden" value={invite.id} />
-                      <input name="decision" type="hidden" value="decline" />
-                      <input name="eventSlug" type="hidden" value={invite.track.event.id} />
-                      <SubmitButton pendingLabel={pick(locale, { en: "Saving...", ru: "Сохраняем..." })} size="sm" type="submit" variant="secondary">
-                        {pick(locale, { en: "Decline", ru: "Отклонить" })}
-                      </SubmitButton>
-                    </form>
-                    <Link href={`/events/${invite.track.event.id}`}>
-                      <Button size="sm" type="button" variant="ghost">
-                        {pick(locale, { en: "Open board", ru: "Открыть сетлист" })}
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </Card>
+        {inviteNotice ? (
+          <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
+            {pick(locale, {
+              en:
+                inviteNotice === "invite-declined"
+                  ? "Invite declined."
+                  : "Invite accepted.",
+              ru:
+                inviteNotice === "invite-declined"
+                  ? "Приглашение отклонено."
+                  : "Приглашение принято.",
+            })}
+          </div>
+        ) : null}
+        {inviteError ? (
+          <div className="rounded-xl border border-red/30 bg-red/12 px-4 py-3 text-sm text-white">
+            {pick(locale, {
+              en:
+                inviteError === "track-limit"
+                  ? "You have already reached the event limit of tracks. Leave one current song before accepting another invite."
+                  : inviteError === "duplicate-role-family"
+                    ? "You already have this instrument family on that song."
+                    : inviteError === "seat-occupied"
+                      ? "That seat is no longer open."
+                      : "Could not process the invite. Please try again.",
+              ru:
+                inviteError === "track-limit"
+                  ? "У тебя уже достигнут лимит треков на этот гиг. Выпишись из одной текущей песни перед принятием нового инвайта."
+                  : inviteError === "duplicate-role-family"
+                    ? "У тебя уже есть эта группа инструментов в этой песне."
+                    : inviteError === "seat-occupied"
+                      ? "Это место уже занято."
+                      : "Не получилось обработать приглашение. Попробуй ещё раз.",
+            })}
+          </div>
+        ) : null}
+        <ProfileInvitationsPanel initialInvitations={invitationItems} locale={locale} />
       </section>
 
       <section className="space-y-4">

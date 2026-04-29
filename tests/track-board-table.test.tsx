@@ -6,12 +6,13 @@ import { TrackSeatStatus, UserRole } from "@prisma/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TrackBoardTable } from "@/components/track-board-table";
+import { sortTracksBySeatAvailability, TrackBoardTable } from "@/components/track-board-table";
 
 vi.mock("@/server/actions", () => ({
   cancelTrackAction: vi.fn(),
   claimSeatInlineAction: vi.fn(),
   inviteToSeatAction: vi.fn(),
+  inviteToSeatInlineAction: vi.fn(),
   releaseSeatInlineAction: vi.fn(),
 }));
 
@@ -113,5 +114,55 @@ describe("TrackBoardTable", () => {
 
     expect(host.querySelector('[data-readiness="ready"]')).not.toBeNull();
     expect(host.querySelector('[data-ready-badge="primary"]')?.textContent).toContain("Собрано");
+  });
+
+  it("sorts tracks by a selected desktop seat column availability", () => {
+    const tracks = [
+      {
+        id: "occupied-track",
+        seats: [
+          {
+            lineupSlotId: "slot-bass",
+            seatIndex: 1,
+            status: TrackSeatStatus.CLAIMED,
+          },
+        ],
+      },
+      {
+        id: "open-track",
+        seats: [
+          {
+            lineupSlotId: "slot-bass",
+            seatIndex: 1,
+            status: TrackSeatStatus.OPEN,
+          },
+        ],
+      },
+      {
+        id: "unavailable-track",
+        seats: [
+          {
+            lineupSlotId: "slot-bass",
+            seatIndex: 1,
+            status: TrackSeatStatus.UNAVAILABLE,
+          },
+        ],
+      },
+    ];
+
+    expect(
+      sortTracksBySeatAvailability(tracks, {
+        direction: "open-first",
+        seatIndex: 1,
+        slotId: "slot-bass",
+      }).map((track) => track.id),
+    ).toEqual(["open-track", "occupied-track", "unavailable-track"]);
+    expect(
+      sortTracksBySeatAvailability(tracks, {
+        direction: "occupied-first",
+        seatIndex: 1,
+        slotId: "slot-bass",
+      }).map((track) => track.id),
+    ).toEqual(["occupied-track", "open-track", "unavailable-track"]);
   });
 });
