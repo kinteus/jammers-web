@@ -14,6 +14,8 @@ const DEFAULT_DB_PORT = 55432;
 const DEFAULT_APP_PORT = 3001;
 const DEFAULT_APP_HOST = "127.0.0.1";
 const DEFAULT_DB_READY_TIMEOUT_MS = 30_000;
+const DEFAULT_DB_HEALTH_INTERVAL_MS = 5_000;
+const DEFAULT_DB_HEALTH_TIMEOUT_MS = 2_500;
 
 function parseEnvFile(path) {
   if (!existsSync(path)) {
@@ -149,6 +151,25 @@ function sleep(ms) {
   });
 }
 
+async function waitForPortToClose(
+  port,
+  host = DEFAULT_APP_HOST,
+  timeoutMs = 5_000,
+  isAvailable = isPortFree,
+  sleepFn = sleep,
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    if (await isAvailable(port, host)) {
+      return;
+    }
+    await sleepFn(100);
+  }
+
+  throw new Error(`Timed out waiting for ${host}:${port} to close.`);
+}
+
 async function waitForDatabase(databaseUrl, timeoutMs = DEFAULT_DB_READY_TIMEOUT_MS) {
   const startedAt = Date.now();
   let lastError = null;
@@ -177,10 +198,93 @@ async function waitForDatabase(databaseUrl, timeoutMs = DEFAULT_DB_READY_TIMEOUT
   throw new Error(`Timed out waiting for the production DB tunnel to accept SQL connections. ${detail}`);
 }
 
+function startTunnelHealthMonitor({
+  checkDatabase,
+  restartTunnel,
+  intervalMs = DEFAULT_DB_HEALTH_INTERVAL_MS,
+  onStatus = console.error,
+  setTimer = setInterval,
+  clearTimer = clearInterval,
+}) {
+  let checking = false;
+  let stopped = false;
+
+  async function checkOnce() {
+    if (checking || stopped) {
+      return;
+    }
+
+    checking = true;
+    try {
+      await checkDatabase();
+    } catch (error) {
+      if (!stopped) {
+        onStatus(
+          `Production DB tunnel health check failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        await restartTunnel(error);
+      }
+    } finally {
+      checking = false;
+    }
+  }
+
+  const timer = setTimer(() => {
+    void checkOnce();
+  }, intervalMs);
+
+  return {
+    checkOnce,
+    stop() {
+      stopped = true;
+      clearTimer(timer);
+    },
+  };
+}
+
 function spawnInherited(command, args, options = {}) {
   return spawn(command, args, {
     stdio: "inherit",
     ...options,
+  });
+}
+
+function startProductionDbTunnel({
+  kubeconfig,
+  namespace,
+  service,
+  dbPort,
+}) {
+  return spawnInherited("kubectl", [
+    "--kubeconfig",
+    kubeconfig,
+    "-n",
+    namespace,
+    "port-forward",
+    service,
+    `${dbPort}:5432`,
+  ]);
+}
+
+function waitForChildExit(child, timeoutMs = 5_000) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.off("exit", onExit);
+      reject(new Error("Timed out waiting for kubectl port-forward to exit."));
+    }, timeoutMs);
+
+    function onExit() {
+      clearTimeout(timeout);
+      resolve();
+    }
+
+    child.once("exit", onExit);
   });
 }
 
@@ -195,26 +299,92 @@ async function main() {
     : await findFreePort(requestedAppPort, appHost);
   const dbPort = await findFreePort(Number(process.env.JAMMERS_DB_TUNNEL_PORT || DEFAULT_DB_PORT));
   const databaseUrl = buildTunnelDatabaseUrl(getProdDatabaseUrl(), dbPort);
+  const dbHealthIntervalMs = Number(
+    process.env.JAMMERS_DB_HEALTH_INTERVAL_MS || DEFAULT_DB_HEALTH_INTERVAL_MS,
+  );
+  const dbHealthTimeoutMs = Number(
+    process.env.JAMMERS_DB_HEALTH_TIMEOUT_MS || DEFAULT_DB_HEALTH_TIMEOUT_MS,
+  );
 
   console.log(`Starting production DB tunnel on ${DEFAULT_APP_HOST}:${dbPort}...`);
-  const tunnel = spawnInherited("kubectl", [
-    "--kubeconfig",
-    kubeconfig,
-    "-n",
-    namespace,
-    "port-forward",
-    service,
-    `${dbPort}:5432`,
-  ]);
-
+  let tunnel = null;
   let app = null;
+  let healthMonitor = null;
   let stopping = false;
+  let restartingTunnel = false;
+
+  function attachTunnelExitHandler(child) {
+    child.once("exit", (code, signal) => {
+      if (stopping || restartingTunnel) {
+        return;
+      }
+
+      const detail = signal ? `signal ${signal}` : `code ${code ?? 0}`;
+      console.error(`Production DB tunnel exited unexpectedly with ${detail}. Restarting tunnel...`);
+      void restartTunnel(new Error(`kubectl port-forward exited with ${detail}`));
+    });
+  }
+
+  function startTunnel() {
+    const child = startProductionDbTunnel({
+      kubeconfig,
+      namespace,
+      service,
+      dbPort,
+    });
+    attachTunnelExitHandler(child);
+    tunnel = child;
+    return child;
+  }
+
   const stop = () => {
     stopping = true;
-    if (!tunnel.killed) {
+    healthMonitor?.stop();
+    if (tunnel && !tunnel.killed) {
       tunnel.kill("SIGTERM");
     }
+    if (app && !app.killed) {
+      app.kill("SIGTERM");
+    }
   };
+
+  async function restartTunnel(reason) {
+    if (stopping || restartingTunnel) {
+      return;
+    }
+
+    restartingTunnel = true;
+    console.error(
+      `Restarting production DB tunnel on ${DEFAULT_APP_HOST}:${dbPort}${
+        reason instanceof Error ? ` after: ${reason.message}` : ""
+      }`,
+    );
+
+    if (tunnel && !tunnel.killed) {
+      tunnel.kill("SIGTERM");
+    }
+
+    try {
+      await waitForChildExit(tunnel);
+      await waitForPortToClose(dbPort);
+      startTunnel();
+      await waitForPort(dbPort);
+      await waitForDatabase(databaseUrl, dbHealthTimeoutMs);
+      console.log("Production DB tunnel restarted and SQL connection is healthy.");
+    } catch (error) {
+      console.error(
+        `Failed to restart production DB tunnel: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      if (app && !app.killed) {
+        app.kill("SIGTERM");
+      }
+      process.exit(1);
+    } finally {
+      restartingTunnel = false;
+    }
+  }
 
   process.once("SIGINT", () => {
     stop();
@@ -225,19 +395,7 @@ async function main() {
     process.exit(143);
   });
 
-  tunnel.once("exit", (code, signal) => {
-    if (stopping) {
-      return;
-    }
-
-    console.error(
-      `Production DB tunnel exited unexpectedly${signal ? ` with signal ${signal}` : ` with code ${code ?? 0}`}.`,
-    );
-    if (app && !app.killed) {
-      app.kill("SIGTERM");
-    }
-    process.exit(code ?? 1);
-  });
+  startTunnel();
 
   try {
     await waitForPort(dbPort);
@@ -249,6 +407,11 @@ async function main() {
   }
 
   console.log(`Production DB tunnel is ready. Starting local app on http://${appHost}:${appPort}`);
+  healthMonitor = startTunnelHealthMonitor({
+    checkDatabase: () => waitForDatabase(databaseUrl, dbHealthTimeoutMs),
+    intervalMs: dbHealthIntervalMs,
+    restartTunnel,
+  });
   app = spawnInherited(
     "npm",
     ["run", "dev", "--", "--hostname", appHost, "--port", String(appPort)],
@@ -280,4 +443,10 @@ if (fileURLToPath(import.meta.url) === process.argv[1]) {
   });
 }
 
-export { buildTunnelDatabaseUrl, getProdDatabaseUrl, parseEnvFile };
+export {
+  buildTunnelDatabaseUrl,
+  getProdDatabaseUrl,
+  parseEnvFile,
+  startTunnelHealthMonitor,
+  waitForPortToClose,
+};
