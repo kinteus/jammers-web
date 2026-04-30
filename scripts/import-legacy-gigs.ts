@@ -8,6 +8,7 @@ import {
 import XLSX from "xlsx";
 
 import { db } from "@/lib/db";
+import { slugifyRouteSegment } from "@/lib/event-slugs";
 import { slugify } from "@/lib/utils";
 
 type RoleConfig = {
@@ -599,7 +600,7 @@ async function main() {
     }
 
     const eventTitle = normalizeEventTitle(sheetName);
-    const eventSlug = `legacy-${slugify(eventTitle)}`;
+    const eventSlug = `legacy-${slugifyRouteSegment(eventTitle)}`;
     const eventStartsAt = parseDateFromSheetName(sheetName);
 
     await db.$transaction(async (tx) => {

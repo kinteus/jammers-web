@@ -14,6 +14,7 @@ import {
 import XLSX from "xlsx";
 
 import { db } from "@/lib/db";
+import { slugifyRouteSegment } from "@/lib/event-slugs";
 import {
   isJamsSnapshotSheet,
   parseJamsSnapshotSheet,
@@ -470,7 +471,7 @@ async function importEvent(
 ) {
   const importer = await ensureImporter(tx);
   const existing = await findExistingLegacyEventForDate(tx, event);
-  const slug = `legacy-${slugify(event.title)}`;
+  const slug = `legacy-${slugifyRouteSegment(event.title)}`;
   const dbEvent = existing
     ? await tx.event.update({
         where: { id: existing.id },
@@ -639,7 +640,7 @@ async function finalizeEventMetadata(events: ParsedJamsSnapshotEvent[]) {
       await tx.event.update({
         where: { id: existing.id },
         data: {
-          slug: `legacy-${slugify(event.title)}`,
+          slug: `legacy-${slugifyRouteSegment(event.title)}`,
           title: event.title,
           startsAt: event.startsAt,
           status: EventStatus.PUBLISHED,

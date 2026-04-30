@@ -63,6 +63,7 @@ import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { getSafeReturnTo } from "@/lib/return-to";
 import { isUniqueConstraintErrorForFields } from "@/lib/prisma-errors";
 import { buildSongUpsertArgs } from "@/lib/song-identity";
+import { slugifyRouteSegment } from "@/lib/event-slugs";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/server/auth-guards";
 import {
   sendTelegramFeedbackMessage,
@@ -87,6 +88,10 @@ function pathBundle(...eventKeys: Array<string | undefined>) {
   return paths;
 }
 
+function isSafeRevalidationPath(path: string) {
+  return path.startsWith("/") && /^[\x20-\x7E]+$/.test(path);
+}
+
 function revalidateAll(paths: string[]) {
   const uniquePaths = [...new Set(paths)];
 
@@ -98,7 +103,17 @@ function revalidateAll(paths: string[]) {
   }
 
   for (const path of uniquePaths) {
-    revalidatePath(path);
+    if (isSafeRevalidationPath(path)) {
+      revalidatePath(path);
+    }
+  }
+}
+
+function encodeRouteSegment(value: string) {
+  try {
+    return encodeURIComponent(decodeURIComponent(value));
+  } catch {
+    return encodeURIComponent(value);
   }
 }
 
@@ -112,8 +127,8 @@ function buildEventRedirectUrl(
   const hashString = hash ? `#${hash}` : "";
 
   return searchString
-    ? `/events/${eventSlug}?${searchString}${hashString}`
-    : `/events/${eventSlug}${hashString}`;
+    ? `/events/${encodeRouteSegment(eventSlug)}?${searchString}${hashString}`
+    : `/events/${encodeRouteSegment(eventSlug)}${hashString}`;
 }
 
 function redirectToEventError(eventSlug: string | undefined, error: string): never {
@@ -1820,7 +1835,7 @@ export async function respondToInviteInlineAction(formData: FormData): Promise<R
 export async function createEventAction(formData: FormData) {
   const admin = await requireAdmin();
   const title = getString(formData, "title");
-  const slugBase = slugify(title);
+  const slugBase = slugifyRouteSegment(title);
   const slug = `${slugBase}-${Math.random().toString(16).slice(2, 6)}`;
   const startsAt = getDate(formData, "startsAt", "Starts at");
   const opensAt = getDate(formData, "registrationOpensAt", "Registration opens at");
@@ -2606,7 +2621,7 @@ export async function publishSetlistAction(formData: FormData) {
   revalidateAll(pathBundle(eventSlug));
 
   if (failedDeliveries > 0) {
-    redirect(`/admin/events/${eventSlug}?notice=publish-partial-notify`);
+    redirect(`/admin/events/${encodeRouteSegment(eventSlug)}?notice=publish-partial-notify`);
   }
 }
 

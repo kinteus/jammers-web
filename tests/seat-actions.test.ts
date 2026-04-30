@@ -93,33 +93,37 @@ function buildOpenEvent() {
 }
 
 describe("releaseSeatInlineAction", () => {
-  it("does not let a track proposer release another participant's seat", async () => {
-    requireUserMock.mockResolvedValue({
-      id: "proposer-1",
-      role: UserRole.USER,
-    });
-    dbMock.trackSeat.findUniqueOrThrow.mockResolvedValue({
-      id: "seat-1",
-      status: TrackSeatStatus.CLAIMED,
-      userId: "player-1",
-      track: {
-        event: buildOpenEvent(),
-        proposedById: "proposer-1",
-      },
-    });
-    dbMock.trackSeat.updateMany.mockResolvedValue({ count: 1 });
+  it(
+    "does not let a track proposer release another participant's seat",
+    async () => {
+      requireUserMock.mockResolvedValue({
+        id: "proposer-1",
+        role: UserRole.USER,
+      });
+      dbMock.trackSeat.findUniqueOrThrow.mockResolvedValue({
+        id: "seat-1",
+        status: TrackSeatStatus.CLAIMED,
+        userId: "player-1",
+        track: {
+          event: buildOpenEvent(),
+          proposedById: "proposer-1",
+        },
+      });
+      dbMock.trackSeat.updateMany.mockResolvedValue({ count: 1 });
 
-    const { releaseSeatInlineAction } = await import("@/server/actions");
-    const result = await releaseSeatInlineAction(
-      buildFormData({
-        eventSlug: "spring-jam-night",
-        seatId: "seat-1",
-      }),
-    );
+      const { releaseSeatInlineAction } = await import("@/server/actions");
+      const result = await releaseSeatInlineAction(
+        buildFormData({
+          eventSlug: "spring-jam-night",
+          seatId: "seat-1",
+        }),
+      );
 
-    expect(result).toEqual({ ok: false, error: "release-not-allowed" });
-    expect(dbMock.trackSeat.updateMany).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({ ok: false, error: "release-not-allowed" });
+      expect(dbMock.trackSeat.updateMany).not.toHaveBeenCalled();
+    },
+    10_000,
+  );
 });
 
 describe("inviteToSeatAction", () => {

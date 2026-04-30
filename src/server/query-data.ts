@@ -10,6 +10,7 @@ import {
   getAutoSyncedEventStatus,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
+import { buildEventSlugLookupCandidates } from "@/lib/event-slugs";
 import {
   DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
   DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,
@@ -282,8 +283,8 @@ export const getEventWorkspace = cache(async function getEventWorkspace(slug: st
     return directMatch;
   }
 
-  return db.event.findUnique({
-    where: { slug },
+  return db.event.findFirst({
+    where: { slug: { in: buildEventSlugLookupCandidates(slug) } },
     include: getEventWorkspaceInclude(),
   });
 });
