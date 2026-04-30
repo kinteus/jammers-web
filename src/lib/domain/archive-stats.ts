@@ -263,12 +263,17 @@ export function buildUserArchiveStats(
     artistCounts.set(track.song.artist.name, (artistCounts.get(track.song.artist.name) ?? 0) + 1);
 
     const collaboratorsOnTrack = new Set<string>();
+    const userRoleFamiliesOnTrack = new Set<RoleFamilyKey>();
     for (const seat of track.seats) {
       if (seat.status !== TrackSeatStatus.CLAIMED || !seat.userId || !seat.user) {
         continue;
       }
       if (seat.userId === userId) {
         const family = getRoleFamilyKey(seat.label);
+        if (userRoleFamiliesOnTrack.has(family)) {
+          continue;
+        }
+        userRoleFamiliesOnTrack.add(family);
         roleCounts.set(family, (roleCounts.get(family) ?? 0) + 1);
         continue;
       }

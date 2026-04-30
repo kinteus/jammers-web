@@ -98,4 +98,46 @@ describe("archive stats", () => {
     expect(summary.latestGig?.title).toBe("Second Night");
     expect(summary.firstGig?.title).toBe("First Night");
   });
+
+  it("counts a user's role family once per performed song", () => {
+    const summary = buildUserArchiveStats(
+      [
+        {
+          id: "gig-duplicate-role",
+          title: "Duplicate Role Night",
+          startsAt: new Date("2026-04-19T17:00:00.000Z"),
+          setlistItems: [
+            {
+              orderIndex: 1,
+              track: {
+                id: "track-duplicate-vocals",
+                proposedById: "u2",
+                proposedBy: { id: "u2", telegramUsername: "boris", fullName: "Boris" },
+                song: { title: "Bodies", artist: { name: "Drowning Pool" } },
+                seats: [
+                  {
+                    label: "Vocal 2",
+                    status: claimed,
+                    userId: "u1",
+                    user: { id: "u1", telegramUsername: "anna", fullName: "Anna" },
+                  },
+                  {
+                    label: "Vocal 3",
+                    status: claimed,
+                    userId: "u1",
+                    user: { id: "u1", telegramUsername: "anna", fullName: "Anna" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      "u1",
+    );
+
+    expect(summary.songsPerformed).toBe(1);
+    expect(summary.signatureRole).toBe("vocals");
+    expect(summary.signatureRoleAppearances).toBe(1);
+  });
 });
