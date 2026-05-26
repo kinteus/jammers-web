@@ -21,7 +21,6 @@ enum EventStatus {
   DRAFT
   OPEN
   CLOSED
-  CURATING
   PUBLISHED
   ARCHIVED
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { db } from "@/lib/db";
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
 import { normalizeAppleMusicUrl } from "@/lib/url-security";
 
@@ -24,6 +25,18 @@ type ItunesArtistResult = {
 const SONG_SEARCH_CACHE_SECONDS = 60 * 60;
 const SONG_SEARCH_LIMIT = 8;
 const ARTIST_LOOKUP_LIMIT = 200;
+const ITUNES_TIMEOUT_MS = 6000;
+
+type SongSearchResult = {
+  songId?: string | null;
+  externalId: string;
+  trackTitle: string;
+  artistName: string;
+  artworkUrl: string | null;
+  collectionName: string | null;
+  externalUrl: string | null;
+  durationSeconds: number | null;
+};
 
 function normalizeSearchText(value: string) {
   return value
@@ -90,6 +103,10 @@ async function fetchItunesResults<T>(url: URL) {
     next: {
       revalidate: SONG_SEARCH_CACHE_SECONDS,
     },
+    signal:
+      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+        ? AbortSignal.timeout(ITUNES_TIMEOUT_MS)
+        : undefined,
   });
 
   if (!response.ok) {
@@ -170,18 +187,7 @@ function rankLookupSongs(
 }
 
 function addDedupedResults(
-  dedupedResults: Map<
-    string,
-    {
-      externalId: string;
-      trackTitle: string;
-      artistName: string;
-      artworkUrl: string | null;
-      collectionName: string | null;
-      externalUrl: string | null;
-      durationSeconds: number | null;
-    }
-  >,
+  dedupedResults: Map<string, SongSearchResult>,
   entries: ItunesSongResult[],
 ) {
   for (const entry of entries) {
@@ -191,6 +197,7 @@ function addDedupedResults(
     }
 
     dedupedResults.set(dedupeKey, {
+      songId: null,
       externalId: String(entry.trackId),
       trackTitle: entry.trackName,
       artistName: entry.artistName,
@@ -202,6 +209,60 @@ function addDedupedResults(
         : null,
     });
   }
+}
+
+function addDedupedLocalResults(
+  dedupedResults: Map<string, SongSearchResult>,
+  entries: SongSearchResult[],
+) {
+  for (const entry of entries) {
+    const dedupeKey = `${entry.artistName.toLowerCase()}::${entry.trackTitle.toLowerCase()}`;
+    if (dedupedResults.has(dedupeKey)) {
+      continue;
+    }
+
+    dedupedResults.set(dedupeKey, entry);
+  }
+}
+
+async function fetchLocalCatalogResults(query: string) {
+  const artistTitleQueries = getArtistTitleQueryCandidates(query);
+  const localSongs = await db.song.findMany({
+    where: {
+      OR: [
+        { title: { contains: query, mode: "insensitive" } },
+        { artist: { name: { contains: query, mode: "insensitive" } } },
+        ...artistTitleQueries.map((parsedQuery) => ({
+          AND: [
+            { title: { contains: parsedQuery.trackTitle, mode: "insensitive" as const } },
+            {
+              artist: {
+                name: { contains: parsedQuery.artistName, mode: "insensitive" as const },
+              },
+            },
+          ],
+        })),
+      ],
+    },
+    include: {
+      artist: {
+        select: { name: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }, { title: "asc" }],
+    take: SONG_SEARCH_LIMIT,
+  });
+
+  return localSongs.map((song) => ({
+    songId: song.id,
+    externalId: song.itunesTrackId ?? "",
+    trackTitle: song.title,
+    artistName: song.artist.name,
+    artworkUrl: null,
+    collectionName: null,
+    externalUrl: null,
+    durationSeconds: song.durationSeconds,
+  }));
 }
 
 async function fetchArtistLookupFallback(
@@ -288,28 +349,26 @@ export async function GET(request: Request) {
     limit: String(SONG_SEARCH_LIMIT),
   });
 
+  let localResults: SongSearchResult[] = [];
+  try {
+    localResults = await fetchLocalCatalogResults(query);
+  } catch {
+    localResults = [];
+  }
+
   let searchResults: ItunesSongResult[];
   try {
     searchResults = (await fetchItunesResults<ItunesSongResult>(url)).filter(isSongResult);
   } catch {
-    return NextResponse.json(
-      { results: [], error: "Song search provider is unavailable." },
-      { status: 502 },
-    );
+    return NextResponse.json({
+      results: localResults,
+      warning: localResults.length > 0
+        ? "Song search provider is unavailable. Showing local catalog matches."
+        : "Song search provider is unavailable.",
+    });
   }
 
-  const dedupedResults = new Map<
-    string,
-    {
-      externalId: string;
-      trackTitle: string;
-      artistName: string;
-      artworkUrl: string | null;
-      collectionName: string | null;
-      externalUrl: string | null;
-      durationSeconds: number | null;
-    }
-  >();
+  const dedupedResults = new Map<string, SongSearchResult>();
   const parsedQueries = getArtistTitleQueryCandidates(query);
   const shouldUseArtistLookup =
     parsedQueries.length > 0 &&
@@ -324,6 +383,7 @@ export async function GET(request: Request) {
       // Keep direct search results when the fallback provider path is unavailable.
     }
   }
+  addDedupedLocalResults(dedupedResults, localResults);
   addDedupedResults(dedupedResults, searchResults);
 
   return NextResponse.json(

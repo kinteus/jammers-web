@@ -14,6 +14,7 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-a",
           songTitle: "A",
           artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
           participantIds: ["u1", "u2"],
           filledSeatRatio: 0.7,
           createdAt: new Date("2026-01-01T10:00:00Z"),
@@ -24,6 +25,7 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-b",
           songTitle: "B",
           artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
           participantIds: ["u3", "u4"],
           filledSeatRatio: 0.6,
           createdAt: new Date("2026-01-01T10:01:00Z"),
@@ -34,6 +36,7 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-c",
           songTitle: "C",
           artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
           participantIds: ["u1", "u2", "u3"],
           filledSeatRatio: 1,
           createdAt: new Date("2026-01-01T10:02:00Z"),
@@ -58,6 +61,7 @@ describe("buildSetlistRecommendation", () => {
           songId: "song-repeat",
           songTitle: "Repeat",
           artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
           participantIds: ["u1"],
           filledSeatRatio: 0.5,
           createdAt: new Date("2026-01-01T10:00:00Z"),
@@ -69,5 +73,42 @@ describe("buildSetlistRecommendation", () => {
     expect(result.selected).toHaveLength(0);
     expect(result.backlog[0]?.trackId).toBe("track-repeat");
     expect(result.backlog[0]?.reasons[0]).toContain("previous concert");
+  });
+
+  it("keeps tracks with unfilled required seats out of the final set", () => {
+    const result = buildSetlistRecommendation({
+      maxSetTrackCount: 2,
+      previousConcertSongIds: new Set(),
+      candidates: [
+        {
+          id: "incomplete-popular",
+          songId: "song-incomplete",
+          songTitle: "Incomplete",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: true,
+          participantIds: ["u1", "u2", "u3", "u4"],
+          filledSeatRatio: 0.8,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+          matchedKnownGroupName: null,
+        },
+        {
+          id: "complete-smaller",
+          songId: "song-complete",
+          songTitle: "Complete",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u5", "u6"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:01:00Z"),
+          matchedKnownGroupName: null,
+        },
+      ],
+    });
+
+    expect(result.selected.map((item) => item.trackId)).toEqual(["complete-smaller"]);
+    expect(result.backlog.find((item) => item.trackId === "incomplete-popular")?.reasons[0]).toContain(
+      "required",
+    );
+    expect(result.coverageCount).toBe(2);
   });
 });

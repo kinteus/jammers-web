@@ -8,6 +8,7 @@ import { ArrowRight, Clock3, LogIn } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import {
   allowsClosedOptionalSeatRequests,
+  getAllowedNextEventStatuses,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
 import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
@@ -33,6 +34,7 @@ import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
 
 import { InstrumentToken } from "@/components/instrument-token";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { BoardRealtimeRefresh } from "@/components/board-realtime-refresh";
 import { SignInLink } from "@/components/sign-in-link";
 import { TrackBoardFilters } from "@/components/track-board-filters";
 import { TrackBoardTable } from "@/components/track-board-table";
@@ -575,13 +577,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const trackInfoFields = getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback);
   const isAdmin = user?.role === "ADMIN";
   const showAdminStatusControl = isAdmin && !env.LIVE_PRODUCTION_TUNNEL;
+  const renderedAtMs = Date.now();
   const registrationOpensSoon =
     effectiveStatus === "DRAFT" &&
-    Boolean(event.registrationOpensAt && event.registrationOpensAt > new Date());
+    Boolean(event.registrationOpensAt && event.registrationOpensAt.getTime() > renderedAtMs);
   const showRegistrationMeta = effectiveStatus !== "PUBLISHED";
+  const nextAdminStatuses = getAllowedNextEventStatuses(event.status);
 
   return (
     <div className="space-y-8 text-sand">
+      <BoardRealtimeRefresh eventId={event.id} />
       <script
         dangerouslySetInnerHTML={{ __html: serializeJsonForHtmlScript(structuredData) }}
         type="application/ld+json"
@@ -720,7 +725,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
+                  {nextAdminStatuses.map((status) => (
                     <form action={updateEventStatusAction} key={status}>
                       <input name="eventId" type="hidden" value={event.id} />
                       <input name="eventSlug" type="hidden" value={event.id} />
@@ -994,7 +999,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               </p>
               <p className="text-lg font-semibold text-sand">
                 {pick(locale, { en: "Starts in:", ru: "Старт через:" })}{" "}
-                <EventRegistrationCountdown locale={locale} target={event.registrationOpensAt} />
+                <EventRegistrationCountdown
+                  initialNowMs={renderedAtMs}
+                  locale={locale}
+                  refreshOnComplete
+                  target={event.registrationOpensAt}
+                />
               </p>
             </div>
           </div>
@@ -1009,7 +1019,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           <div className="flex items-start gap-3">
             <Clock3 className="mt-1 h-5 w-5 text-blue" />
             <p className="max-w-3xl text-sm leading-6 text-white/68">
-              {effectiveStatus === "CLOSED" || effectiveStatus === "CURATING"
+              {effectiveStatus === "CLOSED"
                 ? pick(locale, {
                     en: "Registration is closed for this gig. The board is now in review mode while admins lock the final set.",
                     ru: "Набор в этот гиг уже закрыт. Сетлист перешёл в режим просмотра, пока админы собирают финальный сет.",

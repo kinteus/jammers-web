@@ -24,7 +24,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       DATABASE_URL: databaseUrl,
-      SESSION_SECRET: process.env.SESSION_SECRET ?? "ci-local-session-secret",
+      SESSION_SECRET: process.env.SESSION_SECRET ?? "local-development-session-secret",
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? `http://127.0.0.1:${port}`,
       ENABLE_DEV_AUTH: process.env.ENABLE_DEV_AUTH ?? "true",
       DEFAULT_ADMIN_USERNAME: process.env.DEFAULT_ADMIN_USERNAME ?? "kinteus",

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 
 import { SiteHeader } from "@/components/site-header";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 import "./globals.css";
 
@@ -59,6 +61,9 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <body>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <SiteHeader locale={locale} user={user} />
         <main className="mx-auto min-h-[calc(100vh-73px)] max-w-[1440px] px-5 py-8 md:px-6">
           {children}

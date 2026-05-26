@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { pick, type Locale } from "@/lib/i18n";
 
@@ -38,16 +39,24 @@ function formatTimeLeft(targetMs: number, locale: Locale) {
 }
 
 export function EventRegistrationCountdown({
+  initialNowMs,
   locale,
+  onCompleteLabel,
+  refreshOnComplete = false,
   target,
 }: {
+  initialNowMs?: number;
   locale: Locale;
+  onCompleteLabel?: string;
+  refreshOnComplete?: boolean;
   target: Date | string;
 }) {
+  const router = useRouter();
   const targetMs = new Date(target).getTime();
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState<number | null>(initialNowMs ?? null);
 
   useEffect(() => {
+    setNowMs(Date.now());
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1_000);
@@ -57,8 +66,32 @@ export function EventRegistrationCountdown({
     };
   }, []);
 
+  useEffect(() => {
+    if (!refreshOnComplete || Number.isNaN(targetMs)) {
+      return;
+    }
+
+    const remainingMs = targetMs - Date.now();
+    if (remainingMs <= 0) {
+      router.refresh();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      router.refresh();
+    }, Math.min(remainingMs + 250, 2_147_483_647));
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [refreshOnComplete, router, targetMs]);
+
   if (Number.isNaN(targetMs)) {
     return null;
+  }
+
+  if (nowMs === null) {
+    return <span className="font-semibold text-sand">...</span>;
   }
 
   const remainingMs = targetMs - nowMs;
@@ -67,7 +100,7 @@ export function EventRegistrationCountdown({
     <span className="font-semibold text-sand">
       {remainingMs > 0
         ? formatTimeLeft(remainingMs, locale)
-        : pick(locale, { en: "Registration is open now", ru: "Регистрация уже открыта" })}
+        : onCompleteLabel ?? pick(locale, { en: "Registration is open now", ru: "Регистрация уже открыта" })}
     </span>
   );
 }

@@ -101,6 +101,58 @@ export function buildTelegramPublishedSetMessage({
   ].join("\n");
 }
 
+export function buildTelegramBoardClosedChannelMessage({
+  city,
+  eventStartsAt,
+  venueName,
+}: {
+  city: string | null | undefined;
+  eventStartsAt: Date;
+  venueName: string | null | undefined;
+}) {
+  const dateLabel = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "long",
+    weekday: "long",
+  }).format(eventStartsAt);
+  const venueLabel = [venueName || "TBA", city || null].filter(Boolean).join(", ");
+
+  return [
+    "🏁 Иии таблица закрыта!",
+    "",
+    "☕️ Мы берем небольшую паузу, чтобы собрать сетлист, а пока напомним про сам гиг:",
+    `📍 Где: ${venueLabel}`,
+    `📅 Когда: ${dateLabel}`,
+    "",
+    "💪 Спасибо вам за вашу активность!",
+  ].join("\n");
+}
+
+export function buildTelegramBoardClosedParticipantMessage({
+  eventStartsAt,
+  eventTitle,
+}: {
+  eventStartsAt: Date;
+  eventTitle: string;
+}) {
+  const dateLabel = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "long",
+    weekday: "long",
+  }).format(eventStartsAt);
+
+  return [
+    `Таблица для ${eventTitle} закрыта.`,
+    `Гиг: ${dateLabel}`,
+    "",
+    "Мы собираем финальный сетлист и сообщим, когда он будет опубликован.",
+  ].join("\n");
+}
+
 export function buildTelegramInviteMessage({
   eventTitle,
   inviterLabel,
@@ -221,6 +273,45 @@ export async function sendTelegramPublishedSetMessage({
       eventStartsAt,
       eventTitle,
       songs,
+    }),
+  });
+}
+
+export async function sendTelegramBoardClosedChannelMessage({
+  channelChatId,
+  city,
+  eventStartsAt,
+  venueName,
+}: {
+  channelChatId: string | null | undefined;
+  city: string | null | undefined;
+  eventStartsAt: Date;
+  venueName: string | null | undefined;
+}) {
+  return sendTelegramMessage({
+    chatId: channelChatId,
+    text: buildTelegramBoardClosedChannelMessage({
+      city,
+      eventStartsAt,
+      venueName,
+    }),
+  });
+}
+
+export async function sendTelegramBoardClosedParticipantMessage({
+  eventStartsAt,
+  eventTitle,
+  recipientTelegramId,
+}: {
+  eventStartsAt: Date;
+  eventTitle: string;
+  recipientTelegramId: string | null | undefined;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    text: buildTelegramBoardClosedParticipantMessage({
+      eventStartsAt,
+      eventTitle,
     }),
   });
 }

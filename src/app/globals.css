@@ -486,6 +486,18 @@ details > summary::-webkit-details-marker {
   }
 }
 
+@keyframes navigation-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  55% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
 .stats-card-animate {
   animation: stats-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -497,6 +509,7 @@ details > summary::-webkit-details-marker {
 
 @media (prefers-reduced-motion: reduce) {
   .community-quote-card,
+  .animate-\[navigation-progress_0\.95s_ease-in-out_infinite\],
   .stats-card-animate,
   .stats-bar-fill {
     animation: none !important;

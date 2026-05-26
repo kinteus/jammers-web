@@ -13,8 +13,9 @@ const LazyTrackProposalForm = dynamic(
   () => import("@/components/track-proposal-form").then((module) => module.TrackProposalForm),
   {
     loading: () => (
-      <div className="rounded-md border border-white/10 bg-white/6 px-4 py-4 text-sm leading-6 text-white/62">
-        <span className="font-semibold text-sand">...</span>
+      <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/6 px-4 py-4 text-sm leading-6 text-white/62">
+        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-gold" />
+        <span className="h-2 w-28 animate-pulse rounded-full bg-white/16" />
       </div>
     ),
   },

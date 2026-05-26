@@ -19,7 +19,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://itunes.apple.com https://telegram.org https://*.telegram.org",
+  "connect-src 'self' ws: wss: https://itunes.apple.com https://telegram.org https://*.telegram.org",
   "frame-src https://telegram.org https://*.telegram.org",
   "upgrade-insecure-requests",
 ].join("; ");

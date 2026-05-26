@@ -1,5 +1,11 @@
 import { EventStatus, type Event } from "@prisma/client";
 
+export type EventAudienceState = "DRAFT" | "OPEN" | "CLOSED" | "PUBLISHED" | "LIVE" | "ARCHIVED";
+
+function getNextLocalMidnight(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate() + 1);
+}
+
 export function getEffectiveEventStatus(
   event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt">,
 ) {
@@ -25,10 +31,58 @@ export function getEffectiveEventStatus(
 }
 
 export function getAutoSyncedEventStatus(
-  event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt">,
+  event: Pick<Event, "status" | "registrationOpensAt" | "registrationClosesAt"> & {
+    startsAt?: Date;
+  },
 ) {
+  const archiveBoundary = event.startsAt ? getNextLocalMidnight(event.startsAt) : null;
+  if (event.status === EventStatus.PUBLISHED && archiveBoundary && archiveBoundary <= new Date()) {
+    return EventStatus.ARCHIVED;
+  }
+
   const effectiveStatus = getEffectiveEventStatus(event);
   return effectiveStatus === event.status ? null : effectiveStatus;
+}
+
+export function getAllowedNextEventStatuses(status: EventStatus): EventStatus[] {
+  if (status === EventStatus.DRAFT) {
+    return [EventStatus.OPEN];
+  }
+  if (status === EventStatus.OPEN) {
+    return [EventStatus.CLOSED];
+  }
+  if (status === EventStatus.CLOSED) {
+    return [EventStatus.PUBLISHED];
+  }
+  if (status === EventStatus.PUBLISHED) {
+    return [EventStatus.ARCHIVED];
+  }
+
+  return [];
+}
+
+export function getEventAudienceState({
+  now = new Date(),
+  startsAt,
+  status,
+}: {
+  now?: Date;
+  startsAt: Date;
+  status: EventStatus;
+}): EventAudienceState {
+  if (status === EventStatus.ARCHIVED) {
+    return "ARCHIVED";
+  }
+
+  if (status === EventStatus.PUBLISHED && now >= getNextLocalMidnight(startsAt)) {
+    return "ARCHIVED";
+  }
+
+  if (status === EventStatus.PUBLISHED && now >= startsAt) {
+    return "LIVE";
+  }
+
+  return status;
 }
 
 export function isEventOpen(
@@ -48,7 +102,6 @@ export function allowsClosedOptionalSeatRequests(
 
   return (
     effectiveStatus === EventStatus.CLOSED ||
-    effectiveStatus === EventStatus.CURATING ||
     effectiveStatus === EventStatus.PUBLISHED
   );
 }

@@ -2,10 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const consumeRateLimitMock = vi.hoisted(() => vi.fn());
 const getClientIpFromHeadersMock = vi.hoisted(() => vi.fn());
+const songFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rate-limit", () => ({
   consumeRateLimit: consumeRateLimitMock,
   getClientIpFromHeaders: getClientIpFromHeadersMock,
+}));
+
+vi.mock("@/lib/db", () => ({
+  db: {
+    song: {
+      findMany: songFindManyMock,
+    },
+  },
 }));
 
 afterEach(() => {
@@ -28,6 +37,7 @@ describe("song search route", () => {
   it("falls back through artist lookup for artist-title queries without a dash", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
 
     const fetchMock = vi
       .fn()
@@ -89,6 +99,7 @@ describe("song search route", () => {
   it("falls back through artist lookup for artist-title queries that direct iTunes search misses", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
 
     const fetchMock = vi
       .fn()
@@ -158,5 +169,41 @@ describe("song search route", () => {
       "musicArtist",
     );
     expect(new URL(String(fetchMock.mock.calls[2][0])).pathname).toBe("/lookup");
+  });
+
+  it("returns local catalog matches when iTunes is unavailable", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([
+      {
+        id: "song-local-1",
+        title: "Сонный свет",
+        durationSeconds: 241,
+        itunesTrackId: null,
+        artist: {
+          name: "Минус Трели",
+        },
+      },
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request("http://localhost/api/song-search?query=%D1%81%D0%BE%D0%BD"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      results: [
+        {
+          artistName: "Минус Трели",
+          durationSeconds: 241,
+          externalId: "",
+          songId: "song-local-1",
+          trackTitle: "Сонный свет",
+        },
+      ],
+      warning: "Song search provider is unavailable. Showing local catalog matches.",
+    });
   });
 });

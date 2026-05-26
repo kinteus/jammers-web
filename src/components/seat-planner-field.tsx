@@ -255,10 +255,22 @@ export function SeatPlannerField({
                             key={option.mode}
                             onClick={(event) => {
                               event.preventDefault();
-                              setModes((currentModes) => ({
-                                ...currentModes,
-                                [seatKey]: option.mode,
-                              }));
+                              setModes((currentModes) => {
+                                const nextModes = { ...currentModes };
+                                if (option.mode === "claim") {
+                                  for (const seat of seatColumns) {
+                                    if (
+                                      seat.seatKey !== seatKey &&
+                                      getRoleFamilyKey(seat.label, seat.lineupKey) === group.family &&
+                                      nextModes[seat.seatKey] === "claim"
+                                    ) {
+                                      nextModes[seat.seatKey] = "open";
+                                    }
+                                  }
+                                }
+                                nextModes[seatKey] = option.mode;
+                                return nextModes;
+                              });
                             }}
                             type="button"
                           >

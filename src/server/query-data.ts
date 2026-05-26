@@ -3,7 +3,7 @@ import { cache } from "react";
 import { EventStatus, SetlistSection, TrackSeatStatus } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 
-import { FAQ_PAGE_DATA_TAG, HOME_PAGE_DATA_TAG } from "@/lib/cache-tags";
+import { FAQ_PAGE_DATA_TAG } from "@/lib/cache-tags";
 import { db } from "@/lib/db";
 import { buildArchiveStats, buildUserArchiveStats } from "@/lib/domain/archive-stats";
 import {
@@ -20,6 +20,12 @@ import {
   parseVideoUrls,
 } from "@/lib/site-content";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+import { env } from "@/lib/env";
+import {
+  sendTelegramBoardClosedChannelMessage,
+  sendTelegramBoardClosedParticipantMessage,
+} from "@/server/telegram-bot";
+import { publishBoardUpdate } from "@/server/board-event-bus";
 
 const EVENT_STATUS_SYNC_INTERVAL_MS = 30_000;
 
@@ -104,22 +110,49 @@ function getEventWorkspaceInclude() {
 }
 
 async function runDateDrivenEventStatusSync() {
+  if (env.LIVE_PRODUCTION_TUNNEL) {
+    return;
+  }
+
   const now = new Date();
   const events = await db.event.findMany({
     where: {
       status: {
-        in: [EventStatus.DRAFT, EventStatus.OPEN],
+        in: [EventStatus.DRAFT, EventStatus.OPEN, EventStatus.PUBLISHED],
       },
       OR: [
         { registrationOpensAt: { not: null, lte: now } },
         { registrationClosesAt: { not: null, lte: now } },
+        { startsAt: { lte: now } },
       ],
     },
     select: {
       id: true,
       status: true,
+      startsAt: true,
+      title: true,
+      venueName: true,
       registrationOpensAt: true,
       registrationClosesAt: true,
+      tracks: {
+        where: { state: "ACTIVE" },
+        select: {
+          seats: {
+            where: {
+              status: TrackSeatStatus.CLAIMED,
+              userId: { not: null },
+            },
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  telegramId: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -136,14 +169,55 @@ async function runDateDrivenEventStatusSync() {
     return;
   }
 
-  await db.$transaction(
-    updates.map((event) =>
-      db.event.update({
-        where: { id: event.id },
-        data: { status: event.nextStatus },
-      }),
-    ),
-  );
+  for (const update of updates) {
+    const event = events.find((item) => item.id === update.id);
+    if (!event) {
+      continue;
+    }
+
+    const result = await db.event.updateMany({
+      where: {
+        id: update.id,
+        status: event.status,
+      },
+      data: { status: update.nextStatus },
+    });
+    if (result.count === 0) {
+      continue;
+    }
+
+    if (update.nextStatus === EventStatus.CLOSED) {
+      const recipients = new Map<string, string | null>();
+      for (const track of event.tracks) {
+        for (const seat of track.seats) {
+          if (seat.user) {
+            recipients.set(seat.user.id, seat.user.telegramId);
+          }
+        }
+      }
+
+      await Promise.allSettled([
+        sendTelegramBoardClosedChannelMessage({
+          channelChatId: env.TELEGRAM_CHANNEL_CHAT_ID,
+          city: env.DEFAULT_EVENT_CITY,
+          eventStartsAt: event.startsAt,
+          venueName: event.venueName,
+        }),
+        ...[...recipients.values()].map((recipientTelegramId) =>
+          sendTelegramBoardClosedParticipantMessage({
+            eventStartsAt: event.startsAt,
+            eventTitle: event.title,
+            recipientTelegramId,
+          }),
+        ),
+      ]);
+    }
+
+    await publishBoardUpdate({
+      eventId: update.id,
+      reason: "event-status",
+    }).catch(() => {});
+  }
 }
 
 async function syncDateDrivenEventStatuses() {
@@ -164,14 +238,19 @@ async function syncDateDrivenEventStatuses() {
   await eventStatusSyncPromise;
 }
 
-const getCachedHomePageData = unstable_cache(
-  async () => {
+export async function getHomePageData() {
     await syncDateDrivenEventStatuses();
     const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const [events, communityQuotes, archiveEvents, content] = await Promise.all([
       db.event.findMany({
         where: {
-          OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+          AND: [
+            { status: { not: EventStatus.ARCHIVED } },
+            {
+              OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: today } }],
+            },
+          ],
         },
         include: {
           tracks: {
@@ -195,7 +274,7 @@ const getCachedHomePageData = unstable_cache(
       }),
       db.event.findMany({
         where: {
-          status: EventStatus.PUBLISHED,
+          status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
           startsAt: { lt: now },
         },
         include: {
@@ -260,16 +339,48 @@ const getCachedHomePageData = unstable_cache(
       publishedEvents: archiveEvents.slice(0, 5),
       archiveStats: buildArchiveStats(archiveEvents),
     };
-  },
-  ["home-page-data"],
-  {
-    revalidate: 60,
-    tags: [HOME_PAGE_DATA_TAG],
-  },
-);
+}
 
-export async function getHomePageData() {
-  return getCachedHomePageData();
+export async function getArchivePageData() {
+  await syncDateDrivenEventStatuses();
+  const now = new Date();
+  const archiveEvents = await db.event.findMany({
+    where: {
+      status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
+      startsAt: { lt: now },
+    },
+    include: {
+      setlistItems: {
+        where: { section: SetlistSection.MAIN },
+        orderBy: { orderIndex: "asc" },
+        include: {
+          track: {
+            include: {
+              proposedBy: {
+                select: archiveUserSelect,
+              },
+              song: {
+                include: { artist: true },
+              },
+              seats: {
+                include: {
+                  user: {
+                    select: archiveUserSelect,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { startsAt: "desc" },
+  });
+
+  return {
+    archiveStats: buildArchiveStats(archiveEvents),
+    publishedEvents: archiveEvents,
+  };
 }
 
 export const getEventWorkspace = cache(async function getEventWorkspace(slug: string) {
@@ -369,7 +480,12 @@ export async function getProfileWorkspace(userId: string) {
             track: {
               state: "ACTIVE",
               event: {
-                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                AND: [
+                  { status: { not: EventStatus.ARCHIVED } },
+                  {
+                    OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                  },
+                ],
               },
             },
           },
@@ -398,7 +514,12 @@ export async function getProfileWorkspace(userId: string) {
             status: "PENDING",
             track: {
               event: {
-                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                AND: [
+                  { status: { not: EventStatus.ARCHIVED } },
+                  {
+                    OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                  },
+                ],
               },
             },
           },
@@ -423,7 +544,12 @@ export async function getProfileWorkspace(userId: string) {
             status: "PENDING",
             track: {
               event: {
-                OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                AND: [
+                  { status: { not: EventStatus.ARCHIVED } },
+                  {
+                    OR: [{ status: { not: EventStatus.PUBLISHED } }, { startsAt: { gte: now } }],
+                  },
+                ],
               },
             },
           },
@@ -447,7 +573,7 @@ export async function getProfileWorkspace(userId: string) {
     }),
     db.event.findMany({
       where: {
-        status: EventStatus.PUBLISHED,
+        status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
         setlistItems: {
           some: {
             track: {

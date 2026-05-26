@@ -42,6 +42,32 @@ describe("SongSearchField", () => {
     ).toBe("1787004043");
   });
 
+  it("submits the selected local song id when the result came from the catalog", () => {
+    const { container } = render(
+      <SongSearchField
+        locale="ru"
+        onSelectedChange={() => undefined}
+        selected={{
+          artistName: "Минус Трели",
+          artworkUrl: null,
+          collectionName: null,
+          durationSeconds: null,
+          externalId: "",
+          externalUrl: null,
+          songId: "song-local-1",
+          trackTitle: "Сонный свет",
+        }}
+      />,
+    );
+
+    expect(container.querySelector<HTMLInputElement>('input[name="songId"]')?.value).toBe(
+      "song-local-1",
+    );
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="selectedExternalId"]')?.value,
+    ).toBe("");
+  });
+
   it("debounces iTunes search while the user keeps typing", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ results: [] }), {

@@ -22,7 +22,7 @@ export function resolveLatestSetlistHref({
     .slice()
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0];
 
-  return nearestCurrent ? `/events/${nearestCurrent.id}` : "/#published";
+  return nearestCurrent ? `/events/${nearestCurrent.id}` : "/archive";
 }
 
 export function resolveCurrentSetlistHref({

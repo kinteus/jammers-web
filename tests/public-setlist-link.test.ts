@@ -17,16 +17,14 @@ describe("resolveLatestSetlistHref", () => {
     ).toBe("/events/published-1");
   });
 
-  it("falls back to the nearest current event and then the home anchor", () => {
+  it("falls back to the nearest current event and then the archive page", () => {
     expect(
       resolveLatestSetlistHref({
         publishedEvents: [],
         currentEvents: [{ id: "open-1", startsAt: new Date("2026-05-05T18:00:00.000Z") }],
       }),
     ).toBe("/events/open-1");
-    expect(resolveLatestSetlistHref({ publishedEvents: [], currentEvents: [] })).toBe(
-      "/#published",
-    );
+    expect(resolveLatestSetlistHref({ publishedEvents: [], currentEvents: [] })).toBe("/archive");
   });
 });
 
@@ -42,7 +40,7 @@ describe("resolveCurrentSetlistHref", () => {
     ).toBe("/events/open-1");
   });
 
-  it("falls back to the latest published event and then the home anchor", () => {
+  it("falls back to the latest published event and then the archive page", () => {
     expect(
       resolveCurrentSetlistHref({
         publishedEvents: [
@@ -51,8 +49,6 @@ describe("resolveCurrentSetlistHref", () => {
         currentEvents: [],
       }),
     ).toBe("/events/published-1");
-    expect(resolveCurrentSetlistHref({ publishedEvents: [], currentEvents: [] })).toBe(
-      "/#published",
-    );
+    expect(resolveCurrentSetlistHref({ publishedEvents: [], currentEvents: [] })).toBe("/archive");
   });
 });

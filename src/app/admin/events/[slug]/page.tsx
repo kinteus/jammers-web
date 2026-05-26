@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { TrackSeatStatus } from "@prisma/client";
 
-import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import { getAllowedNextEventStatuses, getEffectiveEventStatus } from "@/lib/domain/event-status";
+import { formatDateTimeLocalInput } from "@/lib/domain/local-datetime";
 import { getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
@@ -11,11 +12,14 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   formatTrackInfoFieldsForTextarea,
   getEventTrackInfoFields,
+  getTrackInfoKeys,
+  getTrackInfoLabel,
 } from "@/lib/track-info-flags";
 import {
   acquireCurationLockAction,
   adminAssignSeatAction,
   adminClearSeatAction,
+  adminReplaceTrackSongAction,
   cancelTrackAction,
   deleteEventAction,
   publishSetlistAction,
@@ -23,15 +27,19 @@ import {
   sortSetlistByDrummerAction,
   updateEventAction,
   updateEventStatusAction,
+  updateTrackSettingsAction,
 } from "@/server/actions";
 import { isDatabaseAvailable } from "@/server/database-health";
 import { requireAdmin } from "@/server/auth-guards";
 import { getEventWorkspace } from "@/server/query-data";
+import { db } from "@/lib/db";
 
 import { AdminSetlistStack } from "@/components/admin-setlist-stack";
+import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -110,9 +118,20 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
   }
 
   let event;
+  let songCatalog: Array<{
+    id: string;
+    title: string;
+    artist: { name: string };
+  }> = [];
 
   try {
-    event = await getEventWorkspace(slug);
+    [event, songCatalog] = await Promise.all([
+      getEventWorkspace(slug),
+      db.song.findMany({
+        include: { artist: true },
+        orderBy: [{ artist: { name: "asc" } }, { title: "asc" }],
+      }),
+    ]);
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) {
       throw error;
@@ -152,6 +171,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
     getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback),
   );
   const effectiveStatus = getEffectiveEventStatus(event);
+  const nextStatuses = getAllowedNextEventStatuses(event.status);
   const mainSetItems = event.setlistItems
     .filter((item) => item.section === "MAIN")
     .sort((left, right) => left.orderIndex - right.orderIndex)
@@ -183,12 +203,29 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
           })}
         </div>
       ) : null}
+      {notice === "status-partial-notify" ? (
+        <div className="rounded-xl border border-gold/30 bg-gold/12 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "The status changed, but at least one Telegram notification failed.",
+            ru: "Статус изменён, но как минимум одно Telegram-уведомление не дошло.",
+          })}
+        </div>
+      ) : null}
+      {notice === "selection-run" ? (
+        <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "Selection finished. The board status is now closed and the main set/backlog were refreshed.",
+            ru: "Отбор завершён. Таблица теперь закрыта, мейн-сет и бэклог обновлены.",
+          })}
+        </div>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
         <Card className="space-y-4">
           <Badge>{pick(locale, { en: "Event settings", ru: "Настройки гига" })}</Badge>
           <h1 className="font-display text-4xl font-semibold">{event.title}</h1>
           <form action={updateEventAction} className="grid gap-4 md:grid-cols-2">
+            <AdminTimezoneOffsetField />
             <input name="eventId" type="hidden" value={event.id} />
             <input name="eventSlug" type="hidden" value={event.id} />
             <label className="space-y-2 text-sm md:col-span-2">
@@ -203,7 +240,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               <span>{pick(locale, { en: "Starts at", ru: "Начало" })}</span>
               <input
                 className="w-full px-4 py-3"
-                defaultValue={new Date(event.startsAt).toISOString().slice(0, 16)}
+                defaultValue={formatDateTimeLocalInput(event.startsAt)}
                 name="startsAt"
                 required
                 type="datetime-local"
@@ -213,7 +250,11 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               <span>{pick(locale, { en: "Registration opens at", ru: "Старт регистрации" })}</span>
               <input
                 className="w-full px-4 py-3"
-                defaultValue={event.registrationOpensAt?.toISOString().slice(0, 16) ?? ""}
+                defaultValue={
+                  event.registrationOpensAt
+                    ? formatDateTimeLocalInput(event.registrationOpensAt)
+                    : ""
+                }
                 name="registrationOpensAt"
                 required
                 type="datetime-local"
@@ -223,7 +264,11 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               <span>{pick(locale, { en: "Registration closes at", ru: "Окончание регистрации" })}</span>
               <input
                 className="w-full px-4 py-3"
-                defaultValue={event.registrationClosesAt?.toISOString().slice(0, 16) ?? ""}
+                defaultValue={
+                  event.registrationClosesAt
+                    ? formatDateTimeLocalInput(event.registrationClosesAt)
+                    : ""
+                }
                 name="registrationClosesAt"
                 required
                 type="datetime-local"
@@ -347,7 +392,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               ) : null}
             </div>
             <div className="flex flex-wrap gap-3">
-              {["DRAFT", "OPEN", "CLOSED", "CURATING", "PUBLISHED"].map((status) => (
+              {nextStatuses.map((status) => (
                 <form action={updateEventStatusAction} key={status}>
                   <input name="eventId" type="hidden" value={event.id} />
                   <input name="eventSlug" type="hidden" value={event.id} />
@@ -369,16 +414,23 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Selection", ru: "Отбор" })}</Badge>
             <p className="text-sm text-ink/70">
               {pick(locale, {
-                en: "Run the coverage-first selection to populate the main set and backlog. Admins can then manually reorder or swap tracks.",
-                ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог. После этого админы смогут вручную переставлять и обменивать треки.",
+                en: "Run the coverage-first selection to populate the main set and backlog. This closes the board if it is not closed yet.",
+                ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог. Если таблица ещё не закрыта, запуск её закроет.",
               })}
             </p>
             <form action={runSelectionAction}>
               <input name="eventId" type="hidden" value={event.id} />
               <input name="eventSlug" type="hidden" value={event.id} />
-              <SubmitButton pendingLabel={pick(locale, { en: "Running selection...", ru: "Запускаем отбор..." })} type="submit">
+              <ConfirmSubmitButton
+                confirmMessage={pick(locale, {
+                  en: "Run the selection algorithm now? This will close the board and rebuild the main set/backlog.",
+                  ru: "Запустить алгоритм отбора сейчас? Это закроет таблицу и пересоберёт мейн-сет/бэклог.",
+                })}
+                pendingLabel={pick(locale, { en: "Running selection...", ru: "Запускаем отбор..." })}
+                type="submit"
+              >
                 {pick(locale, { en: "Run selection algorithm", ru: "Запустить алгоритм отбора" })}
-              </SubmitButton>
+              </ConfirmSubmitButton>
             </form>
             <form action={sortSetlistByDrummerAction}>
               <input name="eventId" type="hidden" value={event.id} />
@@ -471,6 +523,9 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             const completion = getTrackCompletionSummary(track.seats);
             const claimedCount = track.seats.filter((seat) => seat.status === TrackSeatStatus.CLAIMED).length;
             const occupiedLineup = buildLineupSummary(locale, track.seats);
+            const activeTrackInfoKeys = new Set(
+              getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired),
+            );
 
             return (
               <details className="brand-shell overflow-hidden rounded-2xl border-white/10" key={track.id}>
@@ -495,6 +550,20 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
                 <div className="space-y-3 border-t border-white/10 px-5 py-5">
                   <div className="flex flex-wrap justify-end gap-3">
+                    <form action={adminReplaceTrackSongAction} className="flex flex-wrap items-center gap-2">
+                      <input name="trackId" type="hidden" value={track.id} />
+                      <input name="eventSlug" type="hidden" value={event.id} />
+                      <select className="min-w-[260px] px-3 py-2 text-sm" defaultValue={track.songId} name="songId">
+                        {songCatalog.map((song) => (
+                          <option key={song.id} value={song.id}>
+                            {song.artist.name} - {song.title}
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton pendingLabel={pick(locale, { en: "Replacing...", ru: "Меняем..." })} type="submit" variant="secondary">
+                        {pick(locale, { en: "Replace song", ru: "Заменить песню" })}
+                      </SubmitButton>
+                    </form>
                     <form action={cancelTrackAction}>
                       <input name="trackId" type="hidden" value={track.id} />
                       <input name="eventSlug" type="hidden" value={event.id} />
@@ -503,6 +572,49 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                       </SubmitButton>
                     </form>
                   </div>
+
+                  <form action={updateTrackSettingsAction} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-4 md:grid-cols-2">
+                    <input name="trackId" type="hidden" value={track.id} />
+                    <input name="eventSlug" type="hidden" value={event.id} />
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span>{pick(locale, { en: "Track notes", ru: "Заметки трека" })}</span>
+                      <textarea className="min-h-20 w-full px-3 py-2" defaultValue={track.comment ?? ""} name="comment" />
+                    </label>
+                    {getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback).map((field) => (
+                      <label className="flex items-center gap-2 text-sm" key={field.key}>
+                        <input
+                          defaultChecked={activeTrackInfoKeys.has(field.key)}
+                          name="trackInfoFlagKeys"
+                          type="checkbox"
+                          value={field.key}
+                        />
+                        {getTrackInfoLabel(field, locale)}
+                      </label>
+                    ))}
+                    <div className="space-y-2 md:col-span-2">
+                      <p className="text-sm font-semibold text-sand">
+                        {pick(locale, { en: "Optional open positions", ru: "Опциональные открытые позиции" })}
+                      </p>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {track.seats
+                          .filter((seat) => seat.status === TrackSeatStatus.OPEN)
+                          .map((seat) => (
+                            <label className="flex items-center gap-2 text-sm" key={seat.id}>
+                              <input
+                                defaultChecked={seat.isOptional}
+                                name="optionalSeatIds"
+                                type="checkbox"
+                                value={seat.id}
+                              />
+                              {seat.label}
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                    <SubmitButton className="md:col-span-2" pendingLabel={pick(locale, { en: "Saving track...", ru: "Сохраняем трек..." })} type="submit" variant="secondary">
+                      {pick(locale, { en: "Save track settings", ru: "Сохранить настройки трека" })}
+                    </SubmitButton>
+                  </form>
 
                   <div className="space-y-2">
                     {track.seats.map((seat) => (

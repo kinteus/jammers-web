@@ -12,6 +12,7 @@ import {
   Minus,
   Search,
   Send,
+  Settings2,
   UserPlus,
   X,
 } from "lucide-react";
@@ -29,10 +30,12 @@ import {
   claimSeatInlineAction,
   inviteToSeatInlineAction,
   releaseSeatInlineAction,
+  updateTrackSettingsAction,
 } from "@/server/actions";
 
 import { FloatingToast } from "@/components/floating-toast";
 import { Loader } from "@/components/ui/loader";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type BoardUser = {
   id: string;
@@ -116,6 +119,7 @@ const invitePopoverMinHeight = 120;
 type InvitePopoverLayoutInput = {
   align: "end" | "start";
   preferAbove: boolean;
+  stickyTopBoundary?: number;
   triggerRect: Pick<DOMRect, "bottom" | "left" | "right" | "top">;
   viewportHeight: number;
   viewportWidth: number;
@@ -135,10 +139,12 @@ function clampValue(value: number, min: number, max: number) {
 export function getInvitePopoverLayout({
   align,
   preferAbove,
+  stickyTopBoundary,
   triggerRect,
   viewportHeight,
   viewportWidth,
 }: InvitePopoverLayoutInput): InvitePopoverLayout {
+  const topBoundary = Math.max(invitePopoverMargin, stickyTopBoundary ?? invitePopoverMargin);
   const availableWidth = Math.max(0, viewportWidth - invitePopoverMargin * 2);
   const width = Math.min(invitePopoverMaxWidth, availableWidth);
   const preferredLeft = align === "start" ? triggerRect.left : triggerRect.right - width;
@@ -165,10 +171,18 @@ export function getInvitePopoverLayout({
   const preferredTop = placeAbove
     ? triggerRect.top - maxHeight - invitePopoverGap
     : triggerRect.bottom + invitePopoverGap;
-  const maxTop = Math.max(invitePopoverMargin, viewportHeight - maxHeight - invitePopoverMargin);
-  const top = clampValue(preferredTop, invitePopoverMargin, maxTop);
+  const maxTop = Math.max(topBoundary, viewportHeight - maxHeight - invitePopoverMargin);
+  const top = clampValue(preferredTop, topBoundary, maxTop);
 
   return { left, maxHeight, top, width };
+}
+
+function getStickyTableHeaderBottom(trigger: HTMLElement) {
+  const table = trigger.closest("table");
+  const header = table?.querySelector("thead");
+  const headerBottom = header?.getBoundingClientRect().bottom;
+
+  return typeof headerBottom === "number" ? headerBottom + invitePopoverGap : undefined;
 }
 
 type SeatAvailabilitySort = {
@@ -790,6 +804,7 @@ function InviteControl({
         getInvitePopoverLayout({
           align,
           preferAbove,
+          stickyTopBoundary: getStickyTableHeaderBottom(trigger),
           triggerRect: trigger.getBoundingClientRect(),
           viewportHeight: window.innerHeight,
           viewportWidth: window.innerWidth,
@@ -965,6 +980,115 @@ function InviteControl({
         </form>
       ) : null}
     </div>
+  );
+}
+
+function TrackSettingsControl({
+  eventSlug,
+  layout = "popover",
+  locale,
+  track,
+  trackInfoFields,
+}: {
+  eventSlug: string;
+  layout?: "inline" | "popover";
+  locale: Locale;
+  track: BoardTrack;
+  trackInfoFields: TrackInfoField[];
+}) {
+  const activeTrackInfoKeys = new Set(
+    getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired),
+  );
+  const openSeats = track.seats.filter((seat) => seat.status === TrackSeatStatus.OPEN);
+  const isInline = layout === "inline";
+
+  return (
+    <details className={cn("group/settings", isInline ? "w-full" : "relative")}>
+      <summary
+        className={cn(
+          "list-none cursor-pointer text-white",
+          isInline
+            ? "inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition hover:bg-white/14"
+            : iconButtonClass(),
+        )}
+        data-tip={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+        title={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+        {isInline ? <span>{pick(locale, { en: "Settings", ru: "Настройки" })}</span> : null}
+      </summary>
+      <form
+        action={updateTrackSettingsAction}
+        className={cn(
+          "z-50 grid gap-3 rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card",
+          isInline ? "mt-2" : "absolute right-0 top-7 w-72",
+        )}
+      >
+        <input name="trackId" type="hidden" value={track.id} />
+        <input name="eventSlug" type="hidden" value={eventSlug} />
+        <label className="grid gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/54">
+            {pick(locale, { en: "Track notes", ru: "Заметки трека" })}
+          </span>
+          <textarea
+            className="min-h-20 w-full rounded-sm border border-white/10 bg-black/24 px-2 py-1.5 text-xs text-sand focus:border-gold/45 focus:ring-gold/20"
+            defaultValue={track.comment ?? ""}
+            name="comment"
+          />
+        </label>
+
+        {trackInfoFields.length > 0 ? (
+          <div className="grid gap-1.5">
+            {trackInfoFields.map((field) => (
+              <label className="flex items-center gap-2" key={field.key}>
+                <input
+                  defaultChecked={activeTrackInfoKeys.has(field.key)}
+                  name="trackInfoFlagKeys"
+                  type="checkbox"
+                  value={field.key}
+                />
+                <span>{getTrackInfoLabel(field, locale)}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/54">
+            {pick(locale, { en: "Optional open positions", ru: "Опциональные открытые позиции" })}
+          </span>
+          {openSeats.length > 0 ? (
+            openSeats.map((seat) => (
+              <label className="flex items-center gap-2" key={seat.id}>
+                <input
+                  defaultChecked={seat.isOptional}
+                  name="optionalSeatIds"
+                  type="checkbox"
+                  value={seat.id}
+                />
+                <span>{seat.label}</span>
+              </label>
+            ))
+          ) : (
+            <span className="text-white/48">
+              {pick(locale, {
+                en: "No open positions can be changed right now.",
+                ru: "Сейчас нет открытых позиций, которые можно поменять.",
+              })}
+            </span>
+          )}
+        </div>
+
+        <SubmitButton
+          pendingLabel={pick(locale, { en: "Saving...", ru: "Сохраняем..." })}
+          size="sm"
+          type="submit"
+          variant="secondary"
+        >
+          {pick(locale, { en: "Save track settings", ru: "Сохранить настройки трека" })}
+        </SubmitButton>
+      </form>
+    </details>
   );
 }
 
@@ -1488,42 +1612,50 @@ export function TrackBoardTable({
                           </details>
                         ) : null}
                         {canManageTrack ? (
-                          <form
-                            action={cancelTrackAction}
-                            onSubmit={(event) => {
-                              if (
-                                !window.confirm(
-                                  pick(locale, {
-                                    en: `Remove "${track.song.title}" from the setlist?`,
-                                    ru: `Убрать "${track.song.title}" из сетлиста?`,
-                                  }),
-                                )
-                              ) {
-                                event.preventDefault();
-                              }
-                            }}
-                          >
-                            <input name="trackId" type="hidden" value={track.id} />
-                            <input name="eventSlug" type="hidden" value={eventSlug} />
-                            <button
-                              aria-label={pick(locale, {
-                                en: `Remove ${track.song.title}`,
-                                ru: `Убрать ${track.song.title}`,
-                              })}
-                              className={cn(
-                                iconButtonClass(),
-                                "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                              )}
-                              data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
-                              title={pick(locale, {
-                                en: `Remove ${track.song.title}`,
-                                ru: `Убрать ${track.song.title}`,
-                              })}
-                              type="submit"
+                          <>
+                            <TrackSettingsControl
+                              eventSlug={eventSlug}
+                              locale={locale}
+                              track={track}
+                              trackInfoFields={trackInfoFields}
+                            />
+                            <form
+                              action={cancelTrackAction}
+                              onSubmit={(event) => {
+                                if (
+                                  !window.confirm(
+                                    pick(locale, {
+                                      en: `Remove "${track.song.title}" from the setlist?`,
+                                      ru: `Убрать "${track.song.title}" из сетлиста?`,
+                                    }),
+                                  )
+                                ) {
+                                  event.preventDefault();
+                                }
+                              }}
                             >
-                              <X className="h-4 w-4 stroke-[3]" />
-                            </button>
-                          </form>
+                              <input name="trackId" type="hidden" value={track.id} />
+                              <input name="eventSlug" type="hidden" value={eventSlug} />
+                              <button
+                                aria-label={pick(locale, {
+                                  en: `Remove ${track.song.title}`,
+                                  ru: `Убрать ${track.song.title}`,
+                                })}
+                                className={cn(
+                                  iconButtonClass(),
+                                  "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
+                                )}
+                                data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
+                                title={pick(locale, {
+                                  en: `Remove ${track.song.title}`,
+                                  ru: `Убрать ${track.song.title}`,
+                                })}
+                                type="submit"
+                              >
+                                <X className="h-4 w-4 stroke-[3]" />
+                              </button>
+                            </form>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -1920,38 +2052,47 @@ export function TrackBoardTable({
                     </details>
                   ) : null}
                   {canManageTrack ? (
-                    <form
-                      action={cancelTrackAction}
-                      onSubmit={(event) => {
-                        if (
-                          !window.confirm(
-                            pick(locale, {
-                              en: `Remove "${track.song.title}" from the setlist?`,
-                              ru: `Убрать "${track.song.title}" из сетлиста?`,
-                            }),
-                          )
-                        ) {
-                          event.preventDefault();
-                        }
-                      }}
-                    >
-                      <input name="trackId" type="hidden" value={track.id} />
-                      <input name="eventSlug" type="hidden" value={eventSlug} />
-                      <button
-                        aria-label={pick(locale, {
-                          en: `Remove ${track.song.title}`,
-                          ru: `Убрать ${track.song.title}`,
-                        })}
-                        className={cn(
-                          iconButtonClass(),
-                          "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                        )}
-                        data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
-                        type="submit"
+                    <>
+                      <TrackSettingsControl
+                        eventSlug={eventSlug}
+                        layout="inline"
+                        locale={locale}
+                        track={track}
+                        trackInfoFields={trackInfoFields}
+                      />
+                      <form
+                        action={cancelTrackAction}
+                        onSubmit={(event) => {
+                          if (
+                            !window.confirm(
+                              pick(locale, {
+                                en: `Remove "${track.song.title}" from the setlist?`,
+                                ru: `Убрать "${track.song.title}" из сетлиста?`,
+                              }),
+                            )
+                          ) {
+                            event.preventDefault();
+                          }
+                        }}
                       >
-                        <X className="h-4 w-4 stroke-[3]" />
-                      </button>
-                    </form>
+                        <input name="trackId" type="hidden" value={track.id} />
+                        <input name="eventSlug" type="hidden" value={eventSlug} />
+                        <button
+                          aria-label={pick(locale, {
+                            en: `Remove ${track.song.title}`,
+                            ru: `Убрать ${track.song.title}`,
+                          })}
+                          className={cn(
+                            iconButtonClass(),
+                            "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
+                          )}
+                          data-tip={pick(locale, { en: "Remove", ru: "Убрать" })}
+                          type="submit"
+                        >
+                          <X className="h-4 w-4 stroke-[3]" />
+                        </button>
+                      </form>
+                    </>
                   ) : null}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">

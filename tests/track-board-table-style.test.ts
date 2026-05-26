@@ -44,4 +44,22 @@ describe("track board table styling", () => {
     expect(layout.top).toBeGreaterThanOrEqual(12);
     expect(layout.top + layout.maxHeight).toBeLessThanOrEqual(628);
   });
+
+  it("keeps the invite user picker below the sticky table header", () => {
+    const layout = getInvitePopoverLayout({
+      align: "end",
+      preferAbove: false,
+      stickyTopBoundary: 132,
+      triggerRect: {
+        bottom: 110,
+        left: 140,
+        right: 172,
+        top: 78,
+      },
+      viewportHeight: 760,
+      viewportWidth: 960,
+    });
+
+    expect(layout.top).toBeGreaterThanOrEqual(132);
+  });
 });

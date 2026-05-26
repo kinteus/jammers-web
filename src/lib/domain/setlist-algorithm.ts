@@ -5,6 +5,7 @@ type CandidateTrack = {
   songId: string;
   songTitle: string;
   artistName: string;
+  hasUnfilledRequiredSeats?: boolean;
   participantIds: string[];
   filledSeatRatio: number;
   createdAt: Date;
@@ -52,7 +53,10 @@ export function buildSetlistRecommendation({
   const selected: SelectionResult["selected"] = [];
   const backlog: SelectionResult["backlog"] = [];
   const remaining = [...candidates].filter(
-    (candidate) => !previousConcertSongIds.has(candidate.songId) && candidate.participantIds.length > 0,
+    (candidate) =>
+      !previousConcertSongIds.has(candidate.songId) &&
+      !candidate.hasUnfilledRequiredSeats &&
+      candidate.participantIds.length > 0,
   );
   const coveredUsers = new Set<string>();
   while (remaining.length > 0) {
@@ -109,10 +113,20 @@ export function buildSetlistRecommendation({
       section: SetlistSection.BACKLOG,
       reasons: ["Skipped because the same song appeared in the previous concert."],
     }));
+  const rejectedDueToRequiredSeats = candidates
+    .filter(
+      (candidate) =>
+        !previousConcertSongIds.has(candidate.songId) && candidate.hasUnfilledRequiredSeats,
+    )
+    .map((candidate) => ({
+      trackId: candidate.id,
+      section: SetlistSection.BACKLOG,
+      reasons: ["Skipped because required positions are still open."],
+    }));
 
   return {
     selected,
-    backlog: [...backlog, ...rejectedDueToPrevious],
+    backlog: [...backlog, ...rejectedDueToRequiredSeats, ...rejectedDueToPrevious],
     coverageCount: coveredUsers.size,
   };
 }

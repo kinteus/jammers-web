@@ -23,7 +23,7 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
     "inline-block text-sm font-semibold text-white/82 transition duration-200 hover:text-gold active:translate-y-0.5 active:text-white";
   const primaryLinks = [
     { href: "/", label: pick(locale, { en: "Home", ru: "Главная" }) },
-    { href: "/#published", label: pick(locale, { en: "Setlists", ru: "Сетлисты" }) },
+    { href: "/archive", label: pick(locale, { en: "Setlists", ru: "Сетлисты" }) },
     { href: "/about", label: pick(locale, { en: "About Us", ru: "О нас" }) },
     { href: "/faq", label: pick(locale, { en: "FAQ", ru: "FAQ" }) },
   ];

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTelegramBoardClosedChannelMessage,
   buildTelegramInviteMessage,
   buildTelegramPublishedSetMessage,
 } from "@/server/telegram-bot";
@@ -42,5 +43,20 @@ describe("telegram invite message", () => {
 
     expect(message).toContain("@anna_drums invited you to Blur - Song 2 (Bass) for Spring Jam Night.");
     expect(message).toContain('<a href="https://thejammers.org/profile">your profile invites</a>');
+  });
+});
+
+describe("telegram board closed channel message", () => {
+  it("formats venue and gig timing for the public channel post", () => {
+    const message = buildTelegramBoardClosedChannelMessage({
+      city: "Limassol",
+      eventStartsAt: new Date("2026-05-01T16:30:00.000Z"),
+      venueName: "Dusty Munky",
+    });
+
+    expect(message).toContain("🏁 Иии таблица закрыта!");
+    expect(message).toContain("📍 Где: Dusty Munky, Limassol");
+    expect(message).toContain("📅 Когда:");
+    expect(message).toContain("19:30");
   });
 });

@@ -70,6 +70,7 @@ function buildFormData() {
 function buildPublishedEvent() {
   return {
     id: "event-1",
+    status: EventStatus.CLOSED,
     title: "Spring Jam Night",
     startsAt: new Date("2026-05-01T19:30:00.000Z"),
     setlistItems: [

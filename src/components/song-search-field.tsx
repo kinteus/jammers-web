@@ -8,6 +8,7 @@ import { pick, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type SongSearchResult = {
+  songId?: string | null;
   externalId: string;
   trackTitle: string;
   artistName: string;
@@ -35,6 +36,7 @@ export function SongSearchField({
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SongSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const trimmedQuery = query.trim();
   const shouldSearch = debouncedQuery.length >= 2 && !selected;
@@ -61,6 +63,7 @@ export function SongSearchField({
     if (!shouldSearch) {
       setResults([]);
       setIsLoading(false);
+      setSearchMessage(null);
       setHighlightedIndex(0);
       return;
     }
@@ -71,6 +74,7 @@ export function SongSearchField({
     if (cachedResults) {
       startTransition(() => {
         setResults(cachedResults);
+        setSearchMessage(null);
         setHighlightedIndex(0);
       });
       setIsLoading(false);
@@ -87,18 +91,25 @@ export function SongSearchField({
         if (!response.ok) {
           throw new Error("Song search provider failed.");
         }
-        return response.json() as Promise<{ results: SongSearchResult[] }>;
+        return response.json() as Promise<{ results: SongSearchResult[]; warning?: string }>;
       })
       .then((payload) => {
         songSearchCache.set(cacheKey, payload.results);
         startTransition(() => {
           setResults(payload.results);
+          setSearchMessage(payload.warning ?? null);
           setHighlightedIndex(0);
         });
       })
       .catch(() => {
         startTransition(() => {
           setResults([]);
+          setSearchMessage(
+            pick(locale, {
+              en: "Song search is temporarily unavailable. Try again in a moment or ask admins to add it.",
+              ru: "Поиск песен временно недоступен. Попробуй ещё раз чуть позже или попроси админов добавить песню.",
+            }),
+          );
         });
       })
       .finally(() => {
@@ -106,7 +117,7 @@ export function SongSearchField({
       });
 
     return () => controller.abort();
-  }, [debouncedQuery, shouldSearch]);
+  }, [debouncedQuery, locale, shouldSearch]);
 
   const dropdownVisible = useMemo(
     () => !selected && trimmedQuery.length >= 2,
@@ -137,6 +148,7 @@ export function SongSearchField({
     onSelectedChange(result);
     setQuery("");
     setResults([]);
+    setSearchMessage(null);
     setHighlightedIndex(0);
   }
 
@@ -182,6 +194,7 @@ export function SongSearchField({
 
             if (event.key === "Escape") {
               setResults([]);
+              setSearchMessage(null);
             }
           }}
           placeholder={pick(locale, {
@@ -200,6 +213,7 @@ export function SongSearchField({
 
       {selected ? (
         <>
+          {selected.songId ? <input name="songId" type="hidden" value={selected.songId} /> : null}
           <input name="selectedExternalId" type="hidden" value={selected.externalId} />
           <input name="selectedTrackTitle" type="hidden" value={selected.trackTitle} />
           <input name="selectedArtistName" type="hidden" value={selected.artistName} />
@@ -247,6 +261,7 @@ export function SongSearchField({
                 onSelectedChange(null);
                 setQuery("");
                 setResults([]);
+                setSearchMessage(null);
               }}
               type="button"
             >
@@ -265,7 +280,7 @@ export function SongSearchField({
           ) : results.length > 0 ? (
             <ul className="divide-y divide-white/10">
               {results.map((result, index) => (
-                <li key={result.externalId}>
+                <li key={result.songId ?? result.externalId}>
                   <button
                     className={cn(
                       "flex w-full items-center gap-4 px-4 py-3 text-left transition",
@@ -313,6 +328,7 @@ export function SongSearchField({
             </ul>
           ) : (
             <div className="space-y-3 px-4 py-4 text-sm text-white/60">
+              {searchMessage ? <p className="text-gold">{searchMessage}</p> : null}
               <p>
                 {pick(locale, {
                   en: "No matches yet. Try another spelling or switch to a manual request.",

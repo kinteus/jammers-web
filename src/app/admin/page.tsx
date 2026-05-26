@@ -37,6 +37,7 @@ import { getAdminDashboardData, getFaqPageData } from "@/server/query-data";
 
 import { AdminActionDialog } from "@/components/admin-action-dialog";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -79,14 +80,6 @@ function getQuickAction(
       status: "CLOSED" as const,
     };
   }
-  if (status === "CLOSED" || status === "CURATING") {
-    return {
-      label: pick(locale, { en: "Publish setlist", ru: "Опубликовать сетлист" }),
-      pendingLabel: pick(locale, { en: "Publishing...", ru: "Публикуем..." }),
-      status: "PUBLISHED" as const,
-    };
-  }
-
   return null;
 }
 
@@ -231,6 +224,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             triggerLabel={pick(locale, { en: "Create gig", ru: "Создать гиг" })}
           >
             <form action={createEventAction} className="grid gap-4 md:grid-cols-2">
+              <AdminTimezoneOffsetField />
               <label className="space-y-2 text-sm md:col-span-2">
                 <span>{pick(locale, { en: "Title", ru: "Название" })}</span>
                 <input className="w-full px-4 py-3" name="title" required />

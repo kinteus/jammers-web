@@ -14,6 +14,7 @@ vi.mock("@/server/actions", () => ({
   inviteToSeatAction: vi.fn(),
   inviteToSeatInlineAction: vi.fn(),
   releaseSeatInlineAction: vi.fn(),
+  updateTrackSettingsAction: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -164,5 +165,73 @@ describe("TrackBoardTable", () => {
         slotId: "slot-bass",
       }).map((track) => track.id),
     ).toEqual(["occupied-track", "open-track", "unavailable-track"]);
+  });
+
+  it("lets the track proposer edit public track settings from the board", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={false}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="ru"
+          lineupSlots={[
+            {
+              id: "slot-guitar",
+              key: "guitar",
+              label: "Guitar",
+              seatCount: 1,
+              allowOptional: true,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[{ key: "chart", label: "Ноты" }]}
+          tracks={[
+            {
+              id: "track-owned",
+              proposedById: "user-proposer",
+              proposedBy: {
+                telegramUsername: "proposer",
+                fullName: "Proposer",
+              },
+              song: {
+                title: "Owned Song",
+                artist: { name: "The Band" },
+              },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: "Old note",
+              seats: [
+                {
+                  id: "seat-guitar",
+                  seatIndex: 1,
+                  label: "Guitar",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: true,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-guitar",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-proposer",
+            role: UserRole.USER,
+            telegramUsername: "proposer",
+            fullName: "Proposer",
+          }}
+        />,
+      );
+    });
+
+    expect(host.textContent).toContain("Сохранить настройки трека");
+    expect(host.querySelector('textarea[name="comment"]')).not.toBeNull();
+    expect(host.querySelector('input[name="optionalSeatIds"][value="seat-guitar"]')).not.toBeNull();
   });
 });

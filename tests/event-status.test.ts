@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   allowsClosedOptionalSeatRequests,
+  getAllowedNextEventStatuses,
   getAutoSyncedEventStatus,
   getEffectiveEventStatus,
+  getEventAudienceState,
   isEventOpen,
 } from "@/lib/domain/event-status";
 
@@ -51,5 +53,30 @@ describe("event status lifecycle", () => {
         startsAt: new Date(Date.now() - 1_000),
       }),
     ).toBe(false);
+  });
+
+  it("does not expose curating as an explicit next admin status", () => {
+    expect(getAllowedNextEventStatuses(EventStatus.CLOSED)).toEqual([EventStatus.PUBLISHED]);
+    expect(getAllowedNextEventStatuses(EventStatus.OPEN)).toEqual([EventStatus.CLOSED]);
+  });
+
+  it("marks a published gig as live after start and archived after the next local midnight", () => {
+    const startsAt = new Date("2026-05-01T19:30:00.000Z");
+
+    expect(
+      getEventAudienceState({
+        status: EventStatus.PUBLISHED,
+        startsAt,
+        now: new Date("2026-05-01T20:00:00.000Z"),
+      }),
+    ).toBe("LIVE");
+
+    expect(
+      getEventAudienceState({
+        status: EventStatus.PUBLISHED,
+        startsAt,
+        now: new Date("2026-05-02T00:00:00.000Z"),
+      }),
+    ).toBe("ARCHIVED");
   });
 });
