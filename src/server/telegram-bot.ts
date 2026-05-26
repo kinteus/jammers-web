@@ -1,5 +1,7 @@
 import { env } from "@/lib/env";
 
+const EVENT_TIME_ZONE = "Europe/Nicosia";
+
 async function sendTelegramMessage({
   chatId,
   disableWebPagePreview,
@@ -86,6 +88,7 @@ export function buildTelegramPublishedSetMessage({
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
   }).format(eventStartsAt);
 
   return [
@@ -115,6 +118,7 @@ export function buildTelegramBoardClosedChannelMessage({
     hour: "2-digit",
     minute: "2-digit",
     month: "long",
+    timeZone: EVENT_TIME_ZONE,
     weekday: "long",
   }).format(eventStartsAt);
   const venueLabel = [venueName || "TBA", city || null].filter(Boolean).join(", ");
@@ -142,6 +146,7 @@ export function buildTelegramBoardClosedParticipantMessage({
     hour: "2-digit",
     minute: "2-digit",
     month: "long",
+    timeZone: EVENT_TIME_ZONE,
     weekday: "long",
   }).format(eventStartsAt);
 
