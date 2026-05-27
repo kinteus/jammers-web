@@ -100,8 +100,5 @@ export function allowsClosedOptionalSeatRequests(
     return false;
   }
 
-  return (
-    effectiveStatus === EventStatus.CLOSED ||
-    effectiveStatus === EventStatus.PUBLISHED
-  );
+  return effectiveStatus === EventStatus.PUBLISHED;
 }

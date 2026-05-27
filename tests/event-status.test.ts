@@ -35,10 +35,19 @@ describe("event status lifecycle", () => {
     expect(isEventOpen(event)).toBe(false);
   });
 
-  it("allows optional-seat requests only after registration closes and before the gig starts", () => {
+  it("allows optional-seat requests only after the final set is published and before the gig starts", () => {
     expect(
       allowsClosedOptionalSeatRequests({
         status: EventStatus.CLOSED,
+        registrationClosesAt: new Date(Date.now() - 60_000),
+        registrationOpensAt: new Date(Date.now() - 3_600_000),
+        startsAt: new Date(Date.now() + 86_400_000),
+      }),
+    ).toBe(false);
+
+    expect(
+      allowsClosedOptionalSeatRequests({
+        status: EventStatus.PUBLISHED,
         registrationClosesAt: new Date(Date.now() - 60_000),
         registrationOpensAt: new Date(Date.now() - 3_600_000),
         startsAt: new Date(Date.now() + 86_400_000),

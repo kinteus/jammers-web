@@ -3,6 +3,8 @@ import React from "react";
 
 import { pick, type Locale } from "@/lib/i18n";
 
+import { DismissibleAmbientQuote } from "@/components/dismissible-ambient-quote";
+
 type CommunityQuote = {
   id: string;
   textEn: string;
@@ -168,7 +170,7 @@ function MobileQuotesStack({
   const mobileQuotes = pickDisplayQuotes(quotes, mobileDisplayLimit);
 
   return (
-    <div className="community-quotes-mobile-stack sm:hidden">
+    <div className="community-quotes-mobile-stack">
       {mobileQuotes.map((quote, index) => (
         <article
           className="community-mobile-quote-card"
@@ -209,18 +211,18 @@ function DesktopQuotesPerimeter({
   const layoutOffset = randomInt(QUOTE_SLOTS.length);
 
   return (
-    <div className="community-quotes-perimeter hidden xl:block" aria-hidden="true">
+    <div className="community-quotes-perimeter hidden lg:block">
       {desktopQuotes.map((quote, index) => {
         const slot = QUOTE_SLOTS[(index + layoutOffset) % QUOTE_SLOTS.length];
-        const peekWidth = "11rem";
-        const edgeOffset = 4;
+        const peekWidth = "14rem";
+        const edgeOffset = "max(1rem, env(safe-area-inset-left))";
         const sideStyle =
           slot.edge === "left"
             ? {
-                left: `-${edgeOffset}rem`,
+                left: edgeOffset,
               }
             : {
-                right: `-${edgeOffset}rem`,
+                right: edgeOffset.replace("safe-area-inset-left", "safe-area-inset-right"),
               };
 
         return (
@@ -243,10 +245,10 @@ function DesktopQuotesPerimeter({
               ["--quote-rotate" as string]: slot.rotate,
             }}
           >
-            <article
+            <DismissibleAmbientQuote
               className="community-quote-card community-quote-card--ambient"
-              data-depth={slot.depth}
-              data-edge={slot.edge}
+              depth={slot.depth}
+              edge={slot.edge}
               style={{
                 animationDelay: `${index * 0.28}s`,
                 animationDuration: `${11 + (index % 4) * 1.6}s`,
@@ -261,7 +263,7 @@ function DesktopQuotesPerimeter({
                   {getQuoteText(locale, quote)}
                 </blockquote>
               </div>
-            </article>
+            </DismissibleAmbientQuote>
           </div>
         );
       })}
@@ -295,7 +297,7 @@ export function CommunityQuotesCloud({
           ru: "Фразы, которые сцена уже знает наизусть",
         })}
       </h2>
-      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 sm:hidden">
+      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 lg:hidden">
         <div className="space-y-2 px-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/52">
             {pick(locale, {

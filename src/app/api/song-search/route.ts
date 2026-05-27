@@ -84,7 +84,20 @@ function getArtistTitleQueryCandidates(query: string) {
     });
   }
 
-  return candidates;
+  return candidates.sort((left, right) => {
+    const leftArtistWords = left.artistName.split(/\s+/).length;
+    const rightArtistWords = right.artistName.split(/\s+/).length;
+    const leftTitleWords = left.trackTitle.split(/\s+/).length;
+    const rightTitleWords = right.trackTitle.split(/\s+/).length;
+    const leftHasUsefulTitle = leftTitleWords >= 2;
+    const rightHasUsefulTitle = rightTitleWords >= 2;
+
+    if (leftHasUsefulTitle !== rightHasUsefulTitle) {
+      return leftHasUsefulTitle ? -1 : 1;
+    }
+
+    return rightArtistWords - leftArtistWords;
+  });
 }
 
 function createSearchUrl(pathname: "/search" | "/lookup", params: Record<string, string>) {
@@ -201,13 +214,30 @@ function addDedupedResults(
       externalId: String(entry.trackId),
       trackTitle: entry.trackName,
       artistName: entry.artistName,
-      artworkUrl: entry.artworkUrl100 ?? null,
+      artworkUrl: normalizeItunesArtworkUrl(entry.artworkUrl100),
       collectionName: entry.collectionName ?? null,
       externalUrl: normalizeAppleMusicUrl(entry.trackViewUrl),
       durationSeconds: entry.trackTimeMillis
         ? Math.round(entry.trackTimeMillis / 1000)
         : null,
     });
+  }
+}
+
+function normalizeItunesArtworkUrl(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return null;
+    }
+    url.protocol = "https:";
+    return url.toString().replace(/100x100bb(?=\.[a-z0-9]+$)/i, "200x200bb");
+  } catch {
+    return null;
   }
 }
 

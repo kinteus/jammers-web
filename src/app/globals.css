@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,13 +7,30 @@
 :root {
   color-scheme: dark;
   --font-brand:
-    "Circe", "Avenir Next", "Avenir", "Nunito Sans", "Segoe UI", sans-serif;
+    "Inter", "Avenir Next", "Avenir", "Nunito Sans", "Segoe UI", sans-serif;
+  --font-display: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
   --font-manrope: var(--font-brand);
   --font-space-grotesk: var(--font-brand);
-  --surface-page: #101010;
-  --surface-panel: #181818;
-  --surface-panel-soft: #202020;
-  --line-strong: rgba(244, 244, 244, 0.14);
+  --stage: #100E0D;
+  --stage-2: #1A1614;
+  --stage-3: #221C1A;
+  --sand: #F3EAD7;
+  --gold: #FFB300;
+  --red: #E53935;
+  --blue: #2196F3;
+  --surface-page: var(--stage);
+  --surface-panel: var(--stage-2);
+  --surface-panel-soft: var(--stage-3);
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --text-1: rgba(243, 234, 215, 0.96);
+  --text-2: rgba(243, 234, 215, 0.78);
+  --text-3: rgba(243, 234, 215, 0.58);
+  --text-4: rgba(243, 234, 215, 0.42);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.4rem;
+  --shadow-card: 0 18px 46px rgba(0, 0, 0, 0.42);
 }
 
 html {
@@ -19,10 +38,13 @@ html {
 }
 
 body {
-  @apply bg-stage bg-hero-glow font-body text-sand antialiased;
+  @apply bg-stage font-body text-sand antialiased;
   min-height: 100vh;
-  background-attachment: fixed;
-  background-color: var(--surface-page);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 179, 0, 0.07), transparent 24rem),
+    radial-gradient(circle at 92% 0%, rgba(229, 57, 53, 0.09), transparent 26rem),
+    var(--stage);
+  color: var(--text-1);
 }
 
 a {
@@ -73,7 +95,7 @@ details > summary::-webkit-details-marker {
 }
 
 .stage-rule {
-  background-image: linear-gradient(115deg, rgba(255, 179, 0, 1), rgba(215, 58, 20, 0.96) 38%, rgba(185, 0, 22, 0.96) 64%, rgba(0, 61, 165, 0.88) 100%);
+  background-image: linear-gradient(90deg, #ffb300 0%, #ff6b1a 31%, #e53935 58%, #7b3ff2 82%, #2196f3 100%);
 }
 
 .sticky-song-cell {
@@ -91,12 +113,12 @@ details > summary::-webkit-details-marker {
 }
 
 .panel-linear {
-  border: 1px solid rgba(244, 244, 244, 0.12);
-  border-radius: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background:
-    linear-gradient(180deg, rgba(30, 30, 30, 0.98), rgba(20, 20, 20, 0.98)),
-    var(--surface-panel);
-  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.44);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    var(--stage-2);
+  box-shadow: var(--shadow-card);
 }
 
 .header-grid-line {
@@ -107,37 +129,34 @@ details > summary::-webkit-details-marker {
 
 .brand-stage {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 1px),
-    radial-gradient(circle at 10% 0%, rgba(255, 179, 0, 0.28), transparent 18%),
-    radial-gradient(circle at 92% 8%, rgba(185, 0, 22, 0.32), transparent 24%),
-    radial-gradient(circle at 0% 100%, rgba(0, 61, 165, 0.18), transparent 26%),
-    linear-gradient(180deg, #151515 0%, #0f0f0f 100%);
+    radial-gradient(circle at 0% 0%, rgba(255, 179, 0, 0.25), transparent 22rem),
+    radial-gradient(circle at 100% 0%, rgba(229, 57, 53, 0.22), transparent 26rem),
+    radial-gradient(circle at 100% 100%, rgba(33, 150, 243, 0.17), transparent 26rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    var(--stage-2);
 }
 
 .header-stage {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 1px),
-    radial-gradient(circle at 8% 0%, rgba(255, 179, 0, 0.22), transparent 18%),
-    radial-gradient(circle at 94% 10%, rgba(185, 0, 22, 0.24), transparent 24%),
-    radial-gradient(circle at 0% 100%, rgba(0, 61, 165, 0.14), transparent 24%),
-    linear-gradient(180deg, rgba(21, 21, 21, 0.98) 0%, rgba(14, 14, 14, 0.98) 100%);
+    radial-gradient(circle at 10% 0%, rgba(255, 179, 0, 0.13), transparent 19rem),
+    radial-gradient(circle at 91% 0%, rgba(229, 57, 53, 0.16), transparent 22rem),
+    rgba(20, 15, 14, 0.86);
+  backdrop-filter: blur(12px);
 }
 
 .brand-shell {
-  border: 1px solid rgba(244, 244, 244, 0.1);
+  border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
-    radial-gradient(circle at top right, rgba(185, 0, 22, 0.16), transparent 24%),
-    radial-gradient(circle at bottom left, rgba(255, 179, 0, 0.08), transparent 22%),
-    #171717;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    var(--stage-2);
+  box-shadow: var(--shadow-card);
 }
 
 .brand-shell-soft {
-  border: 1px solid rgba(244, 244, 244, 0.08);
+  border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 45%),
-    var(--surface-panel-soft);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.008)),
+    rgba(255, 255, 255, 0.02);
 }
 
 .brand-chip {
@@ -153,6 +172,69 @@ details > summary::-webkit-details-marker {
     linear-gradient(180deg, rgba(28, 28, 28, 0.9), rgba(28, 28, 28, 0.98));
 }
 
+.font-display,
+h1,
+h2,
+h3,
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.reference-main {
+  max-width: 1440px;
+  min-height: calc(100vh - 73px);
+  padding: 2rem 1.25rem 4rem;
+}
+
+@media (min-width: 768px) {
+  .reference-main {
+    padding: 2.5rem 1.5rem 5rem;
+  }
+}
+
+.reference-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-top: 2px solid transparent;
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 179, 0, 0.26), transparent 23rem),
+    radial-gradient(circle at 100% 0%, rgba(229, 57, 53, 0.24), transparent 25rem),
+    radial-gradient(circle at 100% 100%, rgba(33, 150, 243, 0.17), transparent 26rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    var(--stage-2);
+  box-shadow: var(--shadow-card);
+}
+
+.reference-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.008)),
+    rgba(255, 255, 255, 0.015);
+  box-shadow: var(--shadow-card);
+}
+
+.reference-kicker {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: rgba(26, 22, 20, 0.78);
+}
+
+.ui-tooltip[data-tip] {
+  position: relative;
+}
+
 .home-page-shell > section:not(.community-quotes-root) {
   position: relative;
   z-index: 2;
@@ -161,6 +243,23 @@ details > summary::-webkit-details-marker {
 
 .home-page-shell > section:not(.community-quotes-root) > * {
   pointer-events: auto;
+}
+
+.community-quotes-root {
+  position: relative;
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .community-quotes-root {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    z-index: 4;
+  }
 }
 
 .community-quotes-stage {
@@ -176,7 +275,7 @@ details > summary::-webkit-details-marker {
 .community-quotes-perimeter {
   position: absolute;
   inset: 0;
-  z-index: 60;
+  z-index: 80;
   pointer-events: none;
   overflow: visible;
 }
@@ -204,7 +303,7 @@ details > summary::-webkit-details-marker {
 
 .community-quote-peek:hover,
 .community-quote-peek:focus-within {
-  z-index: 45;
+  z-index: 120;
   overflow: visible;
 }
 
@@ -255,10 +354,14 @@ details > summary::-webkit-details-marker {
   overflow: hidden;
   border-radius: 1.4rem;
   border: 1px solid rgba(244, 244, 244, 0.1);
+  appearance: none;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%),
-    linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(14, 14, 14, 0.98));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 30%),
+    linear-gradient(180deg, rgba(24, 22, 20, 0.98), rgba(13, 13, 13, 0.98));
+  color: inherit;
+  cursor: pointer;
   padding: 1rem 0.95rem 0.95rem;
+  text-align: left;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 18px 40px rgba(0, 0, 0, 0.26);
@@ -288,24 +391,24 @@ details > summary::-webkit-details-marker {
 }
 
 .community-quote-card--ambient {
-  --quote-open-width: min(30rem, 36vw, calc(100vw - 5rem));
+  --quote-open-width: min(44rem, 56vw, calc(100vw - 3rem));
   position: relative;
   width: var(--quote-peek-width);
   max-width: min(22rem, 28vw);
-  pointer-events: none;
-  opacity: 0.46;
+  pointer-events: auto;
+  opacity: 0.68;
 }
 
 .community-quote-card--ambient[data-depth="back"] {
-  opacity: 0.36;
+  opacity: 0.58;
 }
 
 .community-quote-card--ambient[data-depth="mid"] {
-  opacity: 0.42;
+  opacity: 0.64;
 }
 
 .community-quote-card--ambient[data-depth="front"] {
-  opacity: 0.5;
+  opacity: 0.72;
 }
 
 .community-quote-card--ambient[data-edge="left"] {
@@ -334,19 +437,23 @@ details > summary::-webkit-details-marker {
 
 .community-quote-peek:hover .community-quote-card--ambient,
 .community-quote-peek:focus-within .community-quote-card--ambient {
-  z-index: 45 !important;
+  z-index: 140 !important;
   width: var(--quote-open-width) !important;
   max-width: var(--quote-open-width);
   opacity: 1;
   animation-play-state: paused;
-  transform: rotate(0deg) scale(1.02) !important;
+  border-color: rgba(255, 179, 0, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 34px 80px rgba(0, 0, 0, 0.58);
+  transform: rotate(0deg) scale(1.04) !important;
 }
 
 .community-quote-peek[data-edge="right"]:hover .community-quote-card--ambient,
 .community-quote-peek[data-edge="right"]:focus-within .community-quote-card--ambient {
   text-align: left;
   transform: translateX(calc((var(--quote-open-width) - var(--quote-peek-width)) * -1)) rotate(0deg)
-    scale(1.02) !important;
+    scale(1.04) !important;
 }
 
 .community-quote-card__glow {

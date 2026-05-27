@@ -1,9 +1,14 @@
+/**
+ * @vitest-environment jsdom
+ */
 import React from "react";
 import { readFileSync } from "node:fs";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommunityQuotesCloud } from "@/components/community-quotes-cloud";
+import { DismissibleAmbientQuote } from "@/components/dismissible-ambient-quote";
 
 const quotes = [
   { id: "q1", textEn: "bass took the chat", textRu: "басисты захватили чат", sourceLabel: null },
@@ -17,6 +22,16 @@ const quotes = [
 ];
 
 const globalCss = readFileSync("src/app/globals.css", "utf8");
+
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("React", React);
+});
+
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.unstubAllGlobals();
+});
 
 describe("CommunityQuotesCloud", () => {
   it("renders desktop quotes across the full home scroll area while keeping mobile stack", () => {
@@ -56,7 +71,7 @@ describe("CommunityQuotesCloud", () => {
     const ambientRule = globalCss.match(/\.community-quote-card--ambient\s*\{[^}]+\}/)?.[0];
     const opacity = Number(ambientRule?.match(/opacity:\s*([0-9.]+)/)?.[1]);
 
-    expect(opacity).toBeGreaterThanOrEqual(0.42);
+    expect(opacity).toBeGreaterThanOrEqual(0.6);
   });
 
   it("reveals ambient quotes without moving the hover target away from the edge", () => {
@@ -69,7 +84,7 @@ describe("CommunityQuotesCloud", () => {
     expect(hoverRule).not.toContain("translate3d(var(--quote-open-x)");
   });
 
-  it("keeps ambient previews in the viewport gutters instead of over section content", () => {
+  it("keeps ambient previews in the page gutters instead of tying them to the viewport", () => {
     const html = renderToStaticMarkup(
       <CommunityQuotesCloud
         desktopDisplayLimit={8}
@@ -80,9 +95,9 @@ describe("CommunityQuotesCloud", () => {
     );
 
     expect(html).toContain("community-quote-peek");
-    expect(html).toContain("--quote-peek-width:11rem");
-    expect(html).toContain("left:-4rem");
-    expect(html).toContain("right:-4rem");
+    expect(html).toContain("--quote-peek-width:14rem");
+    expect(html).toContain("left:max(1rem, env(safe-area-inset-left))");
+    expect(html).toContain("right:max(1rem, env(safe-area-inset-right))");
   });
 
   it("uses narrow edge hover targets instead of clipped full-width cards", () => {
@@ -106,7 +121,7 @@ describe("CommunityQuotesCloud", () => {
     expect(peekRule).toContain("width: var(--quote-peek-width)");
     expect(peekRule).toContain("overflow: hidden");
     expect(peekRule).toContain("pointer-events: auto");
-    expect(ambientRule).toContain("pointer-events: none");
+    expect(ambientRule).toContain("pointer-events: auto");
     expect(ambientRule).toContain("width: var(--quote-peek-width)");
     expect(textRule).toContain("min-width: 0");
     expect(compactTextRule).toContain("opacity: 0.82");
@@ -122,5 +137,27 @@ describe("CommunityQuotesCloud", () => {
     expect(globalCss).toContain("pointer-events: auto");
     expect(globalCss).not.toContain(".community-quotes-perimeter:has(.community-quote-card--ambient:hover)");
     expect(globalCss).toContain(".community-quote-peek:hover");
+    expect(globalCss).toContain(".community-quotes-root");
+    expect(globalCss).toContain("position: absolute");
+    expect(globalCss).toContain("width: 100vw");
+    expect(globalCss).toContain("transform: translateX(-50%)");
+    expect(globalCss).not.toContain("position: fixed");
+  });
+
+  it("lets users dismiss a quote that covers content", () => {
+    render(
+      <DismissibleAmbientQuote
+        className="community-quote-card community-quote-card--ambient"
+        depth="front"
+        edge="left"
+        style={{}}
+      >
+        мешающая цитата
+      </DismissibleAmbientQuote>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide quote" }));
+
+    expect(screen.queryByText("мешающая цитата")).toBeNull();
   });
 });

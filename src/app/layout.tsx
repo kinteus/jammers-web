@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import { NavigationProgress } from "@/components/navigation-progress";
 
 import "./globals.css";
@@ -65,9 +66,10 @@ export default async function RootLayout({
           <NavigationProgress />
         </Suspense>
         <SiteHeader locale={locale} user={user} />
-        <main className="mx-auto min-h-[calc(100vh-73px)] max-w-[1440px] px-5 py-8 md:px-6">
+        <main className="reference-main mx-auto">
           {children}
         </main>
+        <SiteFooter locale={locale} />
       </body>
     </html>
   );

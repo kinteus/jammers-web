@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { ArrowUpRight, Disc3, Music2, Radio, Square } from "lucide-react";
 
 import { ABOUT_PAGE_CONTENT } from "@/lib/about-page-content";
 import { pick } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
 
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export const metadata: Metadata = {
@@ -37,230 +37,184 @@ export const metadata: Metadata = {
   },
 };
 
+const partnerIcons = [Square, Music2, Radio, Disc3];
+
 export default async function AboutPage() {
   const locale = await getLocale();
-  const heroImage = ABOUT_PAGE_CONTENT.gallery[0];
 
   return (
-    <div className="space-y-8">
-      <section className="brand-stage relative overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_30px_90px_rgba(0,0,0,0.46)]">
-        <div className="absolute inset-0">
-          <Image
-            alt={heroImage.alt}
-            className="h-full w-full object-cover object-center opacity-72"
-            fill
-            priority
-            sizes="(min-width: 1280px) 1280px, 100vw"
-            src={heroImage.src}
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,7,0.18),rgba(7,7,7,0.72)_42%,rgba(7,7,7,0.94)_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-[radial-gradient(circle_at_50%_100%,rgba(255,179,0,0.18),transparent_60%)]" />
-        </div>
-
-        <div className="relative z-10 flex min-h-[560px] flex-col justify-end px-6 py-8 sm:px-8 lg:px-10">
-          <div className="max-w-3xl space-y-4">
-            <Badge className="border-gold/24 bg-black/24 text-sand">
-              {pick(locale, ABOUT_PAGE_CONTENT.badge)}
-            </Badge>
-            <div className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gold">
-                {pick(locale, ABOUT_PAGE_CONTENT.eyebrow)}
-              </h2>
-              <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.03em] text-sand sm:text-5xl">
-                {pick(locale, ABOUT_PAGE_CONTENT.title)}
-              </h1>
+    <div className="space-y-10">
+      <section className="reference-section overflow-hidden px-6 py-12 md:px-8 md:py-20">
+        <div className="max-w-3xl space-y-8">
+          <p className="reference-kicker">{pick(locale, ABOUT_PAGE_CONTENT.badge)}</p>
+          <div className="space-y-8">
+            <h1 className="font-display text-6xl uppercase text-sand md:text-7xl">
+              {pick(locale, ABOUT_PAGE_CONTENT.title)}
+            </h1>
+            <div className="max-w-2xl space-y-5 text-base leading-7 text-sand/68">
+              <p>{pick(locale, ABOUT_PAGE_CONTENT.intro)}</p>
+              <p>{pick(locale, ABOUT_PAGE_CONTENT.heroNote)}</p>
             </div>
-            <p className="max-w-2xl text-sm leading-7 text-white/80 sm:text-base">
-              {pick(locale, ABOUT_PAGE_CONTENT.intro)}
-            </p>
-            <p className="max-w-2xl text-sm leading-7 text-white/66">
-              {pick(locale, ABOUT_PAGE_CONTENT.heroNote)}
-            </p>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <Card className="brand-shell rounded-[1.6rem] border-white/10 p-5 sm:p-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/52">
-                {pick(locale, ABOUT_PAGE_CONTENT.galleryLabel)}
-              </p>
-              <h2 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {heroImage.caption[locale]}
-              </h2>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1.25fr)_220px]">
-              <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20">
-                <div className="relative aspect-[16/10]">
-                  <Image
-                    alt={heroImage.alt}
-                    className="h-full w-full object-cover"
-                    fill
-                    sizes="(min-width: 1024px) 720px, 100vw"
-                    src={heroImage.src}
-                  />
-                </div>
-              </div>
-              <div className="brand-shell-soft rounded-[1.25rem] p-4">
-                <div className="flex h-full flex-col justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
-                      01
-                    </p>
-                    <p className="text-sm leading-6 text-white/74">
-                      {pick(locale, {
-                        en: "The gallery is ready for more images later, so new nights, backstage details, and partner moments can expand this page without changing its structure.",
-                        ru: "Галерея уже готова к новым фото, так что следующие вечера, backstage-моменты и кадры с партнёрами можно будет добавить без перестройки страницы.",
-                      })}
-                    </p>
-                  </div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/44">
-                    {pick(locale, {
-                      en: "Future-ready photo rail",
-                      ru: "Готово для расширения галереи",
-                    })}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="brand-stage rounded-[1.6rem] border-white/10 p-5 sm:p-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/52">
-                {pick(locale, ABOUT_PAGE_CONTENT.contactsLabel)}
-              </p>
-              <h2 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                {pick(locale, {
-                  en: "Reach the team",
-                  ru: "Связаться с командой",
-                })}
-              </h2>
-            </div>
-            <p className="text-sm leading-6 text-white/74">
-              {pick(locale, {
-                en: "Write to the team about gigs, partnerships, song coordination, or anything that needs a human answer.",
-                ru: "Пиши команде про гиги, партнёрства, координацию песен и всё, где нужен живой ответ.",
-              })}
-            </p>
-            <div className="space-y-3">
-              {ABOUT_PAGE_CONTENT.contacts.map((contact) => {
-                const content = (
-                  <div className="brand-shell-soft flex items-center justify-between gap-3 rounded-xl px-4 py-3">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
-                        {contact.label}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-sand">{contact.value}</p>
-                    </div>
-                    <span className="text-xs uppercase tracking-[0.16em] text-gold">
-                      {pick(locale, { en: "Contact", ru: "Контакт" })}
-                    </span>
-                  </div>
-                );
-
-                return contact.href ? (
-                  <Link href={contact.href} key={contact.label} target="_blank">
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={contact.label}>{content}</div>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
-      </section>
-
-      <section className="space-y-4">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/52">
-            {pick(locale, ABOUT_PAGE_CONTENT.organizersLabel)}
-          </p>
-          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
+      <section className="space-y-5">
+        <div className="space-y-5">
+          <p className="reference-kicker">{pick(locale, { en: "Get in touch", ru: "Связаться" })}</p>
+          <h2 className="font-display text-4xl uppercase text-sand">
+            {pick(locale, { en: "Talk to the team", ru: "Написать команде" })}
+          </h2>
+          <p className="max-w-3xl text-sm leading-6 text-sand/62">
             {pick(locale, {
-              en: "People who keep the scene moving",
+              en: "For gigs, partnerships, coordination or anything that needs a real reply.",
+              ru: "Про гиги, партнёрства, координацию и всё, где нужен живой ответ.",
+            })}
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-3">
+            {ABOUT_PAGE_CONTENT.contacts.map((contact) => {
+              const href =
+                contact.href ??
+                (contact.value.startsWith("@")
+                  ? `https://t.me/${contact.value.slice(1)}`
+                  : contact.value.includes("@")
+                    ? `mailto:${contact.value}`
+                    : undefined);
+              const content = (
+                <div className="reference-section flex items-center justify-between gap-4 px-5 py-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/44">
+                      {contact.label}
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-sand">{contact.value}</p>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-sand/72" />
+                </div>
+              );
+
+              return href ? (
+                <Link href={href} key={contact.label} rel="noreferrer" target="_blank">
+                  {content}
+                </Link>
+              ) : (
+                <div key={contact.label}>{content}</div>
+              );
+            })}
+          </div>
+
+          <Card className="space-y-5 px-6 py-6">
+            <div className="space-y-3">
+              <p className="reference-kicker">{pick(locale, ABOUT_PAGE_CONTENT.galleryLabel)}</p>
+              <h3 className="font-display text-2xl uppercase text-sand">
+                {pick(locale, ABOUT_PAGE_CONTENT.gallery[0]?.caption ?? { en: "Community moment", ru: "Момент сообщества" })}
+              </h3>
+              <p className="text-sm leading-6 text-sand/62">
+                {pick(locale, {
+                  en: "Photo gallery is wired up: future gig and backstage moments will land here.",
+                  ru: "Галерея готова: будущие фото с гигов и backstage-моменты попадут сюда.",
+                })}
+              </p>
+            </div>
+            <div className="flex aspect-[16/9] items-center justify-center rounded-xl border border-white/10 bg-[repeating-linear-gradient(135deg,rgba(229,57,53,.16)_0,rgba(229,57,53,.16)_6px,rgba(255,179,0,.08)_6px,rgba(255,179,0,.08)_12px)] text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
+              [ Gallery preview ]
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        <div className="space-y-5">
+          <p className="reference-kicker">{pick(locale, ABOUT_PAGE_CONTENT.organizersLabel)}</p>
+          <h2 className="font-display text-4xl uppercase text-sand">
+            {pick(locale, {
+              en: "People moving the scene forward",
               ru: "Люди, которые двигают сцену дальше",
             })}
           </h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {ABOUT_PAGE_CONTENT.organizers.map((organizer) => (
-            <Card className="brand-shell rounded-[1.35rem] border-white/10 p-5" key={organizer.name}>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <h3 className="font-display text-xl font-semibold uppercase tracking-[0.03em] text-sand">
-                    {organizer.name}
-                  </h3>
-                  <p className="text-sm text-white/66">{organizer.role[locale]}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
-                    {organizer.contactLabel}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-sand">{organizer.contactValue}</p>
-                </div>
+            <Card className="space-y-6 px-5 py-5" key={organizer.name}>
+              <div className="space-y-4">
+                <h3 className="font-display text-2xl uppercase text-sand">{organizer.name}</h3>
+                <p className="text-sm text-sand/58">{organizer.role[locale]}</p>
+              </div>
+              <div className="border-t border-white/10 pt-4">
+                <a
+                  className="text-sm font-bold text-gold hover:text-gold/80"
+                  href={`https://t.me/${organizer.contactValue.replace(/^@/, "")}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {organizer.contactLabel} {organizer.contactValue} →
+                </a>
               </div>
             </Card>
           ))}
+          <Card className="space-y-5 border-gold/30 bg-gold/[0.055] px-5 py-5">
+            <p className="reference-kicker">{pick(locale, { en: "Open seat", ru: "Свободное место" })}</p>
+            <h3 className="font-display text-2xl uppercase text-sand">
+              {pick(locale, { en: "Want to help?", ru: "Хочешь помочь?" })}
+            </h3>
+            <p className="text-sm leading-6 text-sand/62">
+              {pick(locale, {
+                en: "We're growing the crew: sound, photo, hospitality, anything in between.",
+                ru: "Команда растёт: звук, фото, hospitality и всё между ними.",
+              })}
+            </p>
+            <a className="text-sm font-bold text-gold" href="https://t.me/kinteus" rel="noreferrer" target="_blank">
+              {pick(locale, { en: "Write to @kinteus", ru: "Написать @kinteus" })} →
+            </a>
+          </Card>
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-white/8 pt-8">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/52">
-            {pick(locale, ABOUT_PAGE_CONTENT.partnersLabel)}
-          </p>
-          <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
+      <section className="space-y-6">
+        <div className="space-y-5">
+          <p className="reference-kicker">{pick(locale, ABOUT_PAGE_CONTENT.partnersLabel)}</p>
+          <h2 className="font-display text-4xl uppercase text-sand">
             {pick(locale, {
-              en: "Partners who amplify the night",
-              ru: "Партнёры, которые усиливают вечер",
+              en: "Brands that lift the night",
+              ru: "Бренды, которые усиливают вечер",
             })}
           </h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {ABOUT_PAGE_CONTENT.partners.map((partner) => {
-            const card = (
-              <Card className="brand-shell-soft rounded-[1.25rem] border-white/10 p-5" key={partner.name}>
-                <div className="flex min-h-[132px] flex-col justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/42">
-                      {pick(locale, {
-                        en: "Partner slot",
-                        ru: "Слот партнёра",
-                      })}
-                    </p>
-                    <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
-                      {partner.name}
-                    </h3>
-                  </div>
-                  <p className="text-sm leading-6 text-white/66">
-                    {pick(locale, {
-                      en: partner.href
-                        ? "External link and optional logo are supported here."
-                        : "Ready for a future logo and external link when they are available.",
-                      ru: partner.href
-                        ? "Здесь уже поддерживаются внешняя ссылка и необязательный логотип."
-                        : "Здесь готово место для будущего логотипа и внешней ссылки.",
-                    })}
-                  </p>
-                </div>
-              </Card>
-            );
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {ABOUT_PAGE_CONTENT.partners.map((partner, index) => {
+            const Icon = partnerIcons[index % partnerIcons.length] ?? Square;
 
-            return partner.href ? (
-              <Link href={partner.href} key={partner.name} target="_blank">
-                {card}
-              </Link>
-            ) : (
-              card
+            return (
+              <Card className="flex min-h-40 flex-col items-center justify-center gap-3 px-5 py-6 text-center" key={partner.name}>
+                <Icon className="h-6 w-6 text-sand/45" />
+                <h3 className="font-display text-2xl uppercase text-sand">{partner.name}</h3>
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sand/45">
+                  {pick(locale, { en: "Partner slot", ru: "Партнёр" })}
+                </p>
+              </Card>
             );
           })}
         </div>
+        <Card className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="font-display text-xl uppercase text-sand">
+              {pick(locale, { en: "Want to be on this row?", ru: "Хочешь быть здесь?" })}
+            </h3>
+            <p className="mt-1 text-sm text-sand/62">
+              {pick(locale, {
+                en: "Venues, gear brands, studios, hospitality: write to the team.",
+                ru: "Площадки, бренды, студии, hospitality: напиши команде.",
+              })}
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <a href="https://t.me/kinteus" rel="noreferrer" target="_blank">
+              {pick(locale, { en: "Become a partner", ru: "Стать партнёром" })} →
+            </a>
+          </Button>
+        </Card>
       </section>
     </div>
   );

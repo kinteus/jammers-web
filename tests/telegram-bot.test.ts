@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTelegramAdminSeatAssignedMessage,
   buildTelegramBoardClosedChannelMessage,
   buildTelegramInviteMessage,
   buildTelegramPublishedSetMessage,
@@ -43,6 +44,21 @@ describe("telegram invite message", () => {
 
     expect(message).toContain("@anna_drums invited you to Blur - Song 2 (Bass) for Spring Jam Night.");
     expect(message).toContain('<a href="https://thejammers.org/profile">your profile invites</a>');
+  });
+});
+
+describe("telegram admin seat assignment message", () => {
+  it("names the assigned song, position, and gig", () => {
+    const message = buildTelegramAdminSeatAssignedMessage({
+      eventTitle: "Spring Jam Night",
+      seatLabel: "Bass",
+      songLabel: "Blur - Song 2",
+    });
+
+    expect(message).toContain("Ты добавлен(а) админом в сетлист");
+    expect(message).toContain("Blur - Song 2");
+    expect(message).toContain("Bass");
+    expect(message).toContain("Spring Jam Night");
   });
 });
 

@@ -307,6 +307,17 @@ function getFloatingFeedback({
     };
   }
 
+  if (error === "min-required-seats") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Too few required parts", ru: "Слишком мало обязательных партий" }),
+      description: pick(locale, {
+        en: "This gig has a minimum player count per song. Mark more positions as required before publishing the track.",
+        ru: "У этого гига задан минимум людей на песню. Оставь больше позиций обязательными перед публикацией трека.",
+      }),
+    };
+  }
+
   if (error === "event-locked") {
     return {
       tone: "error" as const,
@@ -524,7 +535,19 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     },
   };
 
-  const visibleTracks = event.tracks.filter((track) => {
+  const publishedMainTrackIds = event.setlistItems
+    .filter((item) => item.section === "MAIN")
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+    .map((item) => item.trackId);
+  const publishedTrackById = new Map(event.tracks.map((track) => [track.id, track]));
+  const boardTracks =
+    effectiveStatus === "PUBLISHED"
+      ? publishedMainTrackIds
+          .map((trackId) => publishedTrackById.get(trackId))
+          .filter((track): track is (typeof event.tracks)[number] => Boolean(track))
+      : event.tracks;
+
+  const visibleTracks = boardTracks.filter((track) => {
     const matchesSearch =
       searchNeedle.length === 0 ||
       [
@@ -618,11 +641,14 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         />
       ) : null}
 
-      <section className="border-b border-white/8 pb-8">
-        <div className="brand-stage rounded-[1.8rem] border border-white/10 px-6 py-6 shadow-[0_28px_80px_rgba(0,0,0,0.42)] md:px-7">
+      <section className="space-y-7 border-b border-white/8 pb-8">
+        <Link className="inline-flex items-center gap-2 text-sm font-bold text-sand/52 hover:text-gold" href="/">
+          ← {pick(locale, { en: "Back to home", ru: "На главную" })}
+        </Link>
+        <div className="space-y-7">
           <div className="space-y-5">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-blue/24 bg-blue/16 text-white">
+              <Badge className="border-gold/30 bg-gold/10 text-gold">
                 {getEventStatusLabel(effectiveStatus, locale)}
               </Badge>
               {effectiveStatus === "OPEN" ? (
@@ -644,36 +670,39 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             </div>
 
             <div className="space-y-3">
-              <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.04em] text-sand lg:text-5xl">
+              <h1 className="font-display text-5xl uppercase text-sand lg:text-6xl">
                 {event.title}
               </h1>
-              <p className="text-sm text-white/58">
-                {formatDateTime(event.startsAt, locale)} ·{" "}
-                {event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}
-              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-sand/58">
+                <span>{formatDateTime(event.startsAt, locale)}</span>
+                <span>{event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}</span>
+                <span>
+                  {participantCount} {pick(locale, { en: "jammers signed", ru: "участников вписано" })}
+                </span>
+              </div>
               {event.description ? (
-                <p className="max-w-4xl text-sm leading-6 text-white/74">{event.description}</p>
+                <p className="max-w-4xl text-sm leading-6 text-sand/68">{event.description}</p>
               ) : null}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="brand-shell-soft rounded-xl px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <div className="reference-section grid gap-4 px-5 py-4 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
                   {pick(locale, { en: "Songs on board", ru: "Песен в сетлисте" })}
                 </p>
-                <p className="mt-1 text-3xl font-semibold text-sand">{event.tracks.length}</p>
+                <p className="mt-2 font-display text-4xl text-sand">{event.tracks.length}</p>
               </div>
-              <div className="brand-shell-soft rounded-xl px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
                   {pick(locale, { en: "Still need players", ru: "Ещё нужны люди" })}
                 </p>
-                <p className="mt-1 text-3xl font-semibold text-sand">{tracksNeedingPlayers}</p>
+                <p className="mt-2 font-display text-4xl text-gold">{tracksNeedingPlayers}</p>
               </div>
-              <div className="brand-shell-soft rounded-xl px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
                   {pick(locale, { en: "Players committed", ru: "Музыкантов в лайнапе" })}
                 </p>
-                <p className="mt-1 text-3xl font-semibold text-sand">{participantCount}</p>
+                <p className="mt-2 font-display text-4xl text-emerald-300">{participantCount}</p>
               </div>
             </div>
 
@@ -817,7 +846,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 activeView,
                 hasFilters: searchQuery.length > 0 || roleFilters.length > 0,
                 locale,
-                totalTrackCount: event.tracks.length,
+                totalTrackCount: boardTracks.length,
               })}
             </p>
           </Card>
@@ -920,46 +949,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           </div>
         </div>
       </details>
-
-      {effectiveStatus === "PUBLISHED" ? (
-        <section className="space-y-4 border-t border-white/8 pt-8">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Published", ru: "Опубликовано" })}
-            </p>
-            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-              {pick(locale, { en: "Final running order", ru: "Финальный порядок" })}
-            </h2>
-          </div>
-          <div className="grid gap-3">
-            {event.setlistItems
-              .filter((item) => item.section === "MAIN")
-              .map((item) => (
-                <Card className="brand-shell space-y-2" key={item.id}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/26 bg-gold/12 text-base font-semibold text-sand">
-                      {item.orderIndex}
-                    </div>
-                    <div className="min-w-0 space-y-1.5">
-                      <p className="font-semibold text-sand">
-                        {item.track.song.artist.name} - {item.track.song.title}
-                      </p>
-                      <p className="text-sm leading-6 text-white/68">
-                        {item.track.seats
-                          .filter((seat) => seat.user)
-                          .map(
-                            (seat) =>
-                              `${seat.label}: @${seat.user?.telegramUsername ?? seat.user?.fullName}`,
-                          )
-                          .join(", ")}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-          </div>
-        </section>
-      ) : null}
 
       {effectiveStatus === "OPEN" && user ? (
         <section className="space-y-4 border-t border-white/8 pt-8" id="missing-song-request">

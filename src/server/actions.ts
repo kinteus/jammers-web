@@ -70,6 +70,7 @@ import {
   sendTelegramFeedbackMessage,
   sendTelegramBoardClosedChannelMessage,
   sendTelegramBoardClosedParticipantMessage,
+  sendTelegramAdminSeatAssignedMessage,
   sendTelegramInviteMessage,
   sendTelegramPublishedSetMessage,
   sendTelegramSeatApprovalRequestMessage,
@@ -386,6 +387,10 @@ function getConfiguredMaxSetTrackCount(formData: FormData, fallback: number) {
   }
 
   return Math.max(1, Math.round(rawValue));
+}
+
+function getConfiguredMinParticipantsPerTrack(formData: FormData, fallback: number) {
+  return Math.max(1, Math.round(getInt(formData, "minParticipantsPerTrack", fallback)));
 }
 
 function getCommunityQuotesDesktopDisplayLimit(formData: FormData) {
@@ -786,6 +791,32 @@ function buildTrackSeatCreateData({
       };
     }),
   );
+}
+
+function countRequiredProposalSeats({
+  optionalSeatIds,
+  slots,
+  unavailableKeys,
+}: {
+  optionalSeatIds: string[];
+  slots: TrackSeatLineupSlot[];
+  unavailableKeys: string[];
+}) {
+  return slots.reduce((count, slot) => {
+    for (let offset = 0; offset < slot.seatCount; offset += 1) {
+      const seatIndex = offset + 1;
+      const label = seatLabelForSlot(slot, seatIndex);
+      const seatKey = `${label}:${seatIndex}`;
+      const unavailable = unavailableKeys.includes(seatKey);
+      const optional = slot.allowOptional && optionalSeatIds.includes(seatKey);
+
+      if (!unavailable && !optional) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }, 0);
 }
 
 async function resolveSongId(formData: FormData) {
@@ -1406,6 +1437,17 @@ export async function createTrackAction(formData: FormData) {
     where: { eventId },
     orderBy: { displayOrder: "asc" },
   });
+  const minimumRequiredPositions = Math.max(1, event.minParticipantsPerTrack ?? 1);
+  if (
+    slots.length > 0 &&
+    countRequiredProposalSeats({ optionalSeatIds, slots, unavailableKeys }) <
+      minimumRequiredPositions
+  ) {
+    if (eventKey) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "min-required-seats" }));
+    }
+    throw new Error("Track has fewer required positions than the event minimum.");
+  }
   const claimedRoleFamilies = new Set<string>();
   for (const slot of slots) {
     for (let index = 1; index <= slot.seatCount; index += 1) {
@@ -2063,6 +2105,7 @@ export async function createEventAction(formData: FormData) {
         DEFAULT_MAX_SET_TRACK_COUNT,
       ),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", 3),
+      minParticipantsPerTrack: getConfiguredMinParticipantsPerTrack(formData, 1),
       allowPlayback: getBoolean(formData, "allowPlayback"),
       trackInfoFieldsJson: serializeTrackInfoFields(
         parseTrackInfoFieldsInput(getString(formData, "trackInfoFieldsInput")),
@@ -2133,6 +2176,10 @@ export async function updateEventAction(formData: FormData) {
         event.maxSetDurationMinutes,
       ),
       maxTracksPerUser: getInt(formData, "maxTracksPerUser", event.maxTracksPerUser),
+      minParticipantsPerTrack: getConfiguredMinParticipantsPerTrack(
+        formData,
+        event.minParticipantsPerTrack,
+      ),
       allowPlayback: getBoolean(formData, "allowPlayback"),
       trackInfoFieldsJson: serializeTrackInfoFields(
         parseTrackInfoFieldsInput(getString(formData, "trackInfoFieldsInput")),
@@ -2456,10 +2503,11 @@ export async function adminReplaceTrackSongAction(formData: FormData) {
 export async function adminAssignSeatAction(formData: FormData) {
   const admin = await requireAdmin();
   const seatId = getString(formData, "seatId");
+  const userId = getString(formData, "userId");
   const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
   const eventSlug = getString(formData, "eventSlug");
-  if (!username) {
-    throw new Error("Telegram username is required.");
+  if (!userId && !username) {
+    throw new Error("User is required.");
   }
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
@@ -2470,15 +2518,24 @@ export async function adminAssignSeatAction(formData: FormData) {
         },
       },
       track: {
-        include: { event: true },
+        include: {
+          event: true,
+          song: {
+            include: { artist: true },
+          },
+        },
       },
     },
   });
   await assertLockOwnership(seat.track.eventId, admin.id);
 
-  const user = await db.user.findUniqueOrThrow({
-    where: { telegramUsername: username },
-  });
+  const user = userId
+    ? await db.user.findUniqueOrThrow({
+        where: { id: userId },
+      })
+    : await db.user.findUniqueOrThrow({
+        where: { telegramUsername: username! },
+      });
   await assertCanClaimRoleFamilyForTrack({
     eventSlug,
     excludeSeatId: seat.id,
@@ -2496,6 +2553,12 @@ export async function adminAssignSeatAction(formData: FormData) {
       claimedAt: new Date(),
     },
   });
+  await sendTelegramAdminSeatAssignedMessage({
+    eventTitle: seat.track.event.title,
+    recipientTelegramId: user.telegramId,
+    seatLabel: seat.label,
+    songLabel: `${seat.track.song.artist.name} - ${seat.track.song.title}`,
+  }).catch(() => {});
 
   revalidateAll(pathBundle(eventSlug));
   await publishBoardUpdate({
@@ -2658,6 +2721,7 @@ export async function runSelectionAction(formData: FormData) {
 
   const recommendation = buildSetlistRecommendation({
     maxSetTrackCount: getEffectiveMaxSetTrackCount(event.maxSetDurationMinutes),
+    minParticipantsPerTrack: event.minParticipantsPerTrack,
     previousConcertSongIds: new Set(
       previousEvent?.setlistItems.map((item) => item.track.songId) ?? [],
     ),
@@ -2728,14 +2792,41 @@ export async function moveSetlistItemAction(formData: FormData) {
   const itemId = getString(formData, "itemId");
   const section = setlistSectionSchema.parse(getString(formData, "section"));
   const orderIndex = getInt(formData, "orderIndex", 1);
+  const event = await db.event.findUniqueOrThrow({
+    where: { id: eventId },
+    select: { minParticipantsPerTrack: true },
+  });
   const items = await db.setlistItem.findMany({
     where: { eventId },
+    include: {
+      track: {
+        include: {
+          seats: true,
+        },
+      },
+    },
     orderBy: [{ section: "asc" }, { orderIndex: "asc" }],
   });
   const currentItem = items.find((item) => item.id === itemId);
 
   if (!currentItem) {
     throw new Error("Setlist item not found.");
+  }
+
+  if (section === SetlistSection.MAIN) {
+    const completion = getTrackCompletionSummary(currentItem.track.seats);
+    const participantCount = new Set(
+      currentItem.track.seats
+        .filter((seat) => seat.status === TrackSeatStatus.CLAIMED && seat.userId)
+        .map((seat) => seat.userId),
+    ).size;
+
+    if (
+      completion.requiredOpen > 0 ||
+      participantCount < Math.max(1, event.minParticipantsPerTrack)
+    ) {
+      throw new Error("Only fully assembled tracks can be moved into the main set.");
+    }
   }
 
   const sourceSection = currentItem.section;

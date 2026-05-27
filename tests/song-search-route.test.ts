@@ -96,6 +96,81 @@ describe("song search route", () => {
     );
   });
 
+  it("tries the longest plausible artist split before one-word artist fallback searches", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1629105587,
+              trackName: "Bad Things",
+              artistName: "I Prevail",
+              artworkUrl100: "http://is1-ssl.mzstatic.com/image/thumb/cover/100x100bb.jpg",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 948448824,
+              artistName: "I Prevail",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 948448824,
+              artistName: "I Prevail",
+            },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1629105533,
+              trackName: "Body Bag",
+              artistName: "I Prevail",
+              collectionName: "TRUE POWER",
+              artworkUrl100: "http://is1-ssl.mzstatic.com/image/thumb/body-bag/100x100bb.jpg",
+              trackViewUrl: "https://music.apple.com/us/album/body-bag/1629105248?i=1629105533",
+              trackTimeMillis: 196000,
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request("http://localhost/api/song-search?query=i%20prevail%20body%20bag"),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.results[0]).toMatchObject({
+      artistName: "I Prevail",
+      artworkUrl: "https://is1-ssl.mzstatic.com/image/thumb/body-bag/200x200bb.jpg",
+      externalId: "1629105533",
+      trackTitle: "Body Bag",
+    });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "i prevail",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("falls back through artist lookup for artist-title queries that direct iTunes search misses", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");

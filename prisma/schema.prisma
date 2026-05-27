@@ -186,6 +186,7 @@ model Event {
   status                  EventStatus      @default(DRAFT)
   maxSetDurationMinutes   Int              @default(120)
   maxTracksPerUser        Int              @default(3)
+  minParticipantsPerTrack Int              @default(1)
   allowPlayback           Boolean          @default(true)
   trackInfoFieldsJson     String?          @db.Text
   stageNotes              String?          @db.Text

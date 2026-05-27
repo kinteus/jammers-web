@@ -17,7 +17,6 @@ import {
 } from "@/lib/track-info-flags";
 import {
   acquireCurationLockAction,
-  adminAssignSeatAction,
   adminClearSeatAction,
   adminReplaceTrackSongAction,
   cancelTrackAction,
@@ -31,10 +30,11 @@ import {
 } from "@/server/actions";
 import { isDatabaseAvailable } from "@/server/database-health";
 import { requireAdmin } from "@/server/auth-guards";
-import { getEventWorkspace } from "@/server/query-data";
+import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
 import { db } from "@/lib/db";
 
 import { AdminSetlistStack } from "@/components/admin-setlist-stack";
+import { AdminSeatAssignControl } from "@/components/admin-seat-assign-control";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { Badge } from "@/components/ui/badge";
@@ -123,14 +123,16 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
     title: string;
     artist: { name: string };
   }> = [];
+  let assignableUsers: Awaited<ReturnType<typeof getInviteableUsers>> = [];
 
   try {
-    [event, songCatalog] = await Promise.all([
+    [event, songCatalog, assignableUsers] = await Promise.all([
       getEventWorkspace(slug),
       db.song.findMany({
         include: { artist: true },
         orderBy: [{ artist: { name: "asc" } }, { title: "asc" }],
       }),
+      getInviteableUsers(),
     ]);
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) {
@@ -185,13 +187,31 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
   const backlogItems = event.setlistItems
     .filter((item) => item.section === "BACKLOG")
     .sort((left, right) => left.orderIndex - right.orderIndex)
-    .map((item) => ({
-      id: item.id,
-      orderIndex: item.orderIndex,
-      title: item.track.song.title,
-      artistName: item.track.song.artist.name,
-      lineupSummary: buildLineupSummary(locale, item.track.seats),
-    }));
+    .map((item) => {
+      const completion = getTrackCompletionSummary(item.track.seats);
+      const participantCount = new Set(
+        item.track.seats
+          .filter((seat) => seat.status === TrackSeatStatus.CLAIMED && seat.userId)
+          .map((seat) => seat.userId),
+      ).size;
+      const moveDisabled =
+        completion.requiredOpen > 0 || participantCount < event.minParticipantsPerTrack;
+
+      return {
+        id: item.id,
+        orderIndex: item.orderIndex,
+        title: item.track.song.title,
+        artistName: item.track.song.artist.name,
+        lineupSummary: buildLineupSummary(locale, item.track.seats),
+        moveDisabled,
+        moveDisabledLabel: moveDisabled
+          ? pick(locale, {
+              en: "Needs full required line-up",
+              ru: "Нужен полный обязательный состав",
+            })
+          : undefined,
+      };
+    });
 
   return (
     <div className="space-y-8">
@@ -298,6 +318,16 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 className="w-full px-4 py-3"
                 defaultValue={event.maxTracksPerUser}
                 name="maxTracksPerUser"
+                type="number"
+              />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span>{pick(locale, { en: "Min players per song", ru: "Мин. людей на песню" })}</span>
+              <input
+                className="w-full px-4 py-3"
+                defaultValue={event.minParticipantsPerTrack}
+                min={1}
+                name="minParticipantsPerTrack"
                 type="number"
               />
             </label>
@@ -567,9 +597,17 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                     <form action={cancelTrackAction}>
                       <input name="trackId" type="hidden" value={track.id} />
                       <input name="eventSlug" type="hidden" value={event.id} />
-                      <SubmitButton pendingLabel={pick(locale, { en: "Canceling...", ru: "Отменяем..." })} type="submit" variant="ghost">
-                        {pick(locale, { en: "Cancel track", ru: "Отменить трек" })}
-                      </SubmitButton>
+                      <ConfirmSubmitButton
+                        confirmMessage={pick(locale, {
+                          en: `Delete "${track.song.title}" from the setlist?`,
+                          ru: `Удалить "${track.song.title}" из сетлиста?`,
+                        })}
+                        pendingLabel={pick(locale, { en: "Deleting...", ru: "Удаляем..." })}
+                        type="submit"
+                        variant="ghost"
+                      >
+                        {pick(locale, { en: "Delete track", ru: "Удалить трек" })}
+                      </ConfirmSubmitButton>
                     </form>
                   </div>
 
@@ -636,18 +674,12 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                         </div>
 
                         {seat.status !== TrackSeatStatus.CLAIMED ? (
-                          <form action={adminAssignSeatAction} className="flex flex-wrap items-center gap-2">
-                            <input name="seatId" type="hidden" value={seat.id} />
-                            <input name="eventSlug" type="hidden" value={event.id} />
-                            <input
-                              className="w-[180px] px-3 py-2 text-sm"
-                              name="telegramUsername"
-                              placeholder={pick(locale, { en: "username", ru: "username" })}
-                            />
-                            <SubmitButton pendingLabel={pick(locale, { en: "Assigning...", ru: "Назначаем..." })} size="sm" type="submit" variant="secondary">
-                              {pick(locale, { en: "Assign", ru: "Назначить" })}
-                            </SubmitButton>
-                          </form>
+                          <AdminSeatAssignControl
+                            eventSlug={event.id}
+                            locale={locale}
+                            seatId={seat.id}
+                            users={assignableUsers}
+                          />
                         ) : (
                           <form action={adminClearSeatAction}>
                             <input name="seatId" type="hidden" value={seat.id} />

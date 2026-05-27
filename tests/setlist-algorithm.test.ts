@@ -106,9 +106,43 @@ describe("buildSetlistRecommendation", () => {
     });
 
     expect(result.selected.map((item) => item.trackId)).toEqual(["complete-smaller"]);
-    expect(result.backlog.find((item) => item.trackId === "incomplete-popular")?.reasons[0]).toContain(
-      "required",
-    );
+    expect(result.backlog.find((item) => item.trackId === "incomplete-popular")).toBeUndefined();
+    expect(result.coverageCount).toBe(2);
+  });
+
+  it("keeps tracks below the event minimum participant count out of the final set and backlog", () => {
+    const result = buildSetlistRecommendation({
+      maxSetTrackCount: 2,
+      minParticipantsPerTrack: 2,
+      previousConcertSongIds: new Set(),
+      candidates: [
+        {
+          id: "solo-track",
+          songId: "song-solo",
+          songTitle: "Solo",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u1"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+          matchedKnownGroupName: null,
+        },
+        {
+          id: "duo-track",
+          songId: "song-duo",
+          songTitle: "Duo",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u2", "u3"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:01:00Z"),
+          matchedKnownGroupName: null,
+        },
+      ],
+    });
+
+    expect(result.selected.map((item) => item.trackId)).toEqual(["duo-track"]);
+    expect(result.backlog.find((item) => item.trackId === "solo-track")).toBeUndefined();
     expect(result.coverageCount).toBe(2);
   });
 });

@@ -20,7 +20,7 @@ type SiteHeaderProps = {
 
 export function SiteHeader({ locale, user }: SiteHeaderProps) {
   const navLinkClass =
-    "inline-block text-sm font-semibold text-white/82 transition duration-200 hover:text-gold active:translate-y-0.5 active:text-white";
+    "inline-block border-b-2 border-transparent py-2 text-sm font-bold text-sand/78 transition duration-200 hover:border-gold hover:text-gold active:translate-y-0.5";
   const primaryLinks = [
     { href: "/", label: pick(locale, { en: "Home", ru: "Главная" }) },
     { href: "/archive", label: pick(locale, { en: "Setlists", ru: "Сетлисты" }) },
@@ -29,100 +29,62 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
   ];
 
   return (
-    <header className="header-stage sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur">
+    <header className="header-stage sticky top-0 z-50 border-b border-white/10 text-white shadow-[0_18px_46px_rgba(0,0,0,0.42)]">
       <div className="h-1 w-full stage-rule" />
-      <div className="mx-auto max-w-[1440px] px-5 py-4 md:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center justify-between gap-4 sm:block">
+      <div className="mx-auto max-w-[1440px] px-5 py-3 md:px-6">
+        <div className="grid items-center gap-4 md:grid-cols-[260px_minmax(0,1fr)_auto]">
+          <div className="flex items-center justify-between gap-4">
             <Link className="block" href="/">
-              <BrandLogo className="max-w-[180px] sm:max-w-[240px]" variant="dark" />
+              <BrandLogo className="max-w-[180px] md:max-w-[230px]" priority variant="dark" />
             </Link>
-            <div className="sm:hidden">
+            <div className="md:hidden">
               <LocaleSwitcher locale={locale} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:items-end">
-            <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-4">
-              <LocaleSwitcher locale={locale} />
-              {user ? (
-                <>
-                  <span className="border-l border-white/14 pl-4 text-sm text-white/72">
-                    {user.telegramUsername
-                      ? `@${user.telegramUsername}`
-                      : user.fullName ?? pick(locale, { en: "Signed in", ru: "В системе" })}
-                  </span>
-                  <form action={signOutAction}>
-                    <SubmitButton
-                      className="border-white/18 bg-white/8 text-white hover:border-gold/28 hover:bg-white/12"
-                      pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
-                      size="sm"
-                      type="submit"
-                      variant="secondary"
-                    >
-                      {pick(locale, { en: "Sign out", ru: "Выйти" })}
-                    </SubmitButton>
-                  </form>
-                </>
-              ) : (
-                <SignInLink>
-                  <Button className="shadow-glow" size="sm" variant="primary">
-                    {pick(locale, { en: "Sign in", ru: "Войти" })}
-                  </Button>
-                </SignInLink>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-              <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:justify-end sm:gap-4">
-                {primaryLinks.map((link) => (
-                  <Link className={navLinkClass} href={link.href} key={link.href}>
-                    {link.label}
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-1 md:justify-center">
+            {primaryLinks.map((link) => (
+              <Link className={navLinkClass} href={link.href} key={link.href}>
+                {link.label}
+              </Link>
+            ))}
+            {user ? (
+              <>
+                <Link className={navLinkClass} href="/profile">
+                  {pick(locale, { en: "Profile", ru: "Профиль" })}
+                </Link>
+                {user.role === "ADMIN" ? (
+                  <Link className={navLinkClass} href="/admin">
+                    Admin
                   </Link>
-                ))}
-                {user ? (
-                  <>
-                    <Link className={navLinkClass} href="/profile">
-                      {pick(locale, { en: "Profile", ru: "Профиль" })}
-                    </Link>
-                    {user.role === "ADMIN" ? (
-                      <Link className={navLinkClass} href="/admin">
-                        Admin
-                      </Link>
-                    ) : null}
-                  </>
                 ) : null}
-              </nav>
+              </>
+            ) : null}
+          </nav>
 
-              <div className="flex shrink-0 items-center gap-3 sm:hidden">
-                {user ? (
-                  <>
-                    <span className="hidden truncate text-sm text-white/72 min-[480px]:inline">
-                      {user.telegramUsername
-                        ? `@${user.telegramUsername}`
-                        : user.fullName ?? pick(locale, { en: "Signed in", ru: "В системе" })}
-                    </span>
-                    <form action={signOutAction}>
-                      <SubmitButton
-                        className="border-white/18 bg-white/8 text-white hover:border-gold/28 hover:bg-white/12"
-                        pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
-                        size="sm"
-                        type="submit"
-                        variant="secondary"
-                      >
-                        {pick(locale, { en: "Sign out", ru: "Выйти" })}
-                      </SubmitButton>
-                    </form>
-                  </>
-                ) : (
-                  <SignInLink>
-                    <Button className="shadow-glow" size="sm" variant="primary">
-                      {pick(locale, { en: "Sign in", ru: "Войти" })}
-                    </Button>
-                  </SignInLink>
-                )}
-              </div>
-            </div>
+          <div className="hidden items-center justify-end gap-3 md:flex">
+            <LocaleSwitcher locale={locale} />
+            {user ? (
+              <form action={signOutAction}>
+                <SubmitButton
+                  className="min-h-11 border-white/18 bg-white/8 px-4 text-white hover:border-gold/28 hover:bg-white/12"
+                  pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
+                  size="sm"
+                  type="submit"
+                  variant="secondary"
+                >
+                  {user.telegramUsername
+                    ? `@${user.telegramUsername}`
+                    : pick(locale, { en: "Sign out", ru: "Выйти" })}
+                </SubmitButton>
+              </form>
+            ) : (
+              <SignInLink>
+                <Button className="min-h-11 px-5 shadow-glow" size="sm" variant="primary">
+                  {pick(locale, { en: "Sign in", ru: "Войти" })}
+                </Button>
+              </SignInLink>
+            )}
           </div>
         </div>
       </div>

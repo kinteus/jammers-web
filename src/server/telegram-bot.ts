@@ -178,6 +178,18 @@ export function buildTelegramInviteMessage({
   ].join("\n");
 }
 
+export function buildTelegramAdminSeatAssignedMessage({
+  eventTitle,
+  seatLabel,
+  songLabel,
+}: {
+  eventTitle: string;
+  seatLabel: string;
+  songLabel: string;
+}) {
+  return `Ты добавлен(а) админом в сетлист: ${songLabel} — ${seatLabel} для ${eventTitle}.`;
+}
+
 export async function sendTelegramInviteMessage({
   recipientTelegramId,
   eventTitle,
@@ -201,6 +213,28 @@ export async function sendTelegramInviteMessage({
       eventTitle,
       inviterLabel,
       profileUrl,
+      seatLabel,
+      songLabel,
+    }),
+  });
+}
+
+export async function sendTelegramAdminSeatAssignedMessage({
+  recipientTelegramId,
+  eventTitle,
+  songLabel,
+  seatLabel,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+  songLabel: string;
+  seatLabel: string;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    disableWebPagePreview: true,
+    text: buildTelegramAdminSeatAssignedMessage({
+      eventTitle,
       seatLabel,
       songLabel,
     }),

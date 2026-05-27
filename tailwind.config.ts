@@ -10,13 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1C1C1C",
-        sand: "#F4F4F4",
-        blue: "#003DA5",
-        red: "#B90016",
+        ink: "#100E0D",
+        sand: "#F3EAD7",
+        blue: "#2196F3",
+        red: "#E53935",
         mist: "#181818",
         cloud: "#3A3A3A",
-        stage: "#101010",
+        stage: "#100E0D",
         ember: "#D73A14",
         moss: "#3A4D85",
         clay: "#7A2A1F",
@@ -26,10 +26,10 @@ const config: Config = {
         brand: {
           gold: "#FFB300",
           yellow: "#FFB300",
-          red: "#B90016",
-          blue: "#003DA5",
-          ink: "#1C1C1C",
-          sand: "#F4F4F4",
+          red: "#E53935",
+          blue: "#2196F3",
+          ink: "#100E0D",
+          sand: "#F3EAD7",
         },
         surface: {
           subtle: "#1F1F1F",
@@ -47,7 +47,7 @@ const config: Config = {
         glow: "0 0 0 1px rgba(255, 179, 0, 0.12), 0 16px 38px rgba(185, 0, 22, 0.28)",
       },
       fontFamily: {
-        display: ["var(--font-brand)"],
+        display: ["var(--font-display)"],
         body: ["var(--font-brand)"],
       },
       backgroundImage: {

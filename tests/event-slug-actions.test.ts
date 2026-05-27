@@ -17,6 +17,7 @@ const txMock = vi.hoisted(() => ({
   },
   eventEditLock: {
     deleteMany: vi.fn(),
+    findMany: vi.fn(),
   },
   eventLineupSlot: {
     deleteMany: vi.fn(),
@@ -28,6 +29,7 @@ const txMock = vi.hoisted(() => ({
   setlistItem: {
     deleteMany: vi.fn(),
     findMany: vi.fn(),
+    update: vi.fn(),
     upsert: vi.fn(),
   },
   track: {
@@ -61,6 +63,7 @@ const dbMock = vi.hoisted(() => ({
   },
   eventEditLock: {
     create: vi.fn(),
+    findMany: vi.fn(),
   },
   eventLineupSlot: {
     create: vi.fn(),
@@ -68,6 +71,9 @@ const dbMock = vi.hoisted(() => ({
   },
   track: {
     findFirst: vi.fn(),
+  },
+  setlistItem: {
+    findMany: vi.fn(),
   },
 }));
 
@@ -124,6 +130,7 @@ function futureOpenEvent(overrides: Record<string, unknown> = {}) {
   return {
     id: "event-1",
     maxTracksPerUser: 5,
+    minParticipantsPerTrack: 1,
     registrationClosesAt: null,
     registrationOpensAt: null,
     slug: "testovyi-gig-56e2",
@@ -333,6 +340,109 @@ describe("event route slugs in server actions", () => {
       ],
     });
     expect(txMock.trackSeat.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects track proposals whose required positions are below the event minimum", async () => {
+    requireUserMock.mockResolvedValue({
+      bans: [],
+      email: null,
+      fullName: "Anna",
+      id: "user-1",
+      role: UserRole.USER,
+      status: UserStatus.ACTIVE,
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(
+      futureOpenEvent({ minParticipantsPerTrack: 2 }),
+    );
+    dbMock.track.findFirst.mockResolvedValue(null);
+    dbMock.eventLineupSlot.findMany.mockResolvedValue([
+      {
+        allowOptional: true,
+        displayOrder: 1,
+        id: "slot-guitar",
+        key: "guitar",
+        label: "Guitar",
+        seatCount: 1,
+      },
+      {
+        allowOptional: true,
+        displayOrder: 2,
+        id: "slot-vocal",
+        key: "vocal",
+        label: "Vocal",
+        seatCount: 1,
+      },
+    ]);
+
+    const { createTrackAction } = await import("@/server/actions");
+
+    await expect(
+      createTrackAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          optionalSeatKeys: "Vocal:1",
+          songId: "song-1",
+        }),
+      ),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/events/spring-jam-night?error=min-required-seats#track-board",
+    );
+
+    expect(txMock.track.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses to move incomplete setlist items into the main set", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([{ userId: "admin-1" }]);
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(
+      futureOpenEvent({ minParticipantsPerTrack: 2 }),
+    );
+    dbMock.setlistItem.findMany.mockResolvedValue([
+      {
+        editedById: null,
+        eventId: "event-1",
+        id: "item-1",
+        orderIndex: 1,
+        section: "BACKLOG",
+        trackId: "track-1",
+        track: {
+          seats: [
+            {
+              isOptional: false,
+              status: "CLAIMED",
+              userId: "user-1",
+            },
+            {
+              isOptional: false,
+              status: "OPEN",
+              userId: null,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const { moveSetlistItemAction } = await import("@/server/actions");
+
+    await expect(
+      moveSetlistItemAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          itemId: "item-1",
+          orderIndex: "1",
+          section: "MAIN",
+        }),
+      ),
+    ).rejects.toThrow("Only fully assembled tracks can be moved into the main set.");
+
+    expect(txMock.setlistItem.update).not.toHaveBeenCalled();
   });
 
   it("encodes legacy non-ASCII event slug redirects", async () => {

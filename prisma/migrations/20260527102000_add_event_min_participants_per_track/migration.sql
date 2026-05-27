@@ -1,0 +1,2 @@
+ALTER TABLE "Event"
+ADD COLUMN "minParticipantsPerTrack" INTEGER NOT NULL DEFAULT 1;

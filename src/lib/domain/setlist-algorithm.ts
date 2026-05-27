@@ -14,6 +14,7 @@ type CandidateTrack = {
 
 export type SelectionInput = {
   maxSetTrackCount: number;
+  minParticipantsPerTrack?: number;
   previousConcertSongIds: Set<string>;
   candidates: CandidateTrack[];
 };
@@ -47,16 +48,18 @@ function marginalScore(track: CandidateTrack, coveredUsers: Set<string>) {
 
 export function buildSetlistRecommendation({
   maxSetTrackCount,
+  minParticipantsPerTrack = 1,
   previousConcertSongIds,
   candidates,
 }: SelectionInput): SelectionResult {
   const selected: SelectionResult["selected"] = [];
   const backlog: SelectionResult["backlog"] = [];
+  const requiredParticipantCount = Math.max(1, Math.round(minParticipantsPerTrack));
   const remaining = [...candidates].filter(
     (candidate) =>
       !previousConcertSongIds.has(candidate.songId) &&
       !candidate.hasUnfilledRequiredSeats &&
-      candidate.participantIds.length > 0,
+      candidate.participantIds.length >= requiredParticipantCount,
   );
   const coveredUsers = new Set<string>();
   while (remaining.length > 0) {
@@ -113,20 +116,10 @@ export function buildSetlistRecommendation({
       section: SetlistSection.BACKLOG,
       reasons: ["Skipped because the same song appeared in the previous concert."],
     }));
-  const rejectedDueToRequiredSeats = candidates
-    .filter(
-      (candidate) =>
-        !previousConcertSongIds.has(candidate.songId) && candidate.hasUnfilledRequiredSeats,
-    )
-    .map((candidate) => ({
-      trackId: candidate.id,
-      section: SetlistSection.BACKLOG,
-      reasons: ["Skipped because required positions are still open."],
-    }));
 
   return {
     selected,
-    backlog: [...backlog, ...rejectedDueToRequiredSeats, ...rejectedDueToPrevious],
+    backlog: [...backlog, ...rejectedDueToPrevious],
     coverageCount: coveredUsers.size,
   };
 }

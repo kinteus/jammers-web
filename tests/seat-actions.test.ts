@@ -8,15 +8,22 @@ const redirectMock = vi.hoisted(() =>
 );
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const revalidateTagMock = vi.hoisted(() => vi.fn());
+const requireAdminMock = vi.hoisted(() => vi.fn());
 const requireUserMock = vi.hoisted(() => vi.fn());
+const publishBoardUpdateMock = vi.hoisted(() => vi.fn());
+const sendTelegramAdminSeatAssignedMessageMock = vi.hoisted(() => vi.fn());
 const sendTelegramInviteMessageMock = vi.hoisted(() => vi.fn());
 
 const dbMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
+  eventEditLock: {
+    findMany: vi.fn(),
+  },
   trackSeat: {
     count: vi.fn(),
     findMany: vi.fn(),
     findUniqueOrThrow: vi.fn(),
+    update: vi.fn(),
     updateMany: vi.fn(),
   },
   trackInvite: {
@@ -28,6 +35,7 @@ const dbMock = vi.hoisted(() => ({
   },
   user: {
     findUnique: vi.fn(),
+    findUniqueOrThrow: vi.fn(),
   },
 }));
 
@@ -49,9 +57,13 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/server/auth-guards", () => ({
-  requireAdmin: vi.fn(),
+  requireAdmin: requireAdminMock,
   requireSuperAdmin: vi.fn(),
   requireUser: requireUserMock,
+}));
+
+vi.mock("@/server/board-event-bus", () => ({
+  publishBoardUpdate: publishBoardUpdateMock,
 }));
 
 vi.mock("@/server/telegram-bot", async () => {
@@ -61,6 +73,7 @@ vi.mock("@/server/telegram-bot", async () => {
 
   return {
     ...actual,
+    sendTelegramAdminSeatAssignedMessage: sendTelegramAdminSeatAssignedMessageMock,
     sendTelegramFeedbackMessage: vi.fn(),
     sendTelegramInviteMessage: sendTelegramInviteMessageMock,
     sendTelegramPublishedSetMessage: vi.fn(),
@@ -124,6 +137,85 @@ describe("releaseSeatInlineAction", () => {
     },
     10_000,
   );
+});
+
+describe("adminAssignSeatAction", () => {
+  it("assigns the selected registered user and sends a Telegram notification", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([
+      {
+        eventId: "event-1",
+        userId: "admin-1",
+      },
+    ]);
+    dbMock.trackSeat.findUniqueOrThrow.mockResolvedValue({
+      id: "seat-1",
+      label: "Bass",
+      lineupSlot: {
+        key: "bass",
+      },
+      trackId: "track-1",
+      track: {
+        event: buildOpenEvent(),
+        eventId: "event-1",
+        song: {
+          artist: { name: "Blur" },
+          title: "Song 2",
+        },
+      },
+    });
+    dbMock.user.findUniqueOrThrow.mockResolvedValue({
+      fullName: "Boris Bass",
+      id: "player-1",
+      telegramId: "tg-player-1",
+      telegramUsername: "boris_bass",
+    });
+    dbMock.trackSeat.findMany.mockResolvedValue([]);
+    dbMock.trackSeat.update.mockResolvedValue({
+      id: "seat-1",
+    });
+    publishBoardUpdateMock.mockResolvedValue(undefined);
+    sendTelegramAdminSeatAssignedMessageMock.mockResolvedValue({
+      note: "Sent",
+      status: "PENDING",
+    });
+
+    const { adminAssignSeatAction } = await import("@/server/actions");
+
+    await expect(
+      adminAssignSeatAction(
+        buildFormData({
+          eventSlug: "spring-jam-night",
+          seatId: "seat-1",
+          userId: "player-1",
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(dbMock.user.findUniqueOrThrow).toHaveBeenCalledWith({
+      where: { id: "player-1" },
+    });
+    expect(dbMock.trackSeat.update).toHaveBeenCalledWith({
+      where: { id: "seat-1" },
+      data: expect.objectContaining({
+        status: TrackSeatStatus.CLAIMED,
+        userId: "player-1",
+      }),
+    });
+    expect(sendTelegramAdminSeatAssignedMessageMock).toHaveBeenCalledWith({
+      eventTitle: "Spring Jam Night",
+      recipientTelegramId: "tg-player-1",
+      seatLabel: "Bass",
+      songLabel: "Blur - Song 2",
+    });
+    expect(publishBoardUpdateMock).toHaveBeenCalledWith({
+      eventId: "event-1",
+      reason: "seat-claimed",
+    });
+  });
 });
 
 describe("inviteToSeatAction", () => {
@@ -198,7 +290,7 @@ describe("inviteToSeatAction", () => {
     });
   });
 
-  it("sends an invite instead of silently assigning another user to a closed optional seat", async () => {
+  it("sends an invite instead of silently assigning another user to a published optional seat", async () => {
     requireUserMock.mockResolvedValue({
       fullName: "Anna",
       id: "proposer-1",
@@ -218,7 +310,7 @@ describe("inviteToSeatAction", () => {
       track: {
         event: {
           ...buildOpenEvent(),
-          status: EventStatus.CLOSED,
+          status: EventStatus.PUBLISHED,
         },
         eventId: "event-1",
         proposedBy: {

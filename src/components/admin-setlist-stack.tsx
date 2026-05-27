@@ -14,6 +14,8 @@ type AdminSetlistStackItem = {
   title: string;
   artistName: string;
   lineupSummary: string;
+  moveDisabled?: boolean;
+  moveDisabledLabel?: string;
   orderIndex: number;
 };
 
@@ -143,8 +145,15 @@ export function AdminSetlistStack({
                   <input name="itemId" type="hidden" value={item.id} />
                   <input name="section" type="hidden" value={targetSection} />
                   <input name="orderIndex" type="hidden" value={1} />
-                  <SubmitButton pendingLabel={movePendingLabel} size="sm" type="submit" variant="secondary">
-                    {moveLabel}
+                  <SubmitButton
+                    disabled={item.moveDisabled}
+                    pendingLabel={movePendingLabel}
+                    size="sm"
+                    title={item.moveDisabled ? item.moveDisabledLabel : undefined}
+                    type="submit"
+                    variant="secondary"
+                  >
+                    {item.moveDisabled ? (item.moveDisabledLabel ?? moveLabel) : moveLabel}
                   </SubmitButton>
                 </form>
               </div>

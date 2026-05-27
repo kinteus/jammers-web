@@ -310,13 +310,13 @@ export default async function HomePage() {
     <div className="home-page-shell relative isolate space-y-8 text-sand">
       <section className="space-y-4">
         <div className={HERO_FRAME_CLASS}>
-          <div className="max-w-3xl rounded-[1.6rem] border border-dashed border-gold/26 bg-[linear-gradient(180deg,rgba(255,179,0,0.08),rgba(255,179,0,0.03)),rgba(16,14,13,0.92)] px-5 py-4 shadow-[0_16px_42px_rgba(0,0,0,0.24)]">
+          <div className="rounded-xl border border-dashed border-gold/28 bg-gold/[0.035] px-5 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-2">
-                <p className="text-lg font-semibold uppercase tracking-[0.3em] text-gold md:text-xl">
+                <p className="reference-kicker">
                   BETA
                 </p>
-                <p className="max-w-2xl text-sm leading-6 text-white/74">
+                <p className="max-w-2xl text-sm leading-6 text-sand/62">
                   {pick(locale, {
                     en: "Some edges are still rough. If a flow feels unclear or breaks, send feedback from the FAQ form.",
                     ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, отправь feedback через форму в FAQ.",
@@ -336,18 +336,24 @@ export default async function HomePage() {
 
       <section className="space-y-6">
         <div className={`${HERO_FRAME_CLASS} border-b border-white/8 pb-8`}>
-          <div className="brand-stage overflow-hidden rounded-[2rem] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.38)] md:px-8 md:py-10">
+          <div className="reference-hero px-6 py-10 md:px-8 md:py-14">
             <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 text-center">
               <div className="space-y-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/56">
+                <p className="reference-kicker">
                   {pick(locale, {
                     en: "Cyprus music community",
                     ru: "Музыкальное коммьюнити Кипра",
                   })}
                 </p>
-                <h1 className="font-display text-5xl font-semibold uppercase tracking-[0.04em] text-sand md:text-7xl">
+                <h1 className="font-display text-5xl uppercase text-sand md:text-7xl">
                   {pick(locale, { en: "We Are The Jammers", ru: "Кто мы? The Jammers!" })}
                 </h1>
+                <p className="mx-auto max-w-xl text-base leading-7 text-sand/60">
+                  {pick(locale, {
+                    en: "Where strangers become bandmates and songs turn into living setlists. One jam at a time.",
+                    ru: "Здесь незнакомые люди становятся составом, а песни превращаются в живые сетлисты. Джем за джемом.",
+                  })}
+                </p>
                 <div className="mx-auto flex flex-wrap justify-center gap-3">
                   {featuredEvent ? (
                     <Button asChild variant="primary">

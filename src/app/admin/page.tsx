@@ -267,6 +267,16 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <span>{pick(locale, { en: "Max tracks per user", ru: "Макс. треков на человека" })}</span>
                 <input className="w-full px-4 py-3" defaultValue={3} name="maxTracksPerUser" type="number" />
               </label>
+              <label className="space-y-2 text-sm">
+                <span>{pick(locale, { en: "Min players per song", ru: "Мин. людей на песню" })}</span>
+                <input
+                  className="w-full px-4 py-3"
+                  defaultValue={1}
+                  min={1}
+                  name="minParticipantsPerTrack"
+                  type="number"
+                />
+              </label>
               <label className="space-y-2 text-sm md:col-span-2">
                 <span>{pick(locale, { en: "Stage notes", ru: "Заметки по сцене" })}</span>
                 <textarea className="min-h-24 w-full px-4 py-3" name="stageNotes" />

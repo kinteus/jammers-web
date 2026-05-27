@@ -104,20 +104,20 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
 
   if (!user) {
     return (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <Card className="brand-shell space-y-5">
-          <Badge>Telegram auth</Badge>
-          <div className="space-y-2">
-            <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.03em] text-sand">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <Card className="mx-auto max-w-4xl space-y-7 px-6 py-10 text-center md:px-12 md:py-14">
+          <p className="reference-kicker">Telegram auth</p>
+          <div className="space-y-4">
+            <h1 className="font-display text-5xl uppercase text-sand md:text-6xl">
               {pick(locale, {
                 en: "Sign in to join songs and manage invites",
                 ru: "Войди, чтобы вписываться в песни и управлять приглашениями",
               })}
             </h1>
-            <p className="max-w-3xl text-sm leading-6 text-white/70">
+            <p className="mx-auto max-w-2xl text-base leading-7 text-sand/68">
               {pick(locale, {
-                en: "Your Telegram account becomes your shared identity for invites, line-ups and musician coordination.",
-                ru: "Твой Telegram-аккаунт становится общей точкой входа для приглашений, лайнапов и координации музыкантов.",
+                en: "Your Telegram account becomes the single entry point for invites, line-ups and musician coordination.",
+                ru: "Твой Telegram-аккаунт становится единой точкой входа для приглашений, лайнапов и координации музыкантов.",
               })}
             </p>
           </div>
@@ -145,33 +145,51 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               locale={locale}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 text-left sm:grid-cols-3">
             {pick(locale, {
               en: [
-                "Take open seats from any live board.",
-                "Accept or decline invites in one place.",
-                "Keep your instruments current so bandmates can find you.",
+                "Claim open spots",
+                "Manage invites",
+                "Stay discoverable",
               ],
               ru: [
-                "Занимай открытые места в любом живом сетлисте.",
-                "Принимай и отклоняй приглашения в одном месте.",
-                "Держи инструменты актуальными, чтобы тебя было проще найти.",
+                "Занимай свободные места",
+                "Управляй инвайтами",
+                "Оставайся заметным",
               ],
             }).map((item) => (
-              <div className="brand-shell-soft rounded-xl px-4 py-4 text-sm leading-6 text-white/72" key={item}>
-                {item}
+              <div className="brand-shell-soft rounded-xl px-4 py-4" key={item}>
+                <p className="font-bold text-sand">{item}</p>
+                <p className="mt-2 text-sm leading-6 text-sand/58">
+                  {pick(locale, {
+                    en:
+                      item === "Claim open spots"
+                        ? "Take any vacant role in a live setlist."
+                        : item === "Manage invites"
+                          ? "Accept or decline invitations in one place."
+                          : "Keep your instruments up to date.",
+                    ru:
+                      item === "Занимай свободные места"
+                        ? "Бери свободную роль в живом сетлисте."
+                        : item === "Управляй инвайтами"
+                          ? "Принимай и отклоняй приглашения в одном месте."
+                          : "Держи инструменты актуальными.",
+                  })}
+                </p>
               </div>
             ))}
           </div>
-          <Link href="/">
-            <Button variant="secondary">
+          <div className="border-t border-white/10 pt-5">
+            <Button asChild variant="secondary">
+              <Link href="/">
               {pick(locale, { en: "Browse gigs first", ru: "Сначала посмотреть гиги" })}
+              </Link>
             </Button>
-          </Link>
+          </div>
         </Card>
 
         {env.ENABLE_DEV_AUTH ? (
-          <Card className="brand-shell space-y-5">
+          <Card className="mx-auto max-w-4xl space-y-5">
             <Badge>Development only</Badge>
             <div className="space-y-2">
               <h2 className="font-display text-2xl font-semibold uppercase tracking-[0.03em] text-sand">
