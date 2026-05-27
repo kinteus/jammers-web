@@ -205,13 +205,13 @@ test.describe("Jammers smoke", () => {
 
     await page.goto("/about");
     await expect(page.getByRole("heading", { name: /About Us|О нас/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /People who keep the scene moving|Люди, которые двигают сцену дальше/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Reach the team|Связаться с командой/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Partners who amplify the night|Партнёры, которые усиливают вечер/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /People moving the scene forward|Люди, которые двигают сцену дальше/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Talk to the team|Написать команде/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Brands that lift the night|Бренды, которые усиливают вечер/i })).toBeVisible();
     await expect(page.locator("a[href*='replace_me']")).toHaveCount(0);
 
     await page.goto("/archive");
-    await expect(page.getByRole("heading", { name: /Published setlists|Опубликованные сетлисты/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Setlists|Сетлисты/i })).toBeVisible();
 
     await page.goto("/profile");
     await expect(
