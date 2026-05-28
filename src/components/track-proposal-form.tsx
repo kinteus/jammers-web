@@ -11,6 +11,7 @@ export function TrackProposalForm({
   createTrackAction,
   eventId,
   eventSlug,
+  inviteableUsers,
   lineupSlots,
   locale,
   trackInfoFields,
@@ -18,6 +19,11 @@ export function TrackProposalForm({
   createTrackAction: (formData: FormData) => void | Promise<void>;
   eventId: string;
   eventSlug: string;
+  inviteableUsers: Array<{
+    id: string;
+    telegramUsername: string | null;
+    fullName: string | null;
+  }>;
   lineupSlots: LineupSlotLite[];
   locale: Locale;
   trackInfoFields: TrackInfoField[];
@@ -27,6 +33,7 @@ export function TrackProposalForm({
       <input name="eventId" type="hidden" value={eventId} />
       <input name="eventSlug" type="hidden" value={eventSlug} />
       <TrackProposalComposer
+        inviteableUsers={inviteableUsers}
         lineupSlots={lineupSlots}
         locale={locale}
         trackInfoFields={trackInfoFields}

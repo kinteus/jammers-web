@@ -84,6 +84,8 @@ describe("BoardRealtimeRefresh", () => {
 
   it("refreshes the route after a matching board websocket message", () => {
     render(<BoardRealtimeRefresh eventId="event-1" />);
+    const listener = vi.fn();
+    window.addEventListener("jammers:board-update", listener);
 
     act(() => {
       FakeWebSocket.instances[0]?.open();
@@ -94,6 +96,14 @@ describe("BoardRealtimeRefresh", () => {
     });
 
     expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          eventId: "event-1",
+          reason: "seat-claimed",
+        }),
+      }),
+    );
   });
 
   it("periodically refreshes as a safety net when websocket messages are not delivered", () => {

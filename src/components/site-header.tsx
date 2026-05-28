@@ -1,13 +1,11 @@
 import Link from "next/link";
 
 import { pick, type Locale } from "@/lib/i18n";
-import { signOutAction } from "@/server/actions";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SignInLink } from "@/components/sign-in-link";
 import { Button } from "@/components/ui/button";
-import { SubmitButton } from "@/components/ui/submit-button";
 
 type SiteHeaderProps = {
   locale: Locale;
@@ -65,19 +63,18 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
           <div className="hidden items-center justify-end gap-3 md:flex">
             <LocaleSwitcher locale={locale} />
             {user ? (
-              <form action={signOutAction}>
-                <SubmitButton
-                  className="min-h-11 border-white/18 bg-white/8 px-4 text-white hover:border-gold/28 hover:bg-white/12"
-                  pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
-                  size="sm"
-                  type="submit"
-                  variant="secondary"
-                >
+              <Button
+                asChild
+                className="min-h-11 border-white/18 bg-white/8 px-4 text-white hover:border-gold/28 hover:bg-white/12"
+                size="sm"
+                variant="secondary"
+              >
+                <Link href="/profile">
                   {user.telegramUsername
                     ? `@${user.telegramUsername}`
-                    : pick(locale, { en: "Sign out", ru: "Выйти" })}
-                </SubmitButton>
-              </form>
+                    : user.fullName ?? pick(locale, { en: "Profile", ru: "Профиль" })}
+                </Link>
+              </Button>
             ) : (
               <SignInLink>
                 <Button className="min-h-11 px-5 shadow-glow" size="sm" variant="primary">

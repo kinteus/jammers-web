@@ -52,14 +52,22 @@ const dbMock = vi.hoisted(() => ({
   $transaction: vi.fn(async (callback: (tx: typeof txMock) => Promise<unknown>) =>
     callback(txMock),
   ),
+  $executeRaw: vi.fn(),
   event: {
     create: vi.fn(),
     delete: vi.fn(),
     findUniqueOrThrow: vi.fn(),
+    update: vi.fn(),
+  },
+  user: {
+    findMany: vi.fn(),
   },
   trackSeat: {
     deleteMany: vi.fn(),
     findMany: vi.fn(),
+  },
+  trackInvite: {
+    create: vi.fn(),
   },
   eventEditLock: {
     create: vi.fn(),
@@ -213,6 +221,44 @@ describe("event route slugs in server actions", () => {
     10_000,
   );
 
+  it("redirects back to the admin event with a saved notice after updating event settings", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([]);
+    dbMock.event.findUniqueOrThrow.mockResolvedValue({
+      id: "event-1",
+      maxSetDurationMinutes: 15,
+      maxTracksPerUser: 3,
+      minParticipantsPerTrack: 1,
+      tracks: [],
+    });
+    dbMock.event.update.mockResolvedValue({ id: "event-1" });
+
+    const { updateEventAction } = await import("@/server/actions");
+
+    await expect(
+      updateEventAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          title: "Spring Jam",
+          startsAt: "2099-05-01T19:30",
+          registrationOpensAt: "2099-04-01T19:30",
+          registrationClosesAt: "2099-04-30T19:30",
+        }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:/admin/events/spring-jam-night?notice=event-saved");
+
+    expect(dbMock.event.update).toHaveBeenCalledWith({
+      where: { id: "event-1" },
+      data: expect.objectContaining({
+        title: "Spring Jam",
+      }),
+    });
+  });
+
   it("does not revalidate legacy non-ASCII event slug paths after creating a track", async () => {
     requireUserMock.mockResolvedValue({
       bans: [],
@@ -340,6 +386,99 @@ describe("event route slugs in server actions", () => {
       ],
     });
     expect(txMock.trackSeat.update).not.toHaveBeenCalled();
+  });
+
+  it("creates pending invites selected while proposing a track", async () => {
+    requireUserMock.mockResolvedValue({
+      bans: [],
+      email: null,
+      fullName: "Anna",
+      id: "user-1",
+      role: UserRole.USER,
+      status: UserStatus.ACTIVE,
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(futureOpenEvent());
+    dbMock.track.findFirst.mockResolvedValue(null);
+    dbMock.eventLineupSlot.findMany.mockResolvedValue([
+      {
+        allowOptional: true,
+        displayOrder: 1,
+        id: "slot-guitar",
+        key: "guitar",
+        label: "Guitar",
+        seatCount: 1,
+      },
+      {
+        allowOptional: false,
+        displayOrder: 2,
+        id: "slot-drums",
+        key: "drums",
+        label: "Drums",
+        seatCount: 1,
+      },
+    ]);
+    txMock.track.create.mockResolvedValue({ id: "track-1" });
+    txMock.setlistItem.findMany.mockResolvedValue([]);
+    txMock.trackSeat.createMany.mockResolvedValue({ count: 2 });
+    dbMock.trackSeat.findMany.mockResolvedValue([
+      {
+        id: "seat-guitar",
+        label: "Guitar",
+        seatIndex: 1,
+        trackId: "track-1",
+        track: {
+          event: { title: "Spring Jam" },
+          song: {
+            title: "Song 2",
+            artist: { name: "Blur" },
+          },
+        },
+      },
+    ]);
+    dbMock.user.findMany.mockResolvedValue([
+      {
+        id: "user-2",
+        telegramId: "tg-2",
+      },
+    ]);
+    const { sendTelegramInviteMessage } = await import("@/server/telegram-bot");
+    vi.mocked(sendTelegramInviteMessage).mockResolvedValue({
+      note: "sent",
+      status: "PENDING",
+    });
+
+    const { createTrackAction } = await import("@/server/actions");
+
+    await expect(
+      createTrackAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          inviteSeatRequests: "Guitar:1|user-2",
+          songId: "song-1",
+        }),
+      ),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/events/event-1?notice=track-created&highlightTrack=track-1#track-board",
+    );
+
+    expect(dbMock.trackInvite.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recipientId: "user-2",
+        seatId: "seat-guitar",
+        senderId: "user-1",
+        status: "PENDING",
+        trackId: "track-1",
+      }),
+    });
+    expect(sendTelegramInviteMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientTelegramId: "tg-2",
+        seatLabel: "Guitar",
+      }),
+    );
   });
 
   it("rejects track proposals whose required positions are below the event minimum", async () => {

@@ -13,6 +13,7 @@ import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
 import { formatDateTime } from "@/lib/utils";
 import {
   devSignInAction,
+  signOutAction,
   updateProfileAction,
 } from "@/server/actions";
 import { getProfileWorkspace } from "@/server/query-data";
@@ -92,6 +93,10 @@ function getInstrumentDisplayLabel(name: string, locale: Awaited<ReturnType<type
   return name;
 }
 
+function getTelegramBotId() {
+  return env.NEXT_PUBLIC_TELEGRAM_BOT_ID ?? env.TELEGRAM_BOT_TOKEN?.match(/^(\d+):/)?.[1];
+}
+
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
@@ -141,6 +146,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           ) : null}
           <div id="telegram-login" className="scroll-mt-28">
             <TelegramLoginWidget
+              botId={getTelegramBotId()}
               botUsername={env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
               locale={locale}
             />
@@ -399,8 +405,6 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </Card>
       ) : null}
 
-      <ProfileArchiveStats locale={locale} stats={profile.archiveStats} />
-
       <section className="space-y-4" id="invitations">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red">
@@ -451,6 +455,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         ) : null}
         <ProfileInvitationsPanel initialInvitations={invitationItems} locale={locale} />
       </section>
+
+      <ProfileArchiveStats locale={locale} stats={profile.archiveStats} />
 
       <section className="space-y-4">
         <div className="space-y-2">
@@ -665,6 +671,18 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               {pick(locale, { en: "Save profile", ru: "Сохранить профиль" })}
             </SubmitButton>
           </form>
+
+          <div className="border-t border-white/10 pt-5">
+            <form action={signOutAction}>
+              <SubmitButton
+                pendingLabel={pick(locale, { en: "Signing out...", ru: "Выходим..." })}
+                type="submit"
+                variant="secondary"
+              >
+                {pick(locale, { en: "Sign out", ru: "Выйти" })}
+              </SubmitButton>
+            </form>
+          </div>
         </Card>
       </section>
     </div>

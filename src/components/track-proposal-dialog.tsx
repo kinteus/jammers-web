@@ -27,11 +27,11 @@ export function TrackProposalDialog({
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-ink/45 backdrop-blur-[2px]" />
-        <Dialog.Content className="brand-shell fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(920px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border-white/10 shadow-card">
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-ink/62 backdrop-blur-[3px]" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(980px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/14 bg-stage shadow-card">
           <div className="h-1 w-full stage-rule" />
           <div className="space-y-5 p-5 md:p-6">
-            <div className="flex items-start justify-between gap-4 border-b border-ink/10 pb-4">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red">
                   {pick(locale, { en: "Add song", ru: "Добавить песню" })}

@@ -9,6 +9,7 @@ const rawSchema = z.object({
   SESSION_COOKIE_NAME: z.string().default("jammers_session"),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(168),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_TELEGRAM_BOT_ID: z.string().regex(/^\d+$/).optional(),
   NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHANNEL_CHAT_ID: z.string().default("@limasouljams"),

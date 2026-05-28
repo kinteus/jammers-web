@@ -39,10 +39,10 @@ export function FloatingToast({
   }
 
   return (
-    <div className="fixed right-4 top-24 z-[95] w-[min(calc(100vw-2rem),26rem)]">
+    <div className="fixed right-4 top-24 z-[95] w-[min(calc(100vw-2rem),30rem)]">
       <div
         className={cn(
-          "rounded-2xl border px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
+          "rounded-2xl border px-5 py-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur",
           tone === "success"
             ? "border-blue/40 bg-blue/18 text-white"
             : "border-red/40 bg-red/16 text-white",
@@ -51,13 +51,13 @@ export function FloatingToast({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/74">
               {tone === "success"
                 ? pick(locale, { en: "Update", ru: "Обновление" })
                 : pick(locale, { en: "Heads up", ru: "Внимание" })}
             </p>
-            <p className="mt-1 font-semibold text-sand">{title}</p>
-            <p className="mt-1 text-sm leading-6 text-white/82">{description}</p>
+            <p className="mt-1 text-lg font-semibold text-sand">{title}</p>
+            <p className="mt-1 text-[15px] leading-7 text-white/82">{description}</p>
           </div>
           <button
             aria-label={pick(locale, { en: "Close message", ru: "Закрыть сообщение" })}

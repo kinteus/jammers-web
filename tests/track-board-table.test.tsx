@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("TrackBoardTable", () => {
-  it("marks fully staffed tracks with a prominent ready state", async () => {
+  it("marks fully staffed tracks with row color instead of a duplicate ready badge", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -114,7 +114,77 @@ describe("TrackBoardTable", () => {
     });
 
     expect(host.querySelector('[data-readiness="ready"]')).not.toBeNull();
-    expect(host.querySelector('[data-ready-badge="primary"]')?.textContent).toContain("Собрано");
+    expect(host.querySelector('[data-ready-badge="primary"]')).toBeNull();
+    expect(host.textContent).toContain("Обязательные закрыты");
+  });
+
+  it("renders playback as a readonly table column outside the claimable seats", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="ru"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[{ key: "playback", label: "Плейбэк" }]}
+          tracks={[
+            {
+              id: "track-playback",
+              proposedById: "user-proposer",
+              proposedBy: {
+                telegramUsername: "proposer",
+                fullName: "Proposer",
+              },
+              song: {
+                title: "Playback Song",
+                artist: { name: "The Band" },
+              },
+              playbackRequired: true,
+              trackInfoKeysJson: '["playback"]',
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const playbackCell = host.querySelector('[data-playback-cell="track-playback"]');
+    expect(playbackCell?.textContent).toContain("Да");
+    expect(playbackCell?.querySelector("button, form")).toBeNull();
+    expect(host.querySelectorAll("thead th")).toHaveLength(4);
   });
 
   it("sorts tracks by a selected desktop seat column availability", () => {

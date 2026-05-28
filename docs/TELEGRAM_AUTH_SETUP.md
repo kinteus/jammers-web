@@ -41,6 +41,7 @@ Required for production:
 
 Strongly recommended:
 
+- `NEXT_PUBLIC_TELEGRAM_BOT_ID` if the app cannot read `TELEGRAM_BOT_TOKEN` at runtime
 - `SESSION_TTL_HOURS=168`
 - `TELEGRAM_AUTH_MAX_AGE_SECONDS=86400`
 - `SESSION_COOKIE_NAME=jammers_session`
@@ -48,8 +49,8 @@ Strongly recommended:
 ## How auth works end to end
 
 1. A user opens `/profile`.
-2. The Telegram widget is rendered from `telegram.org/js/telegram-widget.js`.
-3. Telegram redirects signed auth data to `/api/auth/telegram`.
+2. If the numeric bot id is available, the app opens Telegram auth in the same browser tab to avoid fragile popup behavior in modern Chrome profiles.
+3. After Telegram returns signed auth data to `/profile`, the page posts it to `/api/auth/telegram`.
 4. The backend verifies the HMAC signature using `TELEGRAM_BOT_TOKEN`.
 5. The app upserts the user:
    - only by immutable `telegramId`

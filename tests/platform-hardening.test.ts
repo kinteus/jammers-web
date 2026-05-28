@@ -38,6 +38,14 @@ describe("platform hardening", () => {
     expect(csp).not.toContain("'unsafe-eval'");
   });
 
+  it("allows Telegram auth popups to keep opener communication", async () => {
+    const headers = await nextConfig.headers?.();
+    const globalHeaders = headers?.find((entry) => entry.source === "/(.*)")?.headers ?? [];
+    const coop = globalHeaders.find((header) => header.key === "Cross-Origin-Opener-Policy")?.value;
+
+    expect(coop).toBe("same-origin-allow-popups");
+  });
+
   it("keeps share images and icons available from root metadata", () => {
     expect(rootMetadata.icons).toMatchObject({
       icon: "/logo-mark.svg",

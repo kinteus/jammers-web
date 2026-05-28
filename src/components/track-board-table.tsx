@@ -5,7 +5,6 @@ import { TrackSeatStatus, type UserRole } from "@prisma/client";
 import {
   ArrowDown,
   ArrowUpDown,
-  CheckCircle2,
   ExternalLink,
   FileText,
   LogOut,
@@ -108,6 +107,11 @@ type InviteableUser = {
   id: string;
   telegramUsername: string | null;
   fullName: string | null;
+};
+
+type BoardUpdateEventDetail = {
+  eventId: string;
+  reason: string;
 };
 
 const invitePopoverMargin = 12;
@@ -239,6 +243,48 @@ function getTelegramProfileUrl(user: {
 function getYoutubeSearchUrl(track: BoardTrack) {
   const query = `${track.song.artist.name} ${track.song.title}`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function shouldShowPlaybackColumn(trackInfoFields: TrackInfoField[]) {
+  return trackInfoFields.some((field) => field.key === "playback");
+}
+
+function getVisibleTrackInfoLabels({
+  locale,
+  track,
+  trackInfoFields,
+}: {
+  locale: Locale;
+  track: BoardTrack;
+  trackInfoFields: TrackInfoField[];
+}) {
+  const activeKeys = getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired);
+  return trackInfoFields
+    .filter((field) => field.key !== "playback" && activeKeys.includes(field.key))
+    .map((field) => getTrackInfoLabel(field, locale));
+}
+
+function getSeatFlashSignature(seat: BoardTrack["seats"][number]) {
+  return [
+    seat.status,
+    seat.userId ?? "",
+    seat.isOptional ? "optional" : "required",
+    seat.invites.map((invite) => `${invite.id}:${invite.status}`).join("|"),
+  ].join(":");
+}
+
+function getChangedSeatIds(previousTracks: BoardTrack[], nextTracks: BoardTrack[]) {
+  const previousSeats = new Map<string, string>();
+  for (const track of previousTracks) {
+    for (const seat of track.seats) {
+      previousSeats.set(seat.id, getSeatFlashSignature(seat));
+    }
+  }
+
+  return nextTracks
+    .flatMap((track) => track.seats)
+    .filter((seat) => previousSeats.get(seat.id) !== undefined && previousSeats.get(seat.id) !== getSeatFlashSignature(seat))
+    .map((seat) => seat.id);
 }
 
 function YoutubeSearchLink({
@@ -1122,15 +1168,53 @@ export function TrackBoardTable({
   const [activeHighlightTrackId, setActiveHighlightTrackId] = useState<string | null>(
     highlightTrackId ?? null,
   );
+  const [flashingSeatIds, setFlashingSeatIds] = useState<Set<string>>(new Set());
+  const previousTracksRef = useRef(tracks);
   const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
+  const showPlaybackColumn = shouldShowPlaybackColumn(trackInfoFields);
   const displayTracks = sortTracksBySeatAvailability(currentTracks, seatSort);
-  const tableMinWidthRem = 22 + columns.length * 7.5;
+  const tableMinWidthRem = 22 + (showPlaybackColumn ? 5.75 : 0) + columns.length * 7.5;
 
   useEffect(() => {
+    const changedSeatIds = getChangedSeatIds(previousTracksRef.current, tracks);
+    previousTracksRef.current = tracks;
+    if (changedSeatIds.length > 0) {
+      setFlashingSeatIds(new Set(changedSeatIds));
+      const timeoutId = window.setTimeout(() => setFlashingSeatIds(new Set()), 2200);
+      setFeedback({
+        tone: "success",
+        title: pick(locale, { en: "Board updated", ru: "Сетлист обновлён" }),
+        description: pick(locale, {
+          en: "Fresh changes are highlighted on the board.",
+          ru: "Свежие изменения подсвечены в таблице.",
+        }),
+      });
+      setCurrentTracks(tracks);
+      return () => window.clearTimeout(timeoutId);
+    }
+
     setCurrentTracks(tracks);
-  }, [tracks]);
+    return undefined;
+  }, [locale, tracks]);
+
+  useEffect(() => {
+    function handleBoardUpdate(event: Event) {
+      const detail = (event as CustomEvent<BoardUpdateEventDetail>).detail;
+      setFeedback({
+        tone: "success",
+        title: pick(locale, { en: "Live board activity", ru: "Активность в сетлисте" }),
+        description: pick(locale, {
+          en: detail?.reason ? "Someone updated the board. Refreshing now." : "Refreshing the board now.",
+          ru: detail?.reason ? "Кто-то обновил сетлист. Сейчас подтянем изменения." : "Сейчас подтянем изменения.",
+        }),
+      });
+    }
+
+    window.addEventListener("jammers:board-update", handleBoardUpdate);
+    return () => window.removeEventListener("jammers:board-update", handleBoardUpdate);
+  }, [locale]);
 
   useEffect(() => {
     setActiveHighlightTrackId(highlightTrackId ?? null);
@@ -1404,25 +1488,34 @@ export function TrackBoardTable({
 
       <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
         <div className="h-1 w-full stage-rule" />
-        <div className="table-scroll max-h-[calc(100vh-8rem)] overflow-auto">
+        <div className="table-scroll overflow-x-auto">
         <table
           className="table-fixed border-separate border-spacing-0"
           style={{ minWidth: `${tableMinWidthRem}rem`, width: `${tableMinWidthRem}rem` }}
         >
           <colgroup>
             <col style={{ width: "22rem" }} />
+            {showPlaybackColumn ? <col style={{ width: "5.75rem" }} /> : null}
             {columns.map((column) => (
               <col key={column.seatKey} style={{ width: "7.5rem" }} />
             ))}
           </colgroup>
           <thead>
-            <tr className="bg-[#1b1b1b] text-white">
+            <tr className="h-9 bg-[#1b1b1b] text-white">
               <th
                 className="sticky left-0 top-0 z-40 border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
                 rowSpan={2}
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
               </th>
+              {showPlaybackColumn ? (
+                <th
+                  className="sticky top-0 z-30 border-b border-r border-white/16 bg-[#1b1b1b] px-2 py-2 text-center text-[11px] uppercase tracking-[0.2em] text-white/92"
+                  rowSpan={2}
+                >
+                  {pick(locale, { en: "Playback", ru: "Плейбэк" })}
+                </th>
+              ) : null}
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
@@ -1448,7 +1541,7 @@ export function TrackBoardTable({
                 return (
                   <th
                     className={cn(
-                      "sticky top-[2.125rem] z-30 border-b border-r border-white/14 bg-[#1b1b1b] px-1 py-1.5 text-left text-[11px] font-semibold text-white/92",
+                      "sticky top-9 z-30 border-b border-r border-white/14 bg-[#1b1b1b] px-1 py-1.5 text-left text-[11px] font-semibold text-white/92",
                       startsNewGroup && "border-l border-white/16",
                     )}
                     key={column.seatKey}
@@ -1489,11 +1582,11 @@ export function TrackBoardTable({
               const completion = getTrackCompletionSummary(track.seats);
               const readiness = getTrackReadinessState(track.seats);
               const seatIndex = buildSeatIndex(track);
-              const activeTrackInfoLabels = trackInfoFields
-                .filter((field) =>
-                  getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
-                )
-                .map((field) => getTrackInfoLabel(field, locale));
+              const activeTrackInfoLabels = getVisibleTrackInfoLabels({
+                locale,
+                track,
+                trackInfoFields,
+              });
               const preferInviteAbove = index >= displayTracks.length - 2;
               const canManageTrack = Boolean(
                 isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
@@ -1543,19 +1636,6 @@ export function TrackBoardTable({
                           >
                             {track.song.title}
                           </a>
-                          {readiness.isReady ? (
-                            <span
-                              aria-label={pick(locale, {
-                                en: "Track is fully staffed",
-                                ru: "Песня полностью собрана",
-                              })}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/55 bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-stage shadow-[0_0_18px_rgba(110,231,183,0.28)]"
-                              data-ready-badge="primary"
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              {pick(locale, { en: "Ready", ru: "Собрано" })}
-                            </span>
-                          ) : null}
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
                               className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
@@ -1661,6 +1741,29 @@ export function TrackBoardTable({
                     </div>
                   </td>
 
+                  {showPlaybackColumn ? (
+                    <td
+                      className={cn(
+                        "border-b border-r border-white/14 px-2 py-1.5 text-center align-middle text-[10px] font-semibold uppercase tracking-[0.14em]",
+                        rowBackground,
+                      )}
+                      data-playback-cell={track.id}
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex min-w-12 justify-center rounded-full border px-2 py-1",
+                          track.playbackRequired
+                            ? "border-gold/28 bg-gold/12 text-gold"
+                            : "border-white/10 bg-white/5 text-white/42",
+                        )}
+                      >
+                        {track.playbackRequired
+                          ? pick(locale, { en: "Yes", ru: "Да" })
+                          : pick(locale, { en: "No", ru: "Нет" })}
+                      </span>
+                    </td>
+                  ) : null}
+
                   {columns.map((column, columnIndex) => {
                     const seat = seatIndex.get(`${column.slotId}:${column.seatIndex}`);
                     const overlayAlign = columnIndex === 0 ? "start" : "end";
@@ -1704,6 +1807,7 @@ export function TrackBoardTable({
                         className={cn(
                           "group relative border-b border-r border-white/12 px-0.5 py-0 align-middle transition",
                           getSeatCellClass(seat.status, seat.isOptional, isSelfSeat),
+                          flashingSeatIds.has(seat.id) && "board-cell-flash",
                           cellFrameClass(),
                         )}
                         key={column.seatKey}
@@ -1948,11 +2052,11 @@ export function TrackBoardTable({
             const isHighlighted = activeHighlightTrackId === track.id;
             const completion = getTrackCompletionSummary(track.seats);
             const readiness = getTrackReadinessState(track.seats);
-          const activeTrackInfoLabels = trackInfoFields
-            .filter((field) =>
-              getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired).includes(field.key),
-            )
-            .map((field) => getTrackInfoLabel(field, locale));
+          const activeTrackInfoLabels = getVisibleTrackInfoLabels({
+            locale,
+            track,
+            trackInfoFields,
+          });
           const preferInviteAbove = tracks.length > 1;
           const canManageTrack = Boolean(
             isOpen && user && (user.role === "ADMIN" || track.proposedById === user.id),
@@ -1983,19 +2087,6 @@ export function TrackBoardTable({
                           <p className="min-w-0 truncate font-display text-lg font-semibold text-sand">
                             {track.song.title}
                           </p>
-                          {readiness.isReady ? (
-                            <span
-                              aria-label={pick(locale, {
-                                en: "Track is fully staffed",
-                                ru: "Песня полностью собрана",
-                              })}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/55 bg-emerald-300 px-2 py-0.5 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-stage shadow-[0_0_18px_rgba(110,231,183,0.28)]"
-                              data-ready-badge="primary"
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              {pick(locale, { en: "Ready", ru: "Собрано" })}
-                            </span>
-                          ) : null}
                         </div>
                         <p className="text-[11px] text-white/60">
                           {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
@@ -2009,9 +2100,17 @@ export function TrackBoardTable({
                   <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-white/62">
                     <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1">
                       {completion.isComplete
-                        ? pick(locale, { en: "Ready", ru: "Собрано" })
+                        ? pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })
                         : pick(locale, { en: `${mobileOpenCount} open`, ru: `${mobileOpenCount} открыто` })}
                     </span>
+                    {showPlaybackColumn ? (
+                      <span className="rounded-full border border-gold/18 bg-gold/8 px-2.5 py-1 text-gold">
+                        {pick(locale, { en: "Playback", ru: "Плейбэк" })}:{" "}
+                        {track.playbackRequired
+                          ? pick(locale, { en: "yes", ru: "да" })
+                          : pick(locale, { en: "no", ru: "нет" })}
+                      </span>
+                    ) : null}
                     {readiness.isReady ? (
                       <span className="rounded-full border border-emerald-300/24 bg-emerald-400/12 px-2.5 py-1 text-emerald-100">
                         {readiness.optionalOpen > 0

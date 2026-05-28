@@ -83,6 +83,22 @@ function buildLineupSummary(
       });
 }
 
+function countUniqueClaimedUsers(
+  seats: Array<{ status: TrackSeatStatus; userId: string | null }>,
+) {
+  return new Set(
+    seats
+      .filter((seat) => seat.status === TrackSeatStatus.CLAIMED && seat.userId)
+      .map((seat) => seat.userId),
+  ).size;
+}
+
+function countUniqueClaimedUsersInTracks(
+  tracks: Array<{ seats: Array<{ status: TrackSeatStatus; userId: string | null }> }>,
+) {
+  return countUniqueClaimedUsers(tracks.flatMap((track) => track.seats));
+}
+
 export default async function AdminEventPage({ params, searchParams }: AdminEventPageProps) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
@@ -212,9 +228,25 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
           : undefined,
       };
     });
+  const mainSetParticipantCount = countUniqueClaimedUsers(
+    event.setlistItems
+      .filter((item) => item.section === "MAIN")
+      .flatMap((item) => item.track.seats),
+  );
+  const readyBoardParticipantCount = countUniqueClaimedUsersInTracks(
+    event.tracks.filter((track) => getTrackCompletionSummary(track.seats).isComplete),
+  );
 
   return (
     <div className="space-y-8">
+      {notice === "event-saved" ? (
+        <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "Event settings saved.",
+            ru: "Настройки гига сохранены.",
+          })}
+        </div>
+      ) : null}
       {notice === "publish-partial-notify" ? (
         <div className="rounded-xl border border-gold/30 bg-gold/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
@@ -346,7 +378,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 defaultValue={trackInfoFields}
                 name="trackInfoFieldsInput"
               />
-              <p className="text-xs leading-5 text-ink/55">
+              <p className="text-xs leading-5 text-white/55">
                 {pick(locale, {
                   en: "One label per line. These checkboxes add context to a song, but never affect completeness or setlist selection.",
                   ru: "По одной подписи на строку. Эти чекбоксы добавляют контекст к песне, но никогда не влияют на собранность или отбор в сетлист.",
@@ -356,7 +388,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <label className="space-y-2 text-sm md:col-span-2">
               <span>{pick(locale, { en: "Lineup JSON", ru: "JSON лайнапа" })}</span>
               <textarea className="min-h-40 w-full px-4 py-3 font-mono text-xs" defaultValue={lineupJson} name="lineupJson" />
-              <p className="text-xs leading-5 text-ink/55">
+              <p className="text-xs leading-5 text-white/55">
                 {pick(locale, {
                   en: "Set ",
                   ru: "Установи ",
@@ -382,7 +414,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         <div className="space-y-6">
           <Card className="space-y-4">
             <Badge>{pick(locale, { en: "Lock", ru: "Лок" })}</Badge>
-            <p className="text-sm text-ink/70">
+            <p className="text-sm text-white/70">
               {activeLock
                 ? pick(locale, {
                     en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
@@ -404,20 +436,20 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
           <Card className="space-y-4">
             <Badge>{pick(locale, { en: "Status", ru: "Статус" })}</Badge>
-            <div className="space-y-1 text-sm text-ink/70">
+            <div className="space-y-1 text-sm text-white/70">
               <p>
                 {pick(locale, { en: "Effective status", ru: "Эффективный статус" })}:{" "}
-                <span className="font-semibold text-ink">{getEventStatusLabel(effectiveStatus, locale)}</span>
+                <span className="font-semibold text-sand">{getEventStatusLabel(effectiveStatus, locale)}</span>
               </p>
               {effectiveStatus !== event.status ? (
                 <p>
                   {pick(locale, { en: "Stored status remains", ru: "Сохранённый статус остаётся" })}{" "}
-                  <span className="font-semibold text-ink">{getEventStatusLabel(event.status, locale)}</span>
+                  <span className="font-semibold text-sand">{getEventStatusLabel(event.status, locale)}</span>
                   {pick(locale, {
                     en: ", but registration timing currently makes the gig behave as ",
                     ru: ", но по времени регистрации гиг сейчас ведёт себя как ",
                   })}
-                  <span className="font-semibold text-ink">{getEventStatusLabel(effectiveStatus, locale)}</span>.
+                  <span className="font-semibold text-sand">{getEventStatusLabel(effectiveStatus, locale)}</span>.
                 </p>
               ) : null}
             </div>
@@ -442,7 +474,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
           <Card className="space-y-4">
             <Badge>{pick(locale, { en: "Selection", ru: "Отбор" })}</Badge>
-            <p className="text-sm text-ink/70">
+            <p className="text-sm text-white/70">
               {pick(locale, {
                 en: "Run the coverage-first selection to populate the main set and backlog. This closes the board if it is not closed yet.",
                 ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог. Если таблица ещё не закрыта, запуск её закроет.",
@@ -476,6 +508,34 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 {pick(locale, { en: "Publish setlist", ru: "Опубликовать сетлист" })}
               </SubmitButton>
             </form>
+          </Card>
+
+          <Card className="space-y-4">
+            <Badge>{pick(locale, { en: "Participants", ru: "Участники" })}</Badge>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                  {pick(locale, {
+                    en: "People in main set",
+                    ru: "Участников в мейн-сете",
+                  })}
+                </p>
+                <p className="mt-2 font-display text-3xl font-semibold text-sand">
+                  {mainSetParticipantCount}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                  {pick(locale, {
+                    en: "People in assembled board songs",
+                    ru: "Участников в собранных песнях таблицы",
+                  })}
+                </p>
+                <p className="mt-2 font-display text-3xl font-semibold text-sand">
+                  {readyBoardParticipantCount}
+                </p>
+              </div>
+            </div>
           </Card>
 
           <Card className="space-y-4 border-red/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%),radial-gradient(circle_at_top_right,rgba(185,0,22,0.18),transparent_24%),#171717]">

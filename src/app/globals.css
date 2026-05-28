@@ -102,6 +102,22 @@ details > summary::-webkit-details-marker {
   box-shadow: 16px 0 24px -18px rgba(0, 0, 0, 0.55);
 }
 
+@keyframes board-cell-flash {
+  0% {
+    box-shadow: inset 0 0 0 999px rgba(255, 179, 0, 0.34), 0 0 0 rgba(255, 179, 0, 0);
+  }
+  38% {
+    box-shadow: inset 0 0 0 999px rgba(255, 179, 0, 0.18), 0 0 26px rgba(255, 179, 0, 0.32);
+  }
+  100% {
+    box-shadow: inset 0 0 0 999px rgba(255, 179, 0, 0), 0 0 0 rgba(255, 179, 0, 0);
+  }
+}
+
+.board-cell-flash {
+  animation: board-cell-flash 2.1s ease-out;
+}
+
 [data-radix-dialog-overlay],
 [data-radix-dialog-content] {
   z-index: 70;

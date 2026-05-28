@@ -14,10 +14,16 @@ import {
 } from "@/components/song-search-field";
 
 export function TrackProposalComposer({
+  inviteableUsers,
   trackInfoFields,
   lineupSlots,
   locale,
 }: {
+  inviteableUsers: Array<{
+    id: string;
+    telegramUsername: string | null;
+    fullName: string | null;
+  }>;
   trackInfoFields: TrackInfoField[];
   lineupSlots: LineupSlotLite[];
   locale: Locale;
@@ -39,7 +45,7 @@ export function TrackProposalComposer({
       {selectedSong ? (
         <>
           <div className="section-rule" />
-          <div className="grid gap-5 xl:grid-cols-[1.08fr,0.92fr]">
+          <div className="space-y-5">
             <div className="space-y-4">
               <label className="block space-y-2 text-sm">
                 <span className="font-medium text-sand">
@@ -91,7 +97,11 @@ export function TrackProposalComposer({
                   ru: "Отметь must-have музыкантов как обязательных. В optional-партии всё ещё можно вписаться позже, но они уже не мешают треку считаться собранным.",
                 })}
               </p>
-              <SeatPlannerField lineupSlots={lineupSlots} locale={locale} />
+              <SeatPlannerField
+                inviteableUsers={inviteableUsers}
+                lineupSlots={lineupSlots}
+                locale={locale}
+              />
             </div>
           </div>
         </>

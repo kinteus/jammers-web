@@ -56,20 +56,6 @@ const FloatingToast = nextDynamic(
   () => import("@/components/floating-toast").then((module) => module.FloatingToast),
 );
 
-const SongCatalogRequestForm = nextDynamic(
-  () =>
-    import("@/components/song-catalog-request-form").then(
-      (module) => module.SongCatalogRequestForm,
-    ),
-  {
-    loading: () => (
-      <div className="rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/62">
-        <span className="font-semibold text-sand">...</span>
-      </div>
-    ),
-  },
-);
-
 const TrackProposalLauncher = nextDynamic(
   () =>
     import("@/components/track-proposal-launcher").then(
@@ -591,8 +577,8 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const participantCount = new Set(
     event.tracks.flatMap((track) => track.seats.map((seat) => seat.userId).filter(Boolean)),
   ).size;
-  const tracksNeedingPlayers = event.tracks.filter(
-    (track) => !getTrackCompletionSummary(track.seats).isComplete,
+  const readyTrackCount = event.tracks.filter(
+    (track) => getTrackCompletionSummary(track.seats).isComplete,
   ).length;
   const roleShortages = getRoleShortages(event.tracks);
   const selectedRoleLabel = roleFilters.map((role) => getRoleFamilyLabel(role, locale)).join(" + ");
@@ -694,9 +680,9 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               </div>
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Still need players", ru: "Ещё нужны люди" })}
+                  {pick(locale, { en: "Songs ready", ru: "Песен собрано" })}
                 </p>
-                <p className="mt-2 font-display text-4xl text-gold">{tracksNeedingPlayers}</p>
+                <p className="mt-2 font-display text-4xl text-gold">{readyTrackCount}</p>
               </div>
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
@@ -822,6 +808,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   createTrackAction={createTrackAction}
                   eventId={event.id}
                   eventSlug={event.id}
+                  inviteableUsers={inviteableUsers}
                   lineupSlots={event.lineupSlots}
                   locale={locale}
                   trackInfoFields={trackInfoFields}
@@ -873,6 +860,20 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             }
           />
         )}
+
+        {user && effectiveStatus === "OPEN" && visibleTracks.length > 0 ? (
+          <div className="flex justify-center pt-2">
+            <TrackProposalLauncher
+              createTrackAction={createTrackAction}
+              eventId={event.id}
+              eventSlug={event.id}
+              inviteableUsers={inviteableUsers}
+              lineupSlots={event.lineupSlots}
+              locale={locale}
+              trackInfoFields={trackInfoFields}
+            />
+          </div>
+        ) : null}
       </section>
 
       <details className="group brand-shell overflow-hidden rounded-xl border-white/10">
@@ -949,28 +950,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           </div>
         </div>
       </details>
-
-      {effectiveStatus === "OPEN" && user ? (
-        <section className="space-y-4 border-t border-white/8 pt-8" id="missing-song-request">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Missing song", ru: "Нет нужной песни" })}
-            </p>
-            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-              {pick(locale, { en: "Can't find it in search?", ru: "Не нашёл в поиске?" })}
-            </h2>
-            <p className="max-w-3xl text-sm leading-6 text-white/68">
-              {pick(locale, {
-                en: "Request a catalog addition only after searching the board and the song database first.",
-                ru: "Проси добавить песню в каталог только после того, как проверил и сетлист, и поисковую базу песен.",
-              })}
-            </p>
-          </div>
-          <Card className="brand-shell">
-            <SongCatalogRequestForm eventId={event.id} locale={locale} />
-          </Card>
-        </section>
-      ) : null}
 
       {registrationOpensSoon && event.registrationOpensAt ? (
         <Card className="brand-shell space-y-4 border-gold/18 bg-gold/[0.06]">

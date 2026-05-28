@@ -331,16 +331,10 @@ export function SongSearchField({
               {searchMessage ? <p className="text-gold">{searchMessage}</p> : null}
               <p>
                 {pick(locale, {
-                  en: "No matches yet. Try another spelling or switch to a manual request.",
-                  ru: "Совпадений пока нет. Попробуй другое написание или отправь ручной запрос.",
+                  en: "No matches yet. Try another spelling.",
+                  ru: "Совпадений пока нет. Попробуй другое написание.",
                 })}
               </p>
-              <Link className="inline-flex text-sm font-semibold text-sand hover:text-white" href="#missing-song-request">
-                {pick(locale, {
-                  en: "Can't find it? Ask admins to add it",
-                  ru: "Не нашёл? Попроси админов добавить",
-                })}
-              </Link>
             </div>
           )}
         </div>

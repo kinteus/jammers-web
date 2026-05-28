@@ -9,6 +9,7 @@ import {
   TrackInviteStatus,
   TrackSeatStatus,
   UserRole,
+  UserStatus,
 } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { headers } from "next/headers";
@@ -441,6 +442,21 @@ function parseSeatSelections(formData: FormData, key: string) {
     .filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
+function parseSeatInviteRequests(formData: FormData) {
+  const unique = new Map<string, { recipientId: string; seatKey: string }>();
+  for (const value of formData.getAll("inviteSeatRequests")) {
+    if (typeof value !== "string" || !value.includes("|")) {
+      continue;
+    }
+    const [seatKey, recipientId] = value.split("|");
+    if (!seatKey || !recipientId) {
+      continue;
+    }
+    unique.set(seatKey, { recipientId, seatKey });
+  }
+  return [...unique.values()];
+}
+
 async function countUniqueJoinedTracks(userId: string, eventId: string) {
   const seats = await db.trackSeat.findMany({
     where: {
@@ -616,6 +632,67 @@ async function createPendingSeatInvite({
   });
 
   return delivery;
+}
+
+async function createInitialTrackInvites({
+  requests,
+  sender,
+  trackId,
+}: {
+  requests: Array<{ recipientId: string; seatKey: string }>;
+  sender: Awaited<ReturnType<typeof requireUser>>;
+  trackId: string;
+}) {
+  const filteredRequests = requests.filter((request) => request.recipientId !== sender.id);
+  if (filteredRequests.length === 0) {
+    return;
+  }
+
+  const requestedRecipientIds = [...new Set(filteredRequests.map((request) => request.recipientId))];
+  const recipients = await db.user.findMany({
+    where: {
+      id: { in: requestedRecipientIds },
+      status: UserStatus.ACTIVE,
+    },
+  });
+  const recipientsById = new Map(recipients.map((recipient) => [recipient.id, recipient]));
+  const requestedSeatKeys = new Set(filteredRequests.map((request) => request.seatKey));
+  const seats = await db.trackSeat.findMany({
+    where: {
+      trackId,
+      status: TrackSeatStatus.OPEN,
+    },
+    include: {
+      track: {
+        include: {
+          event: true,
+          song: {
+            include: { artist: true },
+          },
+        },
+      },
+    },
+  });
+  const seatsByKey = new Map(
+    seats.map((seat) => [`${seat.label}:${seat.seatIndex}`, seat]),
+  );
+
+  for (const request of filteredRequests) {
+    if (!requestedSeatKeys.has(request.seatKey)) {
+      continue;
+    }
+    const recipient = recipientsById.get(request.recipientId);
+    const seat = seatsByKey.get(request.seatKey);
+    if (!recipient || !seat) {
+      continue;
+    }
+
+    await createPendingSeatInvite({
+      recipient,
+      seat,
+      sender,
+    });
+  }
 }
 
 async function runClaimSeat({
@@ -1423,6 +1500,7 @@ export async function createTrackAction(formData: FormData) {
 
   const claimSeatIds = parseSeatSelections(formData, "claimSeatKeys");
   const optionalSeatIds = parseSeatSelections(formData, "optionalSeatKeys");
+  const inviteSeatRequests = parseSeatInviteRequests(formData);
   if (claimSeatIds.length > 0) {
     const joinedCount = await countUniqueJoinedTracks(user.id, event.id);
     assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
@@ -1509,6 +1587,13 @@ export async function createTrackAction(formData: FormData) {
     throw error;
   }
 
+  if (createdTrackId) {
+    await createInitialTrackInvites({
+      requests: inviteSeatRequests,
+      sender: user,
+      trackId: createdTrackId,
+    });
+  }
   revalidateAll(pathBundle(event.id, event.slug, eventKey));
   await publishBoardUpdate({
     eventId: event.id,
@@ -2212,6 +2297,7 @@ export async function updateEventAction(formData: FormData) {
     eventId,
     reason: "event-updated",
   }).catch(() => {});
+  redirect(`/admin/events/${encodeRouteSegment(eventSlug)}?notice=event-saved`);
 }
 
 export async function updateEventStatusAction(formData: FormData) {

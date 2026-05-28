@@ -62,6 +62,11 @@ export function BoardRealtimeRefresh({ eventId }: { eventId: string }) {
         return;
       }
 
+      window.dispatchEvent(
+        new CustomEvent("jammers:board-update", {
+          detail: message,
+        }),
+      );
       refreshSoon();
     }
 

@@ -1,7 +1,9 @@
 name: Deploy To Kubernetes
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches:
       - main
       - master
@@ -11,20 +13,27 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
       packages: write
     env:
+      DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'prod' }}
       NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || 'https://thejammers.org' }}
       NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${{ vars.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'your_bot_username' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -57,7 +66,7 @@ jobs:
         id: image
         run: |
           IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
-          IMAGE_REF="${IMAGE_NAME}:sha-${GITHUB_SHA}"
+          IMAGE_REF="${IMAGE_NAME}:sha-${DEPLOY_SHA}"
           echo "name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
 
@@ -122,7 +131,7 @@ jobs:
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
         run: |
-          MIGRATION_JOB="jammers-web-migrate-${GITHUB_SHA::7}"
+          MIGRATION_JOB="jammers-web-migrate-${DEPLOY_SHA::7}"
           kubectl -n "$K8S_NAMESPACE" get jobs -o name \
             | grep '^job.batch/jammers-web-migrate-' \
             | xargs -r kubectl -n "$K8S_NAMESPACE" delete --ignore-not-found

@@ -1,5 +1,6 @@
 import { TrackSeatStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import {
   getInvitePopoverLayout,
@@ -61,5 +62,13 @@ describe("track board table styling", () => {
     });
 
     expect(layout.top).toBeGreaterThanOrEqual(132);
+  });
+
+  it("lets long boards grow with the page instead of scrolling inside a fixed-height panel", () => {
+    const source = readFileSync("src/components/track-board-table.tsx", "utf8");
+
+    expect(source).not.toContain("max-h-[calc(100vh-8rem)]");
+    expect(source).not.toContain("overflow-auto");
+    expect(source).toContain("overflow-x-auto");
   });
 });

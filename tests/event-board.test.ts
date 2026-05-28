@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TrackSeatStatus } from "@prisma/client";
 
 import { expandSeatColumns, getTrackReadinessState } from "@/lib/event-board";
+import { getDefaultLineupInput } from "@/lib/domain/lineup";
 
 describe("event board helpers", () => {
   it("expands lineup slots into stable seat columns", () => {
@@ -108,5 +109,25 @@ describe("event board helpers", () => {
       isReady: false,
       optionalOpen: 0,
     });
+  });
+
+  it("uses the new default lineup order for freshly created gigs", () => {
+    const columns = expandSeatColumns(
+      getDefaultLineupInput().map((slot) => ({
+        ...slot,
+        id: slot.key,
+      })),
+    );
+
+    expect(columns.map((column) => column.shortLabel)).toEqual([
+      "Vox 1",
+      "Vox 2",
+      "Vox 3",
+      "Gtr 1",
+      "Gtr 2",
+      "Bass",
+      "Drums",
+      "Keys",
+    ]);
   });
 });
