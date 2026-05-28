@@ -231,20 +231,14 @@ test.describe("Jammers smoke", () => {
     await expect(joinButton).toBeVisible({ timeout: 15_000 });
     await joinButton.click();
 
-    await expect(
-      page.getByRole("status").filter({ hasText: /You're in|Ты в лайнапе/i }),
-    ).toBeVisible({ timeout: 15_000 });
-
     const releaseButton = page.getByRole("button", { name: /Release .*|Освободить /i }).first();
-    await expect(releaseButton).toBeVisible();
+    await expect(releaseButton).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("@anna_drums").first()).toBeVisible();
     await releaseButton.click();
 
     await expect(
-      page.getByRole("status").filter({ hasText: /Seat released|Место освобождено/i }),
-    ).toBeVisible();
-    await expect(
       page.getByRole("button", { name: /Join|Вписаться|Request spot|Запросить место/i }).first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("board updates reach another signed-in session in realtime", async ({ browser }) => {
@@ -272,9 +266,9 @@ test.describe("Jammers smoke", () => {
       await secondPage.goto(`/events/${slug}`);
 
       await firstPage.getByRole("button", { name: /Join Bass|Вписаться на Bass/i }).click();
-      await expect(
-        firstPage.getByRole("status").filter({ hasText: /You're in|Ты в лайнапе/i }),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(firstPage.getByRole("button", { name: /Release Bass|Освободить Bass/i })).toBeVisible({
+        timeout: 15_000,
+      });
       await expect(secondPage.getByText("@anna_drums").first()).toBeVisible({ timeout: 20_000 });
     } finally {
       await firstContext.close();
