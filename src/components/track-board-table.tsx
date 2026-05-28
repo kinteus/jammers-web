@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { TrackSeatStatus, type UserRole } from "@prisma/client";
 import {
   ArrowDown,
@@ -1068,7 +1069,6 @@ function TrackSettingsControl({
         getInvitePopoverLayout({
           align: "end",
           preferAbove,
-          stickyTopBoundary: getStickyTableHeaderBottom(trigger),
           triggerRect: trigger.getBoundingClientRect(),
           viewportHeight: window.innerHeight,
           viewportWidth: window.innerWidth,
@@ -1175,6 +1175,31 @@ function TrackSettingsControl({
     );
   }
 
+  const popoverForm = isOpen ? (
+    <form
+      action={updateTrackSettingsAction}
+      className="fixed z-[90] grid w-72 gap-3 overflow-y-auto rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card"
+      data-testid="track-settings-popover"
+      style={
+        settingsPopoverLayout
+          ? {
+              left: `${settingsPopoverLayout.left}px`,
+              maxHeight: `${settingsPopoverLayout.maxHeight}px`,
+              top: `${settingsPopoverLayout.top}px`,
+              width: `${settingsPopoverLayout.width}px`,
+            }
+          : {
+              left: `${invitePopoverMargin}px`,
+              maxHeight: `calc(100vh - ${invitePopoverMargin * 2}px)`,
+              top: `${invitePopoverMargin}px`,
+              width: `calc(100vw - ${invitePopoverMargin * 2}px)`,
+            }
+      }
+    >
+      {formFields}
+    </form>
+  ) : null;
+
   return (
     <div className="relative">
       <button
@@ -1192,29 +1217,9 @@ function TrackSettingsControl({
       >
         <Settings2 className="h-3.5 w-3.5" />
       </button>
-      {isOpen ? (
-        <form
-          action={updateTrackSettingsAction}
-          className="fixed z-50 grid w-72 gap-3 overflow-y-auto rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card"
-          style={
-            settingsPopoverLayout
-              ? {
-                  left: `${settingsPopoverLayout.left}px`,
-                  maxHeight: `${settingsPopoverLayout.maxHeight}px`,
-                  top: `${settingsPopoverLayout.top}px`,
-                  width: `${settingsPopoverLayout.width}px`,
-                }
-              : {
-                  left: `${invitePopoverMargin}px`,
-                  maxHeight: `calc(100vh - ${invitePopoverMargin * 2}px)`,
-                  top: `${invitePopoverMargin}px`,
-                  width: `calc(100vw - ${invitePopoverMargin * 2}px)`,
-                }
-          }
-        >
-          {formFields}
-      </form>
-      ) : null}
+      {popoverForm && typeof document !== "undefined"
+        ? createPortal(popoverForm, document.body)
+        : null}
     </div>
   );
 }

@@ -296,8 +296,9 @@ test.describe("Jammers smoke", () => {
 
     await expect(page.getByText(songTitle).first()).toBeVisible({ timeout: 15_000 });
 
-    await page.locator('summary[title="Track settings"]:visible').first().click();
-    const settingsPanel = page.locator("details[open]:visible").first();
+    await page.getByRole("button", { name: /Track settings|Настройки трека/i }).first().click();
+    const settingsPanel = page.getByTestId("track-settings-popover");
+    await expect(settingsPanel).toBeVisible();
     const updatedComment = `Smoke updated comment ${smokeRunId}`;
     await settingsPanel.locator('textarea[name="comment"]').fill(updatedComment);
     await settingsPanel.getByRole("button", { name: /Save track settings|Сохранить настройки трека/i }).click();

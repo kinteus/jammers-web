@@ -76,7 +76,10 @@ describe("track board table styling", () => {
     const source = readFileSync("src/components/track-board-table.tsx", "utf8");
 
     expect(source).toContain("settingsPopoverLayout");
-    expect(source).toContain("\"fixed z-50");
+    expect(source).toContain("createPortal(popoverForm, document.body)");
+    expect(source).toContain("data-testid=\"track-settings-popover\"");
+    expect(source).toContain("\"fixed z-[90]");
+    expect(source).toContain("preferAbove");
     expect(source).not.toContain("isInline ? \"mt-2\" : \"absolute right-0 top-7 w-72\"");
   });
 });
