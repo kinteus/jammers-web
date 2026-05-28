@@ -112,8 +112,9 @@ describe("event board helpers", () => {
   });
 
   it("uses the new default lineup order for freshly created gigs", () => {
+    const defaultLineup = getDefaultLineupInput();
     const columns = expandSeatColumns(
-      getDefaultLineupInput().map((slot) => ({
+      defaultLineup.map((slot) => ({
         ...slot,
         id: slot.key,
       })),
@@ -129,5 +130,6 @@ describe("event board helpers", () => {
       "Drums",
       "Keys",
     ]);
+    expect(defaultLineup.every((slot) => slot.allowOptional)).toBe(true);
   });
 });

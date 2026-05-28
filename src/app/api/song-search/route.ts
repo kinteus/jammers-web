@@ -64,6 +64,10 @@ function parseArtistTitleQuery(query: string) {
   return { artistName, trackTitle };
 }
 
+function hasExplicitArtistTitleSeparator(query: string) {
+  return /^(.+?)\s+[-–—]\s+(.+)$/.test(query);
+}
+
 function getArtistTitleQueryCandidates(query: string) {
   const explicitQuery = parseArtistTitleQuery(query);
   if (explicitQuery) {
@@ -334,6 +338,50 @@ async function fetchArtistLookupFallback(
   return rankLookupSongs(lookupResults.filter(isSongResult), parsedQuery);
 }
 
+async function fetchExactArtistLookupSongs(query: string) {
+  if (hasExplicitArtistTitleSeparator(query)) {
+    return [];
+  }
+
+  const expectedArtist = normalizeSearchText(query);
+  if (!expectedArtist || !expectedArtist.includes(" ")) {
+    return [];
+  }
+
+  const artistResults = await fetchItunesResults<ItunesArtistResult>(
+    createSearchUrl("/search", {
+      term: query,
+      media: "music",
+      entity: "musicArtist",
+      attribute: "artistTerm",
+      country: "US",
+      limit: "5",
+    }),
+  );
+  const artistIds = artistResults
+    .filter(isArtistResult)
+    .filter((artist) => normalizeSearchText(artist.artistName) === expectedArtist)
+    .slice(0, 3)
+    .map((artist) => String(artist.artistId));
+
+  if (artistIds.length === 0) {
+    return [];
+  }
+
+  const lookupResults = await fetchItunesResults<ItunesSongResult | ItunesArtistResult>(
+    createSearchUrl("/lookup", {
+      id: artistIds.join(","),
+      entity: "song",
+      country: "US",
+      limit: String(ARTIST_LOOKUP_LIMIT),
+    }),
+  );
+
+  return lookupResults
+    .filter(isSongResult)
+    .filter((song) => normalizeSearchText(song.artistName) === expectedArtist);
+}
+
 async function fetchArtistLookupFallbacks(query: string) {
   for (const candidate of getArtistTitleQueryCandidates(query)) {
     const results = await fetchArtistLookupFallback(candidate);
@@ -400,8 +448,17 @@ export async function GET(request: Request) {
 
   const dedupedResults = new Map<string, SongSearchResult>();
   const parsedQueries = getArtistTitleQueryCandidates(query);
+  let exactArtistLookupResults: ItunesSongResult[] = [];
+  if (!searchResults.some((entry) => normalizeSearchText(entry.artistName) === normalizeSearchText(query))) {
+    try {
+      exactArtistLookupResults = await fetchExactArtistLookupSongs(query);
+    } catch {
+      exactArtistLookupResults = [];
+    }
+  }
   const shouldUseArtistLookup =
     parsedQueries.length > 0 &&
+    exactArtistLookupResults.length === 0 &&
     !parsedQueries.some((parsedQuery) =>
       searchResults.some((entry) => trackMatchesParsedQuery(entry, parsedQuery)),
     );
@@ -413,6 +470,7 @@ export async function GET(request: Request) {
       // Keep direct search results when the fallback provider path is unavailable.
     }
   }
+  addDedupedResults(dedupedResults, exactArtistLookupResults);
   addDedupedLocalResults(dedupedResults, localResults);
   addDedupedResults(dedupedResults, searchResults);
 

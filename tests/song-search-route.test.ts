@@ -42,6 +42,7 @@ describe("song search route", () => {
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(() => mockItunesJson({ results: [] }))
+      .mockImplementationOnce(() => mockItunesJson({ results: [] }))
       .mockImplementationOnce(() =>
         mockItunesJson({
           results: [
@@ -92,6 +93,9 @@ describe("song search route", () => {
       ],
     });
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "Thornhill nerv",
+    );
+    expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get("term")).toBe(
       "Thornhill",
     );
   });
@@ -117,6 +121,7 @@ describe("song search route", () => {
           ],
         }),
       )
+      .mockImplementationOnce(() => mockItunesJson({ results: [] }))
       .mockImplementationOnce(() =>
         mockItunesJson({
           results: [
@@ -166,9 +171,150 @@ describe("song search route", () => {
       trackTitle: "Body Bag",
     });
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "i prevail body bag",
+    );
+    expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get("term")).toBe(
       "i prevail",
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("searches songs by an exact multi-word artist name such as I Prevail", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1,
+              trackName: "Wrong Result",
+              artistName: "I",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 948448824,
+              artistName: "I Prevail",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 948448824,
+              artistName: "I Prevail",
+            },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1629105533,
+              trackName: "Body Bag",
+              artistName: "I Prevail",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request("http://localhost/api/song-search?query=i%20prevail"),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.results[0]).toMatchObject({
+      artistName: "I Prevail",
+      externalId: "1629105533",
+      trackTitle: "Body Bag",
+    });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "i prevail",
+    );
+  });
+
+  it("looks up exact multi-word artists instead of treating the first word as the artist", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1,
+              trackName: "Random Song",
+              artistName: "Maya",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 278887936,
+              artistName: "Veil of Maya",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "artist",
+              artistId: 278887936,
+              artistName: "Veil of Maya",
+            },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1458431464,
+              trackName: "Mikasa",
+              artistName: "Veil of Maya",
+              artworkUrl100: "http://is1-ssl.mzstatic.com/image/thumb/veil/100x100bb.jpg",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request("http://localhost/api/song-search?query=Veil%20of%20Maya"),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.results[0]).toMatchObject({
+      artistName: "Veil of Maya",
+      externalId: "1458431464",
+      trackTitle: "Mikasa",
+    });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("term")).toBe(
+      "Veil of Maya",
+    );
+    expect(new URL(String(fetchMock.mock.calls[2][0])).pathname).toBe("/lookup");
   });
 
   it("falls back through artist lookup for artist-title queries that direct iTunes search misses", async () => {

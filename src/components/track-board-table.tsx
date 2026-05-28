@@ -804,6 +804,7 @@ function InviteControl({
   const [selectedUser, setSelectedUser] = useState<InviteableUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLFormElement>(null);
   const [popoverLayout, setPopoverLayout] = useState<InvitePopoverLayout | null>(null);
   const isOpen = activeInviteControlId === controlId;
   const normalizedQuery = debouncedQuery.trim().toLowerCase().replace(/^@+/, "");
@@ -868,6 +869,27 @@ function InviteControl({
       window.removeEventListener("scroll", updatePopoverLayout, true);
     };
   }, [align, isOpen, preferAbove]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function closeOnOutsidePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) {
+        return;
+      }
+
+      onOpenChange(null);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
+  }, [isOpen, onOpenChange]);
 
   async function submitInvite() {
     if (!selectedUser || isSubmitting) {
@@ -934,6 +956,7 @@ function InviteControl({
             event.preventDefault();
             void submitInvite();
           }}
+          ref={popoverRef}
           style={
             popoverLayout
               ? {
@@ -1052,6 +1075,7 @@ function TrackSettingsControl({
   const isInline = layout === "inline";
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const settingsPopoverRef = useRef<HTMLFormElement>(null);
   const [settingsPopoverLayout, setSettingsPopoverLayout] = useState<InvitePopoverLayout | null>(null);
 
   useEffect(() => {
@@ -1085,6 +1109,30 @@ function TrackSettingsControl({
       window.removeEventListener("scroll", updateSettingsPopoverLayout, true);
     };
   }, [isInline, isOpen, preferAbove]);
+
+  useEffect(() => {
+    if (!isOpen || isInline) {
+      return;
+    }
+
+    function closeOnOutsidePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (
+        triggerRef.current?.contains(target) ||
+        settingsPopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
+  }, [isInline, isOpen]);
 
   const formFields = (
     <>
@@ -1180,6 +1228,7 @@ function TrackSettingsControl({
       action={updateTrackSettingsAction}
       className="fixed z-[90] grid w-72 gap-3 overflow-y-auto rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card"
       data-testid="track-settings-popover"
+      ref={settingsPopoverRef}
       style={
         settingsPopoverLayout
           ? {

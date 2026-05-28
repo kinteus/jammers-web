@@ -3,6 +3,7 @@
  */
 import React, { act } from "react";
 import { TrackSeatStatus, UserRole } from "@prisma/client";
+import { fireEvent } from "@testing-library/react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -303,5 +304,160 @@ describe("TrackBoardTable", () => {
     expect(host.textContent).toContain("Сохранить настройки трека");
     expect(host.querySelector('textarea[name="comment"]')).not.toBeNull();
     expect(host.querySelector('input[name="optionalSeatIds"][value="seat-guitar"]')).not.toBeNull();
+  });
+
+  it("closes the desktop track settings popover when clicking outside it", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={false}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-guitar",
+              key: "guitar",
+              label: "Guitar",
+              seatCount: 1,
+              allowOptional: true,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-owned",
+              proposedById: "user-proposer",
+              proposedBy: {
+                telegramUsername: "proposer",
+                fullName: "Proposer",
+              },
+              song: {
+                title: "Owned Song",
+                artist: { name: "The Band" },
+              },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: "Old note",
+              seats: [
+                {
+                  id: "seat-guitar",
+                  seatIndex: 1,
+                  label: "Guitar",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: true,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-guitar",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-proposer",
+            role: UserRole.USER,
+            telegramUsername: "proposer",
+            fullName: "Proposer",
+          }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(host.querySelector('button[title="Track settings"]')!);
+    });
+
+    expect(document.body.querySelector('[data-testid="track-settings-popover"]')).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    expect(document.body.querySelector('[data-testid="track-settings-popover"]')).toBeNull();
+  });
+
+  it("closes the invite popover when clicking outside it", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={false}
+          eventSlug="spring-jam-night"
+          inviteableUsers={[
+            { id: "user-bass", telegramUsername: "boris_bass", fullName: "Boris Bass" },
+          ]}
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-bass",
+              key: "bass",
+              label: "Bass",
+              seatCount: 1,
+              allowOptional: true,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-owned",
+              proposedById: "user-proposer",
+              proposedBy: {
+                telegramUsername: "proposer",
+                fullName: "Proposer",
+              },
+              song: {
+                title: "Invite Song",
+                artist: { name: "The Band" },
+              },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-bass",
+                  seatIndex: 1,
+                  label: "Bass",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-bass",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-proposer",
+            role: UserRole.USER,
+            telegramUsername: "proposer",
+            fullName: "Proposer",
+          }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(host.querySelector('button[title="Invite player to Bass"]')!);
+    });
+
+    expect(host.querySelector('input[aria-label="Search registered musicians"]')).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    expect(host.querySelector('input[aria-label="Search registered musicians"]')).toBeNull();
   });
 });

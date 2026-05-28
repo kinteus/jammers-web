@@ -1142,7 +1142,10 @@ async function transitionEventStatus({
 
   await db.event.update({
     where: { id: eventId },
-    data: { status },
+    data:
+      event.status === EventStatus.CLOSED && status === EventStatus.OPEN
+        ? { status, registrationClosesAt: null }
+        : { status },
   });
 
   let failedDeliveries = 0;

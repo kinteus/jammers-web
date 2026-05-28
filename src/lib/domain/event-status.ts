@@ -52,7 +52,7 @@ export function getAllowedNextEventStatuses(status: EventStatus): EventStatus[] 
     return [EventStatus.CLOSED];
   }
   if (status === EventStatus.CLOSED) {
-    return [EventStatus.PUBLISHED];
+    return [EventStatus.OPEN, EventStatus.PUBLISHED];
   }
   if (status === EventStatus.PUBLISHED) {
     return [EventStatus.ARCHIVED];

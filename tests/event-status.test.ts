@@ -65,7 +65,10 @@ describe("event status lifecycle", () => {
   });
 
   it("does not expose curating as an explicit next admin status", () => {
-    expect(getAllowedNextEventStatuses(EventStatus.CLOSED)).toEqual([EventStatus.PUBLISHED]);
+    expect(getAllowedNextEventStatuses(EventStatus.CLOSED)).toEqual([
+      EventStatus.OPEN,
+      EventStatus.PUBLISHED,
+    ]);
     expect(getAllowedNextEventStatuses(EventStatus.OPEN)).toEqual([EventStatus.CLOSED]);
   });
 

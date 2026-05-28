@@ -259,6 +259,36 @@ describe("event route slugs in server actions", () => {
     });
   });
 
+  it("lets admins reopen a closed board for extra signups without immediate auto-close", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.event.findUniqueOrThrow.mockResolvedValue({
+      id: "event-1",
+      status: EventStatus.CLOSED,
+    });
+    dbMock.event.update.mockResolvedValue({ id: "event-1" });
+
+    const { updateEventStatusAction } = await import("@/server/actions");
+
+    await updateEventStatusAction(
+      formData({
+        eventId: "event-1",
+        eventSlug: "spring-jam-night",
+        status: EventStatus.OPEN,
+      }),
+    );
+
+    expect(dbMock.event.update).toHaveBeenCalledWith({
+      where: { id: "event-1" },
+      data: {
+        registrationClosesAt: null,
+        status: EventStatus.OPEN,
+      },
+    });
+  });
+
   it("does not revalidate legacy non-ASCII event slug paths after creating a track", async () => {
     requireUserMock.mockResolvedValue({
       bans: [],
