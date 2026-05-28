@@ -1033,12 +1033,14 @@ function TrackSettingsControl({
   eventSlug,
   layout = "popover",
   locale,
+  preferAbove = false,
   track,
   trackInfoFields,
 }: {
   eventSlug: string;
   layout?: "inline" | "popover";
   locale: Locale;
+  preferAbove?: boolean;
   track: BoardTrack;
   trackInfoFields: TrackInfoField[];
 }) {
@@ -1047,29 +1049,45 @@ function TrackSettingsControl({
   );
   const openSeats = track.seats.filter((seat) => seat.status === TrackSeatStatus.OPEN);
   const isInline = layout === "inline";
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [settingsPopoverLayout, setSettingsPopoverLayout] = useState<InvitePopoverLayout | null>(null);
 
-  return (
-    <details className={cn("group/settings", isInline ? "w-full" : "relative")}>
-      <summary
-        className={cn(
-          "list-none cursor-pointer text-white",
-          isInline
-            ? "inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition hover:bg-white/14"
-            : iconButtonClass(),
-        )}
-        data-tip={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
-        title={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
-      >
-        <Settings2 className="h-3.5 w-3.5" />
-        {isInline ? <span>{pick(locale, { en: "Settings", ru: "Настройки" })}</span> : null}
-      </summary>
-      <form
-        action={updateTrackSettingsAction}
-        className={cn(
-          "z-50 grid gap-3 rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card",
-          isInline ? "mt-2" : "absolute right-0 top-7 w-72",
-        )}
-      >
+  useEffect(() => {
+    if (!isOpen || isInline) {
+      return;
+    }
+
+    function updateSettingsPopoverLayout() {
+      const trigger = triggerRef.current;
+      if (!trigger) {
+        return;
+      }
+
+      setSettingsPopoverLayout(
+        getInvitePopoverLayout({
+          align: "end",
+          preferAbove,
+          stickyTopBoundary: getStickyTableHeaderBottom(trigger),
+          triggerRect: trigger.getBoundingClientRect(),
+          viewportHeight: window.innerHeight,
+          viewportWidth: window.innerWidth,
+        }),
+      );
+    }
+
+    updateSettingsPopoverLayout();
+    window.addEventListener("resize", updateSettingsPopoverLayout);
+    window.addEventListener("scroll", updateSettingsPopoverLayout, true);
+
+    return () => {
+      window.removeEventListener("resize", updateSettingsPopoverLayout);
+      window.removeEventListener("scroll", updateSettingsPopoverLayout, true);
+    };
+  }, [isInline, isOpen, preferAbove]);
+
+  const formFields = (
+    <>
         <input name="trackId" type="hidden" value={track.id} />
         <input name="eventSlug" type="hidden" value={eventSlug} />
         <label className="grid gap-1">
@@ -1133,8 +1151,71 @@ function TrackSettingsControl({
         >
           {pick(locale, { en: "Save track settings", ru: "Сохранить настройки трека" })}
         </SubmitButton>
+    </>
+  );
+
+  if (isInline) {
+    return (
+      <details className="group/settings w-full">
+        <summary
+          className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14"
+          data-tip={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+          title={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span>{pick(locale, { en: "Settings", ru: "Настройки" })}</span>
+        </summary>
+        <form
+          action={updateTrackSettingsAction}
+          className="z-50 mt-2 grid gap-3 rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card"
+        >
+          {formFields}
+        </form>
+      </details>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={isOpen}
+        aria-label={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+        className={cn("list-none cursor-pointer text-white", iconButtonClass())}
+        data-tip={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+        onClick={(event) => {
+          event.preventDefault();
+          setIsOpen((current) => !current);
+        }}
+        ref={triggerRef}
+        title={pick(locale, { en: "Track settings", ru: "Настройки трека" })}
+        type="button"
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+      </button>
+      {isOpen ? (
+        <form
+          action={updateTrackSettingsAction}
+          className="fixed z-50 grid w-72 gap-3 overflow-y-auto rounded-md border border-white/10 bg-stage p-3 text-left text-xs leading-5 text-white/74 shadow-card"
+          style={
+            settingsPopoverLayout
+              ? {
+                  left: `${settingsPopoverLayout.left}px`,
+                  maxHeight: `${settingsPopoverLayout.maxHeight}px`,
+                  top: `${settingsPopoverLayout.top}px`,
+                  width: `${settingsPopoverLayout.width}px`,
+                }
+              : {
+                  left: `${invitePopoverMargin}px`,
+                  maxHeight: `calc(100vh - ${invitePopoverMargin * 2}px)`,
+                  top: `${invitePopoverMargin}px`,
+                  width: `calc(100vw - ${invitePopoverMargin * 2}px)`,
+                }
+          }
+        >
+          {formFields}
       </form>
-    </details>
+      ) : null}
+    </div>
   );
 }
 
@@ -1696,6 +1777,7 @@ export function TrackBoardTable({
                             <TrackSettingsControl
                               eventSlug={eventSlug}
                               locale={locale}
+                              preferAbove={preferInviteAbove}
                               track={track}
                               trackInfoFields={trackInfoFields}
                             />

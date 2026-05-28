@@ -6,17 +6,22 @@ const composerSource = readFileSync("src/components/track-proposal-composer.tsx"
 const formSource = readFileSync("src/components/track-proposal-form.tsx", "utf8");
 const launcherSource = readFileSync("src/components/track-proposal-launcher.tsx", "utf8");
 const dialogSource = readFileSync("src/components/track-proposal-dialog.tsx", "utf8");
+const userInvitePickerSource = readFileSync("src/components/user-invite-picker.tsx", "utf8");
 
 describe("track proposal flow", () => {
-  it("uses a flat seat stack with action icons and invite selects", () => {
+  it("uses a flat seat stack with action icons and searchable invite pickers", () => {
     expect(plannerSource).toContain("inviteSeatRequests");
     expect(plannerSource).toContain("inviteableUsers");
+    expect(plannerSource).toContain("UserInvitePicker");
+    expect(plannerSource).not.toContain("<select");
     expect(plannerSource).toContain("UserCheck");
     expect(plannerSource).toContain("CircleDot");
     expect(plannerSource).toContain("CircleDashed");
     expect(plannerSource).toContain("Ban");
     expect(plannerSource).not.toContain("arrangementSummary");
     expect(plannerSource).not.toContain("presets");
+    expect(userInvitePickerSource).toContain("role=\"combobox\"");
+    expect(userInvitePickerSource).toContain("role=\"listbox\"");
   });
 
   it("passes inviteable users from the launcher to the seat planner", () => {

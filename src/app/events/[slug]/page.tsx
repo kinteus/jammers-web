@@ -32,7 +32,6 @@ import {
 } from "@/server/actions";
 import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
 
-import { InstrumentToken } from "@/components/instrument-token";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { BoardRealtimeRefresh } from "@/components/board-realtime-refresh";
 import { SignInLink } from "@/components/sign-in-link";
@@ -131,30 +130,6 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
       description,
     },
   };
-}
-
-function getRoleShortages(
-  tracks: Array<{
-    seats: Array<{
-      label: string;
-      status: TrackSeatStatus;
-      isOptional: boolean;
-    }>;
-  }>,
-) {
-  const roleCounts = new Map<string, number>();
-
-  for (const track of tracks) {
-    for (const seat of track.seats) {
-      if (seat.status !== TrackSeatStatus.OPEN || seat.isOptional) {
-        continue;
-      }
-
-      roleCounts.set(seat.label, (roleCounts.get(seat.label) ?? 0) + 1);
-    }
-  }
-
-  return [...roleCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 }
 
 function parseRoleFilters(value: string | string[] | undefined) {
@@ -580,7 +555,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const readyTrackCount = event.tracks.filter(
     (track) => getTrackCompletionSummary(track.seats).isComplete,
   ).length;
-  const roleShortages = getRoleShortages(event.tracks);
   const selectedRoleLabel = roleFilters.map((role) => getRoleFamilyLabel(role, locale)).join(" + ");
   const allowClosedOptionalRequests = allowsClosedOptionalSeatRequests(event);
   const trackInfoFields = getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback);
@@ -875,81 +849,6 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           </div>
         ) : null}
       </section>
-
-      <details className="group brand-shell overflow-hidden rounded-xl border-white/10">
-        <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/65 transition hover:bg-white/6">
-          <span>{pick(locale, { en: "Board context and line-up map", ru: "Контекст сетлиста и карта лайнапа" })}</span>
-          <span className="text-[10px] text-white/38 group-open:hidden">
-            {pick(locale, { en: "Expand", ru: "Открыть" })}
-          </span>
-          <span className="hidden text-[10px] text-white/38 group-open:inline">
-            {pick(locale, { en: "Collapse", ru: "Свернуть" })}
-          </span>
-        </summary>
-        <div className="grid gap-4 border-t border-white/10 p-5 lg:grid-cols-[1.15fr,0.85fr]">
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Most needed roles", ru: "Самые нужные роли" })}
-            </p>
-            {roleShortages.length === 0 ? (
-              <p className="text-sm leading-6 text-white/68">
-                {pick(locale, {
-                  en: "No required open parts right now. The current proposals are assembled, so review can stay focused on the existing board.",
-                  ru: "Сейчас обязательных открытых мест нет. Текущие заявки уже собраны, так что можно просто спокойно просмотреть сетлист.",
-                })}
-              </p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {roleShortages.map(([label, count]) => (
-                  <div className="brand-shell-soft flex items-center justify-between gap-3 rounded-xl px-4 py-3" key={label}>
-                    <InstrumentToken
-                      className="flex-1 border-transparent bg-transparent px-0 py-0"
-                      compact
-                      label={label}
-                      locale={locale}
-                      meta={pick(locale, {
-                        en: count === 1 ? "1 open part" : `${count} open parts`,
-                        ru: count === 1 ? "1 открытая партия" : `${count} открытые партии`,
-                      })}
-                    />
-                    <span className="text-sm font-semibold text-gold">{count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Line-up map", ru: "Карта лайнапа" })}
-            </p>
-            <div className="grid gap-3">
-              {event.lineupSlots.map((slot) => (
-                <div className="brand-shell-soft flex items-center justify-between gap-3 rounded-xl px-4 py-3" key={slot.id}>
-                  <InstrumentToken
-                    className="flex-1 border-transparent bg-transparent px-0 py-0"
-                    compact
-                    keyHint={slot.key}
-                    label={slot.label}
-                    locale={locale}
-                    meta={pick(locale, {
-                      en: slot.allowOptional ? "Optional allowed" : "Required only",
-                      ru: slot.allowOptional ? "Optional разрешён" : "Только обязательные",
-                    })}
-                  />
-                  <span className="text-sm text-white/60">
-                    {slot.seatCount}{" "}
-                    {pick(locale, {
-                      en: slot.seatCount === 1 ? "seat" : "seats",
-                      ru: slot.seatCount === 1 ? "место" : "места",
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </details>
 
       {registrationOpensSoon && event.registrationOpensAt ? (
         <Card className="brand-shell space-y-4 border-gold/18 bg-gold/[0.06]">

@@ -71,4 +71,12 @@ describe("track board table styling", () => {
     expect(source).not.toContain("overflow-auto");
     expect(source).toContain("overflow-x-auto");
   });
+
+  it("renders track settings popovers outside the table scroll clipping context", () => {
+    const source = readFileSync("src/components/track-board-table.tsx", "utf8");
+
+    expect(source).toContain("settingsPopoverLayout");
+    expect(source).toContain("\"fixed z-50");
+    expect(source).not.toContain("isInline ? \"mt-2\" : \"absolute right-0 top-7 w-72\"");
+  });
 });

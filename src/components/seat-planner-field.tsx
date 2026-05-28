@@ -7,14 +7,9 @@ import { expandSeatColumns, type LineupSlotLite } from "@/lib/event-board";
 import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
 import { getRoleFamilyKey } from "@/lib/role-families";
 import { cn } from "@/lib/utils";
+import { UserInvitePicker, type InviteableUserOption } from "@/components/user-invite-picker";
 
 type SeatMode = "claim" | "open" | "optional" | "skip";
-
-type InviteableUser = {
-  id: string;
-  telegramUsername: string | null;
-  fullName: string | null;
-};
 
 function getModeLabel(mode: SeatMode, locale: Locale) {
   if (mode === "claim") {
@@ -29,16 +24,12 @@ function getModeLabel(mode: SeatMode, locale: Locale) {
   return pick(locale, { en: "Required", ru: "Обязательная" });
 }
 
-function getUserLabel(user: InviteableUser) {
-  return user.telegramUsername ? `@${user.telegramUsername}` : user.fullName ?? "Unknown";
-}
-
 export function SeatPlannerField({
   inviteableUsers,
   lineupSlots,
   locale,
 }: {
-  inviteableUsers: InviteableUser[];
+  inviteableUsers: InviteableUserOption[];
   lineupSlots: LineupSlotLite[];
   locale: Locale;
 }) {
@@ -86,7 +77,7 @@ export function SeatPlannerField({
         </p>
       </div>
 
-      <div className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
+      <div className="divide-y divide-white/10 rounded-lg border border-white/10 bg-white/[0.03]">
         {seatColumns.map((seat) => {
           const current = modes[seat.seatKey] ?? "open";
           const roleFamily = getRoleFamilyKey(seat.label, seat.lineupKey);
@@ -167,29 +158,25 @@ export function SeatPlannerField({
                   })}
               </div>
 
-              <label className="min-w-0 space-y-1 text-xs text-white/55">
+              <div className="min-w-0 space-y-1 text-xs text-white/55">
                 <span>{pick(locale, { en: "Invite", ru: "Пригласить" })}</span>
-                <select
-                  className="w-full px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+                <UserInvitePicker
+                  ariaLabel={pick(locale, {
+                    en: `Invite ${seat.label}`,
+                    ru: `Пригласить на ${seat.label}`,
+                  })}
                   disabled={!enabledInvite || inviteableUsers.length === 0}
-                  onChange={(event) => {
+                  locale={locale}
+                  onSelectedUserIdChange={(userId) => {
                     setInviteRecipients((currentRecipients) => ({
                       ...currentRecipients,
-                      [seat.seatKey]: event.target.value,
+                      [seat.seatKey]: userId,
                     }));
                   }}
-                  value={inviteRecipients[seat.seatKey] ?? ""}
-                >
-                  <option value="">
-                    {pick(locale, { en: "No invite", ru: "Без приглашения" })}
-                  </option>
-                  {inviteableUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {getUserLabel(user)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  selectedUserId={inviteRecipients[seat.seatKey] ?? ""}
+                  users={inviteableUsers}
+                />
+              </div>
             </div>
           );
         })}

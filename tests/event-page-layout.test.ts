@@ -18,4 +18,13 @@ describe("event page layout", () => {
     expect(source).not.toContain("SongCatalogRequestForm");
     expect(source).not.toContain("missing-song-request");
   });
+
+  it("does not render the extra board context and line-up map block", () => {
+    const source = readFileSync("src/app/events/[slug]/page.tsx", "utf8");
+
+    expect(source).not.toContain("Board context and line-up map");
+    expect(source).not.toContain("Контекст сетлиста и карта лайнапа");
+    expect(source).not.toContain("Most needed roles");
+    expect(source).not.toContain("Line-up map");
+  });
 });
