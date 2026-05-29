@@ -46,6 +46,25 @@ function mergeResults(existing: SongSearchResult[], incoming: SongSearchResult[]
   return merged;
 }
 
+function Artwork({ src, alt, sizes }: { src: string | null; alt: string; sizes: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return null;
+  }
+
+  return (
+    <Image
+      alt={alt}
+      className="object-cover"
+      fill
+      onError={() => setFailed(true)}
+      sizes={sizes}
+      src={src}
+    />
+  );
+}
+
 export function SongSearchField({
   locale,
   selected,
@@ -312,15 +331,12 @@ export function SongSearchField({
           />
           <div className="brand-shell-soft flex items-center gap-4 rounded-[1.5rem] border border-white/10 px-4 py-3">
             <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-white/6">
-              {selected.artworkUrl ? (
-                <Image
-                  alt={`${selected.artistName} ${selected.trackTitle}`}
-                  className="object-cover"
-                  fill
-                  sizes="56px"
-                  src={selected.artworkUrl}
-                />
-              ) : null}
+              <Artwork
+                key={selected.artworkUrl}
+                alt={`${selected.artistName} ${selected.trackTitle}`}
+                sizes="56px"
+                src={selected.artworkUrl}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-sand">{selected.trackTitle}</p>
@@ -386,15 +402,12 @@ export function SongSearchField({
                     type="button"
                   >
                     <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-white/6">
-                      {result.artworkUrl ? (
-                        <Image
-                          alt={`${result.artistName} ${result.trackTitle}`}
-                          className="object-cover"
-                          fill
-                          sizes="48px"
-                          src={result.artworkUrl}
-                        />
-                      ) : null}
+                      <Artwork
+                        key={result.artworkUrl}
+                        alt={`${result.artistName} ${result.trackTitle}`}
+                        sizes="48px"
+                        src={result.artworkUrl}
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-sand">

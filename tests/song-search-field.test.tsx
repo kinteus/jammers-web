@@ -68,6 +68,33 @@ describe("SongSearchField", () => {
     ).toBe("");
   });
 
+  it("removes the cover instead of showing a broken image when artwork fails to load", async () => {
+    const { container } = render(
+      <SongSearchField
+        locale="ru"
+        onSelectedChange={() => undefined}
+        selected={{
+          artistName: "Дайте Танк (!)",
+          artworkUrl: "https://is1-ssl.mzstatic.com/image/thumb/x/200x200bb.jpg",
+          collectionName: null,
+          durationSeconds: 180,
+          externalId: "1534563467",
+          externalUrl: null,
+          trackTitle: "Веселиться",
+        }}
+      />,
+    );
+
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.error(image as HTMLImageElement);
+    });
+
+    expect(container.querySelector("img")).toBeNull();
+  });
+
   it("debounces iTunes search while the user keeps typing", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ results: [] }), {

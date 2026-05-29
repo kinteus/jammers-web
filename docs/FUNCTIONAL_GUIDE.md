@@ -66,9 +66,13 @@ An admin can do everything a musician can, plus:
 The current application exposes the following main surfaces:
 
 - `/`
-  Public home page with current events, newcomer onboarding, next-gig shortage framing, and recently published setlists.
+  Public home page with current events, newcomer onboarding, next-gig shortage framing, community quotes, and recently published setlists.
 - `/faq`
-  Public operating guide with quick-start rules, board semantics, and product feedback routing.
+  Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard.
+- `/about`
+  Public about page with team, partner/brand blocks, and a contact-the-team call to action.
+- `/archive`
+  Public archive of past published setlists ("Setlists").
 - `/profile`
   Telegram sign-in, local development sign-in, profile editing, invite inbox, personal playing view, and next-step empty states.
 - `/events/[id]`
@@ -89,6 +93,7 @@ An event is a concert or jam session with:
 - registration opening and closing window,
 - maximum allowed main-set song count,
 - limit on how many tracks one user may join,
+- minimum number of required players per song (a track cannot be published with fewer required seats),
 - whether playback is allowed,
 - stage notes,
 - lineup slots that define the available stage roles.
@@ -267,24 +272,22 @@ The application queries the iTunes Search API in real time and shows a live resu
 
 If the desired track cannot be found, the user can fall back to a manual song request form lower on the page.
 
+The search list is paginated: more candidates load as the user scrolls (or via an explicit "load more" affordance), so songs that are not in the very first batch can still be reached. The "Publish proposal to board" button stays disabled until a concrete track is selected from the results, which prevents submitting an empty proposal.
+
 ### Step 2. Set the arrangement
 
 After selecting a track, the user defines how this song should be staged. For every seat generated from the event lineup, the user chooses one of:
 
 - `I’m in`
   The proposing user is immediately assigned to this seat.
-- `Need player`
-  The seat is part of the arrangement but still open.
-- `Skip`
+- `Required seat`
+  The seat is part of the arrangement and still needs a player. Required seats count toward the gig's minimum-players-per-song rule.
+- `Optional seat`
+  The seat is part of the arrangement but not mandatory; players can request it, and it does not count toward the minimum-players-per-song rule.
+- `Off`
   The seat is intentionally not used for this arrangement.
 
-The arrangement builder also offers quick presets such as:
-
-- Full band,
-- Power trio,
-- Acoustic.
-
-These reduce the amount of repetitive seat-by-seat interaction for common setups.
+For each open seat the proposer can also pre-select an invited musician inline.
 
 ### Additional proposal fields
 
@@ -297,9 +300,11 @@ The proposer can also add:
 
 The backend enforces:
 
+- a concrete song must be selected from search (an empty proposal is rejected and the user is sent back with an inline error instead of crashing),
 - the user must not be banned,
 - the event must still allow modifications,
 - the same song cannot already exist as an active proposal in the same event,
+- the arrangement must mark at least the gig's minimum number of required seats; otherwise publishing is blocked with a message that states the concrete required count,
 - if one user claims multiple seats on the same song, each claim must belong to a different instrument type,
 - if the user immediately claims seats, the event-level track participation limit must still be respected.
 
@@ -336,6 +341,8 @@ The board now applies an optimistic UX pattern:
 - join and leave actions update the seat visually without a full page refresh,
 - conflicts such as “seat already taken” are rolled back locally,
 - feedback is shown through dismissible auto-hiding floating toasts.
+
+The board also refreshes in near-real-time: when another musician changes a seat, the board updates for everyone viewing the same event without a manual reload (with a periodic safety refresh as a fallback).
 
 ## 7. Leaving a seat
 
@@ -456,7 +463,8 @@ Recent interaction hardening on the board also includes:
 
 - invite and request popovers that open inward from the first instrument column,
 - consistent vertical alignment rules for occupied, open, and unavailable cells,
-- route-level and inline feedback that auto-dismisses but can also be closed manually.
+- route-level and inline feedback that auto-dismisses but can also be closed manually,
+- longer auto-hide duration for validation/error toasts than for routine board-update toasts, so blocking messages (minimum players, participation limit, empty proposal) stay readable.
 
 ## 13. Published setlist view
 
@@ -519,6 +527,10 @@ Admins can define pre-formed groups by:
 
 These groups affect setlist selection priority.
 
+### Editable FAQ content
+
+Admins edit the public FAQ body as markdown directly from the dashboard. Both FAQ sections (participation rules and line-up details) are editable independently for each locale (EN and RU). Stored content overrides the built-in defaults; when a locale field is left empty the page falls back to the default copy for that section.
+
 ### Global queue visibility
 
 The dashboard also shows:
@@ -562,9 +574,7 @@ Events move through the following statuses:
 - `OPEN`
   Musicians can propose tracks, claim seats, and invite others.
 - `CLOSED`
-  Registration is not accepting new participant changes.
-- `CURATING`
-  Admin curation is underway.
+  Registration is not accepting new participant changes; admin curation happens in this state.
 - `PUBLISHED`
   Final setlist is public.
 - `ARCHIVED`
@@ -666,7 +676,7 @@ These tools are important for resolving real-world exceptions near the event dat
 - Rich messaging workflows beyond Telegram invites are not implemented.
 - Files, charts, and analytics exports are minimal in the current release.
 - There is no rehearsal scheduling or attendance confirmation module yet.
-- There is no public search or archive browsing UI for historical events beyond current published views.
+- The public `/archive` page lists previously published setlists, but there is no full-text search over historical events yet.
 
 ## Functional summary
 

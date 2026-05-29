@@ -25,8 +25,9 @@ type ItunesArtistResult = {
 const SONG_SEARCH_CACHE_SECONDS = 60 * 60;
 // Page returned to the client per request; the dropdown lazy-loads further pages via `offset`.
 const SONG_SEARCH_PAGE_SIZE = 8;
-// Overall pool we build, dedupe and paginate through for a single query.
-const SONG_SEARCH_RESULT_POOL = 50;
+// Overall pool we build, dedupe and paginate through for a single query. Kept generous so a full
+// artist discography stays reachable by scrolling the dropdown.
+const SONG_SEARCH_RESULT_POOL = 100;
 const ARTIST_LOOKUP_LIMIT = 200;
 const ITUNES_TIMEOUT_MS = 6000;
 
@@ -47,7 +48,8 @@ function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
+    // Keep letters/digits from any script (Cyrillic included); collapse the rest to spaces.
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
@@ -455,13 +457,14 @@ export async function GET(request: Request) {
 
   const dedupedResults = new Map<string, SongSearchResult>();
   const parsedQueries = getArtistTitleQueryCandidates(query);
+  // Always pull the artist's full discography for pure-artist queries. Direct song search only
+  // returns the most relevant page, so deep cuts (e.g. "Дайте Танк — Веселиться") would otherwise
+  // be unreachable even by scrolling. The lookup self-guards and returns [] for non-artist queries.
   let exactArtistLookupResults: ItunesSongResult[] = [];
-  if (!searchResults.some((entry) => normalizeSearchText(entry.artistName) === normalizeSearchText(query))) {
-    try {
-      exactArtistLookupResults = await fetchExactArtistLookupSongs(query);
-    } catch {
-      exactArtistLookupResults = [];
-    }
+  try {
+    exactArtistLookupResults = await fetchExactArtistLookupSongs(query);
+  } catch {
+    exactArtistLookupResults = [];
   }
   const shouldUseArtistLookup =
     parsedQueries.length > 0 &&

@@ -75,12 +75,18 @@ At a high level the system interacts with:
 
 ## Route map
 
+> Route folders are named `[slug]`, but events are canonicalized and linked by `event.id`. The functional docs refer to these routes as `/events/[id]` and `/admin/events/[id]`.
+
 ### Public pages
 
 - `/`
-  Home page, public overview, newcomer onboarding, event discovery, and published setlist entry points.
+  Home page, public overview, newcomer onboarding, community quotes, event discovery, and published setlist entry points.
 - `/faq`
-  Public FAQ, quick-start guidance, and product feedback form.
+  Public FAQ rendered from admin-editable per-locale markdown, plus the product feedback form.
+- `/about`
+  Public about page (team, partners/brands, contact).
+- `/archive`
+  Public archive of past published setlists.
 - `/events/[id]`
   Public event board and musician workspace with board guide, registration countdown, and filter state.
 
@@ -101,11 +107,20 @@ At a high level the system interacts with:
 - `/api/auth/telegram`
   Telegram authentication callback endpoint.
 - `/api/song-search`
-  Song discovery proxy to iTunes Search API.
+  Song discovery proxy to iTunes Search API (paginated; supports an `offset` query parameter).
 - `/api/song-catalog-request`
   Inline missing-song request endpoint used by the event page.
+- `/api/client-error`
+  Receives compact client-side error reports from the root error boundary and forwards them to the structured error log.
 - `/api/healthz`
-  Health endpoint for probes and basic service checks.
+  Readiness/health endpoint (verifies DB connectivity) for probes.
+- `/api/livez`
+  Lightweight liveness endpoint for probes.
+
+### Realtime transport
+
+- `/ws/board`
+  WebSocket endpoint served by the custom Node server (`server.mjs`) for live board updates (see "Realtime board synchronization").
 
 ## Module map
 
@@ -317,8 +332,11 @@ Current behavior:
 
 - minimum query length guard,
 - proxy request from server,
-- deduplication by artist + track name,
-- normalized response shape for the client.
+- a wider candidate pool is fetched from iTunes and combined with matches from the local catalog, then deduplicated by artist + track name,
+- relevance handling for `<artist part> <song title>` queries so combined queries (e.g. "Дайте Танк Веселиться") still resolve,
+- offset-based pagination: the client requests additional pages via `offset` and the response reports whether more results remain (`hasMore`),
+- graceful degradation to local-catalog results when iTunes is unavailable,
+- normalized, paginated response shape for the client.
 
 If the application later needs:
 
@@ -329,6 +347,16 @@ If the application later needs:
 - more reliable cover-song search,
 
 then Spotify or MusicBrainz + YouTube enrichment may become worthwhile.
+
+## Realtime board synchronization
+
+Board changes propagate to connected clients in near real time without polling the page:
+
+- mutating server actions call `publishBoardUpdate` ([src/server/board-event-bus.ts](/Users/maksimnaumov/jammers-web/src/server/board-event-bus.ts)), which issues a PostgreSQL `pg_notify` on the `jammers_board_events` channel,
+- the custom Node entrypoint ([server.mjs](/Users/maksimnaumov/jammers-web/server.mjs)) `LISTEN`s on that channel and bridges messages to WebSocket clients on `/ws/board?eventId=...`,
+- the client component [src/components/board-realtime-refresh.tsx](/Users/maksimnaumov/jammers-web/src/components/board-realtime-refresh.tsx) connects to that socket, filters by `eventId`, debounces, and triggers `router.refresh()`; it reconnects with exponential backoff and runs a periodic safety refresh (~15s) as a fallback.
+
+Because fan-out goes through Postgres `LISTEN/NOTIFY` rather than in-process memory, realtime delivery still works across multiple app replicas. Message shaping lives in `src/server/board-realtime.ts`.
 
 ## Invitation delivery
 
@@ -492,12 +520,11 @@ The test suite is currently strongest in the domain layer, especially:
 - published-set notifications,
 - board-state and slug/id routing regressions.
 
-This is appropriate for high-risk business logic, but there is room to expand into:
+Vitest also covers a growing set of component and server-action tests (board table, song search field/route, track proposal form, seat actions, floating-toast duration, site content/FAQ resolution).
 
-- route-level integration tests,
-- server-action integration tests,
-- UI component tests for the board composer,
-- end-to-end browser tests for musician and admin flows.
+A Playwright smoke suite ([tests/smoke/app.smoke.spec.ts](/Users/maksimnaumov/jammers-web/tests/smoke/app.smoke.spec.ts)) runs against a production build and a real Postgres in CI (`npm run test:smoke`). It currently exercises: public page rendering, local sign-in, join/release a seat, cross-session realtime updates, add-a-proposal + edit track settings, sign-in `returnTo`, the admin cockpit, and the selection-algorithm confirm dialog.
+
+There is still room to expand E2E coverage — see [docs/superpowers/specs/2026-05-29-board-faq-search-fixes-design.md](/Users/maksimnaumov/jammers-web/docs/superpowers/specs/2026-05-29-board-faq-search-fixes-design.md) for a prioritized backlog of proposed E2E cases.
 
 ## Delivery pipeline
 
@@ -505,9 +532,10 @@ CI is configured in GitHub Actions:
 
 - lint,
 - typecheck,
-- tests,
-- coverage run,
+- tests with coverage,
+- seed a disposable Postgres (`db:push` + `db:seed`),
 - production build,
+- Playwright smoke run against the built app,
 - Docker image build.
 
 Release publishing is handled by a separate workflow that pushes container images on version tags.
@@ -535,18 +563,19 @@ Important characteristics:
 
 ## Observability and operability
 
-Current built-in observability is intentionally minimal:
+Current built-in observability:
 
-- readiness and liveness via health route,
+- readiness via `/api/healthz` and liveness via `/api/livez`,
 - build and test gates in CI,
-- persisted operational state in the DB.
+- persisted operational state in the DB,
+- structured application-error logging via `recordAppError` ([src/server/error-log.ts](/Users/maksimnaumov/jammers-web/src/server/error-log.ts)): each app error is written as one JSON line (`type: "app_error"`) to stderr (visible through `kubectl logs`) and to a dated file under `ERROR_LOG_DIR`. User-visible errors carry an `Error ID` so a report can be traced back to its log line,
+- client-side errors are POSTed from the root error boundary ([src/app/error.tsx](/Users/maksimnaumov/jammers-web/src/app/error.tsx)) to `/api/client-error`, which feeds the same structured log.
 
 Recommended next technical improvements:
 
-- structured request logging,
 - audit trail for admin curation changes,
 - metrics for invites and proposal conversion,
-- Sentry or equivalent error tracking,
+- a hosted error-tracking integration (e.g. Sentry) on top of the current JSON logs,
 - feature flags for experimental board behavior.
 
 ## Known technical debt

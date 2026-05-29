@@ -427,6 +427,124 @@ describe("song search route", () => {
     expect(secondPage.results[0].trackTitle).toBe("Song 8");
   });
 
+  it("merges the full artist discography so deep cuts like Дайте Танк — Веселиться are reachable", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1,
+              trackName: "Глаза боятся",
+              artistName: "Дайте Танк (!)",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [{ wrapperType: "artist", artistId: 900, artistName: "Дайте Танк (!)" }],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            { wrapperType: "artist", artistId: 900, artistName: "Дайте Танк (!)" },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1534563467,
+              trackName: "Веселиться",
+              artistName: "Дайте Танк (!)",
+            },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1,
+              trackName: "Глаза боятся",
+              artistName: "Дайте Танк (!)",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request(`http://localhost/api/song-search?query=${encodeURIComponent("дайте танк")}`),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    const titles = payload.results.map((entry: { trackTitle: string }) => entry.trackTitle);
+    expect(titles).toContain("Веселиться");
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("entity")).toBe(
+      "musicArtist",
+    );
+    expect(new URL(String(fetchMock.mock.calls[2][0])).pathname).toBe("/lookup");
+  });
+
+  it("finds a Cyrillic artist+title query that direct search misses", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1,
+              trackName: "Глаза боятся",
+              artistName: "Дайте Танк (!)",
+            },
+          ],
+        }),
+      )
+      .mockImplementationOnce(() => mockItunesJson({ results: [] }))
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [{ wrapperType: "artist", artistId: 900, artistName: "Дайте Танк (!)" }],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        mockItunesJson({
+          results: [
+            { wrapperType: "artist", artistId: 900, artistName: "Дайте Танк (!)" },
+            {
+              wrapperType: "track",
+              kind: "song",
+              trackId: 1534563467,
+              trackName: "Веселиться",
+              artistName: "Дайте Танк (!)",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("@/app/api/song-search/route");
+    const response = await GET(
+      new Request(
+        `http://localhost/api/song-search?query=${encodeURIComponent("дайте танк веселиться")}`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    const titles = payload.results.map((entry: { trackTitle: string }) => entry.trackTitle);
+    expect(titles).toContain("Веселиться");
+  });
+
   it("returns local catalog matches when iTunes is unavailable", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
