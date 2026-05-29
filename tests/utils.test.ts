@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSlugLookupCandidates, slugify } from "@/lib/utils";
+import { buildSlugLookupCandidates, formatDateTime, slugify } from "@/lib/utils";
+
+describe("formatDateTime", () => {
+  it("renders timestamps in the Cyprus event timezone regardless of server timezone", () => {
+    // 10:00 UTC is 13:00 in Cyprus summer time (Europe/Nicosia, UTC+3).
+    expect(formatDateTime("2026-05-29T10:00:00.000Z")).toBe("29 May 2026, 13:00");
+  });
+
+  it("keeps the Cyprus wall time in the ru locale", () => {
+    expect(formatDateTime("2026-05-29T10:00:00.000Z", "ru")).toContain("13:00");
+  });
+});
 
 describe("slug helpers", () => {
   it("normalizes human-readable unicode slugs into lookup candidates", () => {

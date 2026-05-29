@@ -1,16 +1,20 @@
 import { clsx, type ClassValue } from "clsx";
-import { format } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { twMerge } from "tailwind-merge";
 
 import type { Locale } from "@/lib/i18n";
+
+// The community runs in a single timezone; render every wall-clock time in Cyprus local time
+// so values match how admins enter them, regardless of the server timezone (UTC in production).
+export const EVENT_TIME_ZONE = "Europe/Nicosia";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function formatDateTime(value: Date | string, locale: Locale = "en") {
-  return format(new Date(value), "dd MMM yyyy, HH:mm", {
+  return formatInTimeZone(new Date(value), EVENT_TIME_ZONE, "dd MMM yyyy, HH:mm", {
     locale: locale === "ru" ? ru : enUS,
   });
 }
