@@ -184,6 +184,17 @@ function getFloatingFeedback({
     };
   }
 
+  if (notice === "track-updated") {
+    return {
+      tone: "success" as const,
+      title: pick(locale, { en: "Track updated", ru: "Трек обновлён" }),
+      description: pick(locale, {
+        en: "The arrangement changes are saved and the board has been updated.",
+        ru: "Изменения аранжировки сохранены, сетлист уже обновлён.",
+      }),
+    };
+  }
+
   if (notice === "opt-request-sent") {
     return {
       tone: "success" as const,
@@ -866,6 +877,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   inviteableUsers={inviteableUsers}
                   lineupSlots={event.lineupSlots}
                   locale={locale}
+                  requiresSelfSeat={user.role !== "ADMIN"}
                   trackInfoFields={trackInfoFields}
                 />
               ) : null}
@@ -926,6 +938,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               inviteableUsers={inviteableUsers}
               lineupSlots={event.lineupSlots}
               locale={locale}
+              requiresSelfSeat={user.role !== "ADMIN"}
               trackInfoFields={trackInfoFields}
             />
           </div>

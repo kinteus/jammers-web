@@ -1304,6 +1304,25 @@ export async function devSignInAction(formData: FormData) {
   }
 
   const returnTo = getSafeReturnTo(getString(formData, "returnTo"));
+  const devUserId = getString(formData, "devUserId");
+  if (devUserId) {
+    const user = await db.user.findUnique({
+      where: { id: devUserId },
+    });
+
+    if (!user) {
+      const params = new URLSearchParams({
+        authError: "dev-user-not-found",
+        returnTo,
+      });
+      redirect(`/profile?${params.toString()}`);
+    }
+
+    await createSession(user.id);
+    revalidateAll(["/", "/admin", "/profile"]);
+    redirect(returnTo);
+  }
+
   const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
   if (!username) {
     throw new Error("Telegram username is required.");
@@ -2744,6 +2763,182 @@ export async function updateTrackSettingsAction(formData: FormData) {
     eventId: track.eventId,
     reason: "track-updated",
   }).catch(() => {});
+}
+
+// Full arrangement re-edit through the compose modal. Proposers can edit while
+// the board is OPEN; admins can edit any time. Proposers may not change a seat
+// that another participant already holds; admins may (which releases the seat).
+export async function updateTrackArrangementAction(formData: FormData) {
+  const user = await requireUser();
+  const trackId = getString(formData, "trackId");
+  const eventKey = getString(formData, "eventSlug");
+  const track = await db.track.findUniqueOrThrow({
+    where: { id: trackId },
+    include: {
+      event: true,
+      seats: { include: { lineupSlot: true } },
+    },
+  });
+
+  const isAdmin = user.role === UserRole.ADMIN;
+  const isProposer = track.proposedById === user.id;
+  if (!isAdmin && !isProposer) {
+    throw new Error("Only the proposer or an admin can edit this track.");
+  }
+  if (!isAdmin) {
+    if (userNeedsTelegramUsername(user)) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "username-required" }));
+    }
+    assertEventAllowsChangesOrRedirect(track.event, eventKey);
+  }
+
+  // Only admins may swap the song. Proposers keep the original track.
+  const resolvedSongId = isAdmin ? await resolveSongId(formData) : null;
+  const replacementSongId =
+    resolvedSongId && resolvedSongId !== track.songId ? resolvedSongId : null;
+  if (replacementSongId) {
+    const duplicateTrack = await db.track.findFirst({
+      where: {
+        eventId: track.eventId,
+        id: { not: trackId },
+        songId: replacementSongId,
+        state: "ACTIVE",
+      },
+    });
+    if (duplicateTrack) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
+    }
+  }
+
+  const claimKeys = new Set(parseSeatSelections(formData, "claimSeatKeys"));
+  const optionalKeys = new Set(parseSeatSelections(formData, "optionalSeatKeys"));
+  const unavailableKeys = new Set(parseSeatSelections(formData, "unavailableSeatKeys"));
+  // Seats explicitly left untouched (e.g. positions held by other participants
+  // that the editor did not change).
+  const keepKeys = new Set(parseSeatSelections(formData, "keepSeatKeys"));
+  const inviteRequests = parseSeatInviteRequests(formData);
+  const selectedTrackInfoKeys = formData
+    .getAll("trackInfoFlagKeys")
+    .map((value) => String(value))
+    .filter(Boolean);
+
+  const slots = await db.eventLineupSlot.findMany({
+    where: { eventId: track.eventId },
+    orderBy: { displayOrder: "asc" },
+  });
+
+  const minimumRequiredPositions = Math.max(1, track.event.minParticipantsPerTrack ?? 1);
+  if (
+    slots.length > 0 &&
+    countRequiredProposalSeats({
+      optionalSeatIds: [...optionalKeys],
+      slots,
+      unavailableKeys: [...unavailableKeys],
+    }) < minimumRequiredPositions
+  ) {
+    redirect(
+      buildEventRedirectUrl(eventKey, {
+        error: "min-required-seats",
+        minRequired: String(minimumRequiredPositions),
+      }),
+    );
+  }
+
+  const claimedRoleFamilies = new Set<string>();
+  for (const slot of slots) {
+    for (let index = 1; index <= slot.seatCount; index += 1) {
+      const label = seatLabelForSlot(slot, index);
+      const seatKey = `${label}:${index}`;
+      if (!claimKeys.has(seatKey)) {
+        continue;
+      }
+      const roleFamily = getRoleFamilyKey(label, slot.key);
+      if (claimedRoleFamilies.has(roleFamily)) {
+        redirect(buildEventRedirectUrl(eventKey, { error: "duplicate-role-family" }));
+      }
+      claimedRoleFamilies.add(roleFamily);
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.track.update({
+      where: { id: trackId },
+      data: {
+        comment: getString(formData, "comment") || null,
+            playbackRequired: selectedTrackInfoKeys.includes("playback"),
+            trackInfoKeysJson: serializeTrackInfoKeys(selectedTrackInfoKeys),
+            ...(replacementSongId ? { songId: replacementSongId } : {}),
+      },
+    });
+
+    for (const seat of track.seats) {
+      const seatKey = `${seat.label}:${seat.seatIndex}`;
+      const occupiedByOther = Boolean(seat.userId && seat.userId !== user.id);
+      const wantClaim = claimKeys.has(seatKey);
+      const wantSkip = unavailableKeys.has(seatKey);
+      const wantOptional = optionalKeys.has(seatKey);
+
+      // Seats marked "keep" stay exactly as they are.
+      if (keepKeys.has(seatKey)) {
+        continue;
+      }
+
+      // Proposers cannot touch a seat someone else holds.
+      if (occupiedByOther && !isAdmin) {
+        continue;
+      }
+
+      if (wantClaim) {
+        await tx.trackSeat.update({
+          where: { id: seat.id },
+          data: {
+            userId: user.id,
+            status: TrackSeatStatus.CLAIMED,
+            claimedAt: seat.userId === user.id ? seat.claimedAt : new Date(),
+            isOptional: false,
+          },
+        });
+      } else if (wantSkip) {
+        await tx.trackSeat.update({
+          where: { id: seat.id },
+          data: {
+            userId: null,
+            status: TrackSeatStatus.UNAVAILABLE,
+            claimedAt: null,
+            isOptional: false,
+          },
+        });
+      } else {
+        await tx.trackSeat.update({
+          where: { id: seat.id },
+          data: {
+            userId: null,
+            status: TrackSeatStatus.OPEN,
+            claimedAt: null,
+            isOptional: wantOptional,
+          },
+        });
+      }
+    }
+  });
+
+  await createInitialTrackInvites({
+    requests: inviteRequests,
+    sender: user,
+    trackId,
+  });
+
+  revalidateAll(pathBundle(track.eventId, track.event.slug, eventKey));
+  await publishBoardUpdate({
+    eventId: track.eventId,
+    reason: "track-updated",
+  }).catch(() => {});
+  redirect(
+    buildEventRedirectUrl(eventKey, {
+      notice: "track-updated",
+      highlightTrack: trackId,
+    }),
+  );
 }
 
 export async function adminReplaceTrackSongAction(formData: FormData) {

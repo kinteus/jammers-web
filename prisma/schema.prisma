@@ -243,7 +243,6 @@ model Track {
 
   @@index([eventId, createdAt])
   @@index([songId, eventId])
-  @@unique([eventId, songId, state])
 }
 
 model TrackSeat {

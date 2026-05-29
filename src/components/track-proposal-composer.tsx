@@ -6,7 +6,7 @@ import type { LineupSlotLite } from "@/lib/event-board";
 import { pick, type Locale } from "@/lib/i18n";
 import { getTrackInfoLabel, type TrackInfoField } from "@/lib/track-info-flags";
 
-import { SeatPlannerField } from "@/components/seat-planner-field";
+import { SeatPlannerField, type ExistingSeatState } from "@/components/seat-planner-field";
 import {
   SongSearchField,
   type SongSearchSelection,
@@ -19,6 +19,11 @@ export function TrackProposalComposer({
   locale,
   selectedSong,
   onSelectedChange,
+  lockedSong,
+  defaultComment,
+  defaultFlagKeys,
+  existingSeats,
+  canManageOccupied = false,
 }: {
   inviteableUsers: Array<{
     id: string;
@@ -30,7 +35,15 @@ export function TrackProposalComposer({
   locale: Locale;
   selectedSong: SongSearchSelection | null;
   onSelectedChange: (value: SongSearchSelection | null) => void;
+  lockedSong?: { artistName: string; trackTitle: string } | null;
+  defaultComment?: string | null;
+  defaultFlagKeys?: string[];
+  existingSeats?: Record<string, ExistingSeatState>;
+  canManageOccupied?: boolean;
 }) {
+  const selectedFlagKeys = new Set(defaultFlagKeys ?? []);
+  const showArrangement = Boolean(selectedSong) || Boolean(lockedSong);
+
   return (
     <div className="space-y-5">
       <div className="space-y-4">
@@ -40,10 +53,22 @@ export function TrackProposalComposer({
             {pick(locale, { en: "Song", ru: "Песня" })}
           </h3>
         </div>
-        <SongSearchField locale={locale} onSelectedChange={onSelectedChange} selected={selectedSong} />
+        {lockedSong ? (
+          <div className="brand-shell-soft flex items-center gap-4 rounded-[1.5rem] border border-white/10 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold text-sand">{lockedSong.trackTitle}</p>
+              <p className="truncate text-sm text-white/65">{lockedSong.artistName}</p>
+            </div>
+            <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/55">
+              {pick(locale, { en: "Locked", ru: "Без замены" })}
+            </span>
+          </div>
+        ) : (
+          <SongSearchField locale={locale} onSelectedChange={onSelectedChange} selected={selectedSong} />
+        )}
       </div>
 
-      {selectedSong ? (
+      {showArrangement ? (
         <>
           <div className="section-rule" />
           <div className="space-y-5">
@@ -54,6 +79,7 @@ export function TrackProposalComposer({
                 </span>
                 <textarea
                   className="min-h-24 w-full px-4 py-3"
+                  defaultValue={defaultComment ?? ""}
                   name="comment"
                   placeholder={pick(locale, {
                     en: "Mood, arrangement hints, key changes, who should jump in...",
@@ -76,7 +102,12 @@ export function TrackProposalComposer({
                         className="flex items-center gap-3 rounded-md border border-white/10 bg-white/6 px-4 py-3 text-sm text-sand"
                         key={field.key}
                       >
-                        <input name="trackInfoFlagKeys" type="checkbox" value={field.key} />
+                        <input
+                          defaultChecked={selectedFlagKeys.has(field.key)}
+                          name="trackInfoFlagKeys"
+                          type="checkbox"
+                          value={field.key}
+                        />
                         {getTrackInfoLabel(field, locale)}
                       </label>
                     ))}
@@ -99,6 +130,8 @@ export function TrackProposalComposer({
                 })}
               </p>
               <SeatPlannerField
+                canManageOccupied={canManageOccupied}
+                existingSeats={existingSeats}
                 inviteableUsers={inviteableUsers}
                 lineupSlots={lineupSlots}
                 locale={locale}

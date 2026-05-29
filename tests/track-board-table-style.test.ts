@@ -72,14 +72,33 @@ describe("track board table styling", () => {
     expect(source).toContain("overflow-x-auto");
   });
 
-  it("renders track settings popovers outside the table scroll clipping context", () => {
+  it("keeps the sticky song column above scrolled ready-row cells", () => {
     const source = readFileSync("src/components/track-board-table.tsx", "utf8");
 
-    expect(source).toContain("settingsPopoverLayout");
-    expect(source).toContain("createPortal(popoverForm, document.body)");
-    expect(source).toContain("data-testid=\"track-settings-popover\"");
-    expect(source).toContain("\"fixed z-[90]");
-    expect(source).toContain("preferAbove");
-    expect(source).not.toContain("isInline ? \"mt-2\" : \"absolute right-0 top-7 w-72\"");
+    expect(source).toContain("sticky-song-cell sticky left-0 z-40");
+    expect(source).toContain("isolate");
+    expect(source).not.toContain("relative overflow-hidden border-l-4");
+  });
+
+  it("edits tracks through the full arrangement dialog instead of an inline settings popover", () => {
+    const source = readFileSync("src/components/track-board-table.tsx", "utf8");
+
+    // The arrangement editor now reuses the compose dialog, which renders in a
+    // Radix portal and is no longer affected by the table's scroll clipping.
+    expect(source).toContain("TrackArrangementEditLauncher");
+    expect(source).toContain("updateTrackArrangementAction");
+
+    // The old inline settings popover has been removed.
+    expect(source).not.toContain("settingsPopoverLayout");
+    expect(source).not.toContain("data-testid=\"track-settings-popover\"");
+    expect(source).not.toContain("createPortal(popoverForm, document.body)");
+  });
+
+  it("renders track notes outside table row stacking contexts", () => {
+    const source = readFileSync("src/components/track-board-table.tsx", "utf8");
+
+    expect(source).toContain("data-testid=\"track-notes-popover\"");
+    expect(source).toContain("createPortal(notesPopover, document.body)");
+    expect(source).toContain("fixed z-[90]");
   });
 });

@@ -9,7 +9,14 @@ import { getRoleFamilyKey } from "@/lib/role-families";
 import { cn } from "@/lib/utils";
 import { UserInvitePicker, type InviteableUserOption } from "@/components/user-invite-picker";
 
-type SeatMode = "claim" | "open" | "optional" | "skip";
+type SeatMode = "claim" | "open" | "optional" | "skip" | "taken";
+
+export type ExistingSeatState = {
+  status: "OPEN" | "CLAIMED" | "UNAVAILABLE";
+  isOptional: boolean;
+  occupantLabel: string | null;
+  isOwn: boolean;
+};
 
 function getModeLabel(mode: SeatMode, locale: Locale) {
   if (mode === "claim") {
@@ -21,6 +28,9 @@ function getModeLabel(mode: SeatMode, locale: Locale) {
   if (mode === "skip") {
     return pick(locale, { en: "Off", ru: "Выкл" });
   }
+  if (mode === "taken") {
+    return pick(locale, { en: "Taken", ru: "Занято" });
+  }
   return pick(locale, { en: "Required", ru: "Обязательная" });
 }
 
@@ -28,10 +38,14 @@ export function SeatPlannerField({
   inviteableUsers,
   lineupSlots,
   locale,
+  existingSeats,
+  canManageOccupied = false,
 }: {
   inviteableUsers: InviteableUserOption[];
   lineupSlots: LineupSlotLite[];
   locale: Locale;
+  existingSeats?: Record<string, ExistingSeatState>;
+  canManageOccupied?: boolean;
 }) {
   const seatColumns = useMemo(() => expandSeatColumns(lineupSlots), [lineupSlots]);
   const slotsById = useMemo(
@@ -41,6 +55,18 @@ export function SeatPlannerField({
   const [modes, setModes] = useState<Record<string, SeatMode>>(() => {
     const initial: Record<string, SeatMode> = {};
     for (const seat of seatColumns) {
+      const existing = existingSeats?.[seat.seatKey];
+      if (existing) {
+        if (existing.status === "CLAIMED") {
+          initial[seat.seatKey] = existing.isOwn ? "claim" : "taken";
+        } else if (existing.status === "UNAVAILABLE") {
+          initial[seat.seatKey] = "skip";
+        } else {
+          initial[seat.seatKey] = existing.isOptional ? "optional" : "open";
+        }
+        continue;
+      }
+
       const slot = slotsById.get(seat.slotId);
       if (slot?.allowOptional && slot.defaultOptionalSeats?.includes(seat.seatIndex)) {
         initial[seat.seatKey] = "optional";
@@ -91,7 +117,40 @@ export function SeatPlannerField({
           const current = modes[seat.seatKey] ?? "open";
           const roleFamily = getRoleFamilyKey(seat.label, seat.lineupKey);
           const seatAllowOptional = slotsById.get(seat.slotId)?.allowOptional ?? false;
-          const enabledInvite = current === "open" || current === "optional";
+          const existing = existingSeats?.[seat.seatKey];
+          const occupiedByOther =
+            existing?.status === "CLAIMED" && !existing.isOwn;
+          // A position held by another participant is locked for proposers; only
+          // an admin (canManageOccupied) may change it.
+          const locked = occupiedByOther && !canManageOccupied;
+          const enabledInvite = !locked && (current === "open" || current === "optional");
+
+          if (locked) {
+            return (
+              <div
+                className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                key={seat.seatKey}
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-sand">{seat.label}</p>
+                    <span className="rounded-sm bg-white/8 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-white/55">
+                      {getModeLabel("taken", locale)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/45">
+                    {getRoleFamilyLabel(roleFamily, locale)}
+                  </p>
+                </div>
+                <p className="text-xs text-white/60">
+                  {pick(locale, {
+                    en: `Held by ${existing?.occupantLabel ?? "another player"}`,
+                    ru: `Занято: ${existing?.occupantLabel ?? "другой участник"}`,
+                  })}
+                </p>
+              </div>
+            );
+          }
 
           return (
             <div
@@ -107,6 +166,12 @@ export function SeatPlannerField({
                 </div>
                 <p className="mt-1 text-xs text-white/45">
                   {getRoleFamilyLabel(roleFamily, locale)}
+                  {occupiedByOther && existing?.occupantLabel
+                    ? ` · ${pick(locale, {
+                        en: `held by ${existing.occupantLabel}`,
+                        ru: `занято: ${existing.occupantLabel}`,
+                      })}`
+                    : ""}
                 </p>
               </div>
 
@@ -207,6 +272,16 @@ export function SeatPlannerField({
           <input
             key={`skip-hidden-${seat.seatKey}`}
             name="unavailableSeatKeys"
+            type="hidden"
+            value={seat.seatKey}
+          />
+        ))}
+      {seatColumns
+        .filter((seat) => (modes[seat.seatKey] ?? "open") === "taken")
+        .map((seat) => (
+          <input
+            key={`keep-hidden-${seat.seatKey}`}
+            name="keepSeatKeys"
             type="hidden"
             value={seat.seatKey}
           />

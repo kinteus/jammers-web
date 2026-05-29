@@ -116,6 +116,31 @@ describe("devSignInAction", () => {
   );
 
   it(
+    "allows local dev sign-in by user id for users without a Telegram username",
+    async () => {
+      dbMock.user.findUnique.mockResolvedValue({
+        id: "local-null-telegram-user",
+      });
+
+      const { devSignInAction } = await import("@/server/actions");
+      const formData = new FormData();
+      formData.set("devUserId", "local-null-telegram-user");
+      formData.set("returnTo", "/events/spring-jam-night#track-board");
+
+      await expect(devSignInAction(formData)).rejects.toThrow(
+        "NEXT_REDIRECT:/events/spring-jam-night#track-board",
+      );
+
+      expect(dbMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: "local-null-telegram-user" },
+      });
+      expect(createSessionMock).toHaveBeenCalledWith("local-null-telegram-user");
+      expect(dbMock.user.upsert).not.toHaveBeenCalled();
+    },
+    10_000,
+  );
+
+  it(
     "preserves a sanitized return target when local tunnel sign-in cannot find a user",
     async () => {
       envMock.LIVE_PRODUCTION_TUNNEL = true;

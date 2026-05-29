@@ -28,6 +28,7 @@ export function TrackProposalLauncher({
   inviteableUsers,
   lineupSlots,
   locale,
+  requiresSelfSeat,
   trackInfoFields,
 }: {
   createTrackAction: (formData: FormData) => void | Promise<void>;
@@ -40,6 +41,7 @@ export function TrackProposalLauncher({
   }>;
   lineupSlots: LineupSlotLite[];
   locale: Locale;
+  requiresSelfSeat: boolean;
   trackInfoFields: TrackInfoField[];
 }) {
   const [open, setOpen] = useState(false);
@@ -54,6 +56,7 @@ export function TrackProposalLauncher({
           inviteableUsers={inviteableUsers}
           lineupSlots={lineupSlots}
           locale={locale}
+          requiresSelfSeat={requiresSelfSeat}
           trackInfoFields={trackInfoFields}
         />
       ) : null}

@@ -19,6 +19,14 @@ const dbMock = vi.hoisted(() => ({
   eventEditLock: {
     findMany: vi.fn(),
   },
+  eventLineupSlot: {
+    findMany: vi.fn(),
+  },
+  track: {
+    findFirst: vi.fn(),
+    findUniqueOrThrow: vi.fn(),
+    update: vi.fn(),
+  },
   trackSeat: {
     count: vi.fn(),
     findMany: vi.fn(),
@@ -34,6 +42,7 @@ const dbMock = vi.hoisted(() => ({
     updateMany: vi.fn(),
   },
   user: {
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
@@ -532,5 +541,161 @@ describe("respondToInviteAction", () => {
       ),
     ).resolves.toEqual({ ok: false, error: "track-limit" });
     expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateTrackArrangementAction", () => {
+  function arrangementFormData(overrides: Record<string, string | string[]>) {
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(overrides)) {
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          formData.append(key, entry);
+        }
+      } else {
+        formData.set(key, value);
+      }
+    }
+    return formData;
+  }
+
+  function setupArrangementMocks() {
+    dbMock.$transaction.mockImplementation(
+      async (callback: (tx: typeof dbMock) => Promise<unknown>) => callback(dbMock),
+    );
+    dbMock.eventLineupSlot.findMany.mockResolvedValue([
+      {
+        allowOptional: true,
+        displayOrder: 1,
+        id: "slot-vocals",
+        key: "vocals",
+        label: "Vocals",
+        seatCount: 2,
+      },
+    ]);
+    dbMock.track.update.mockResolvedValue({ id: "track-1" });
+    dbMock.trackSeat.update.mockResolvedValue({ id: "seat" });
+    dbMock.trackSeat.findMany.mockResolvedValue([]);
+    dbMock.user.findMany.mockResolvedValue([]);
+  }
+
+  it("does not let a proposer change a seat held by another participant", async () => {
+    requireUserMock.mockResolvedValue({
+      id: "proposer-1",
+      role: UserRole.USER,
+      telegramUsername: "proposer",
+    });
+    setupArrangementMocks();
+    dbMock.track.findUniqueOrThrow.mockResolvedValue({
+      id: "track-1",
+      proposedById: "proposer-1",
+      songId: "song-1",
+      eventId: "event-1",
+      event: buildOpenEvent(),
+      seats: [
+        {
+          id: "seat-vocals-1",
+          label: "Vocals",
+          seatIndex: 1,
+          status: TrackSeatStatus.CLAIMED,
+          isOptional: false,
+          userId: "proposer-1",
+          claimedAt: new Date(),
+          lineupSlot: { key: "vocals" },
+        },
+        {
+          id: "seat-vocals-2",
+          label: "Vocals",
+          seatIndex: 2,
+          status: TrackSeatStatus.CLAIMED,
+          isOptional: false,
+          userId: "other-user",
+          claimedAt: new Date(),
+          lineupSlot: { key: "vocals" },
+        },
+      ],
+    });
+
+    const { updateTrackArrangementAction } = await import("@/server/actions");
+
+    await expect(
+      updateTrackArrangementAction(
+        arrangementFormData({
+          trackId: "track-1",
+          eventSlug: "event-1",
+          claimSeatKeys: ["Vocals:1"],
+          unavailableSeatKeys: ["Vocals:2"],
+        }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:");
+
+    // The other participant's seat must be left untouched.
+    expect(dbMock.trackSeat.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "seat-vocals-2" } }),
+    );
+    // The proposer's own claimed seat is reaffirmed.
+    expect(dbMock.trackSeat.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "seat-vocals-1" } }),
+    );
+  });
+
+  it("lets an admin release a seat held by another participant", async () => {
+    requireUserMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+      telegramUsername: "admin",
+    });
+    setupArrangementMocks();
+    dbMock.track.findUniqueOrThrow.mockResolvedValue({
+      id: "track-1",
+      proposedById: "proposer-1",
+      songId: "song-1",
+      eventId: "event-1",
+      event: buildOpenEvent(),
+      seats: [
+        {
+          id: "seat-vocals-1",
+          label: "Vocals",
+          seatIndex: 1,
+          status: TrackSeatStatus.CLAIMED,
+          isOptional: false,
+          userId: "other-user",
+          claimedAt: new Date(),
+          lineupSlot: { key: "vocals" },
+        },
+        {
+          id: "seat-vocals-2",
+          label: "Vocals",
+          seatIndex: 2,
+          status: TrackSeatStatus.OPEN,
+          isOptional: false,
+          userId: null,
+          claimedAt: null,
+          lineupSlot: { key: "vocals" },
+        },
+      ],
+    });
+
+    const { updateTrackArrangementAction } = await import("@/server/actions");
+
+    await expect(
+      updateTrackArrangementAction(
+        arrangementFormData({
+          trackId: "track-1",
+          eventSlug: "event-1",
+          unavailableSeatKeys: ["Vocals:1"],
+        }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:/events/event-1?notice=track-updated");
+
+    expect(dbMock.trackSeat.update).toHaveBeenCalledWith({
+      where: { id: "seat-vocals-1" },
+      data: {
+        userId: null,
+        status: TrackSeatStatus.UNAVAILABLE,
+        claimedAt: null,
+        isOptional: false,
+      },
+    });
   });
 });

@@ -16,7 +16,7 @@ vi.mock("@/server/actions", () => ({
   inviteToSeatAction: vi.fn(),
   inviteToSeatInlineAction: vi.fn(),
   releaseSeatInlineAction: vi.fn(),
-  updateTrackSettingsAction: vi.fn(),
+  updateTrackArrangementAction: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -70,6 +70,7 @@ describe("TrackBoardTable", () => {
                 fullName: "Proposer",
               },
               song: {
+                id: "song-fully-ready",
                 title: "Fully Ready Song",
                 artist: { name: "The Band" },
               },
@@ -149,7 +150,7 @@ describe("TrackBoardTable", () => {
               id: "track-only",
               proposedById: "user-proposer",
               proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
-              song: { title: "Numbered Song", artist: { name: "The Band" } },
+              song: { id: "song-numbered", title: "Numbered Song", artist: { name: "The Band" } },
               playbackRequired: false,
               trackInfoKeysJson: null,
               comment: null,
@@ -180,6 +181,306 @@ describe("TrackBoardTable", () => {
 
     expect(host.textContent).toContain("7.");
     expect(host.textContent).not.toContain("1.");
+  });
+
+  it("uses the song title as the only visible YouTube link in row headers", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-youtube",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-youtube", title: "Linked Song", artist: { name: "Linked Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const youtubeLinks = [...host.querySelectorAll<HTMLAnchorElement>('a[href*="youtube.com/results"]')];
+
+    expect(youtubeLinks.some((link) => link.textContent?.includes("Linked Song"))).toBe(true);
+    expect(youtubeLinks.every((link) => !link.textContent?.includes("Open on YouTube"))).toBe(true);
+    expect(host.textContent).not.toContain("Open on YouTube");
+  });
+
+  it("closes the track notes popover when clicking outside it", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-notes",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-notes", title: "Notes Song", artist: { name: "The Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: "Keep the bridge quiet.",
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const notesTrigger = host.querySelector<HTMLElement>('[title="Track notes"]');
+    expect(notesTrigger).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(notesTrigger!);
+    });
+
+    expect(document.body.querySelector('[data-testid="track-notes-popover"]')?.textContent).toContain(
+      "Keep the bridge quiet.",
+    );
+
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    expect(document.body.querySelector('[data-testid="track-notes-popover"]')).toBeNull();
+  });
+
+  it("uses green join buttons for optional seats while required seats stay gold", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-guitar",
+              key: "guitar",
+              label: "Guitar",
+              seatCount: 2,
+              allowOptional: true,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-join-colors",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-join-colors", title: "Color Song", artist: { name: "The Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-required",
+                  seatIndex: 1,
+                  label: "Guitar 1",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-guitar",
+                  invites: [],
+                },
+                {
+                  id: "seat-optional",
+                  seatIndex: 2,
+                  label: "Guitar 2",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: true,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-guitar",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const requiredButton = host.querySelector<HTMLButtonElement>('button[title="Join Guitar 1"]');
+    const optionalButton = host.querySelector<HTMLButtonElement>('button[title="Join optional Guitar 2"]');
+
+    expect(requiredButton?.className).toContain("bg-gold");
+    expect(optionalButton?.className).toContain("bg-emerald");
+    expect(optionalButton?.className).not.toContain("bg-gold");
+  });
+
+  it("closes pending seat activity popovers when clicking outside them", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-requests",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-requests", title: "Request Song", artist: { name: "The Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [
+                    {
+                      id: "invite-1",
+                      status: "PENDING",
+                      deliveryNote: null,
+                      senderId: "user-proposer",
+                      sender: { telegramUsername: "proposer", fullName: "Proposer" },
+                      recipient: { telegramUsername: "guest", fullName: "Guest" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const requestsTrigger = host.querySelector<HTMLElement>(
+      '[title="Open pending requests"]',
+    );
+    expect(requestsTrigger).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(requestsTrigger!);
+    });
+
+    const requestsDetails = requestsTrigger?.closest("details");
+    expect(requestsDetails?.open).toBe(true);
+
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    expect(requestsDetails?.open).toBe(false);
   });
 
   it("lets a non-admin proposer delete their own track", async () => {
@@ -213,7 +514,7 @@ describe("TrackBoardTable", () => {
               id: "track-mine",
               proposedById: "user-proposer",
               proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
-              song: { title: "My Song", artist: { name: "My Band" } },
+              song: { id: "song-my", title: "My Song", artist: { name: "My Band" } },
               playbackRequired: false,
               trackInfoKeysJson: null,
               comment: null,
@@ -286,6 +587,7 @@ describe("TrackBoardTable", () => {
                 fullName: "Proposer",
               },
               song: {
+                id: "song-playback",
                 title: "Playback Song",
                 artist: { name: "The Band" },
               },
@@ -373,7 +675,7 @@ describe("TrackBoardTable", () => {
     ).toEqual(["occupied-track", "open-track", "unavailable-track"]);
   });
 
-  it("lets the track proposer edit public track settings from the board", async () => {
+  it("shows the arrangement edit launcher to the track proposer on an open board", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -405,6 +707,7 @@ describe("TrackBoardTable", () => {
                 fullName: "Proposer",
               },
               song: {
+                id: "song-owned",
                 title: "Owned Song",
                 artist: { name: "The Band" },
               },
@@ -436,12 +739,12 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    expect(host.textContent).toContain("Сохранить настройки трека");
-    expect(host.querySelector('textarea[name="comment"]')).not.toBeNull();
-    expect(host.querySelector('input[name="optionalSeatIds"][value="seat-guitar"]')).not.toBeNull();
+    expect(host.querySelector('button[title="Редактировать трек"]')).not.toBeNull();
+    // The old inline "track settings" popover is gone.
+    expect(host.textContent).not.toContain("Сохранить настройки трека");
   });
 
-  it("closes the desktop track settings popover when clicking outside it", async () => {
+  it("shows the arrangement edit launcher to admins even when the board is closed", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -451,7 +754,7 @@ describe("TrackBoardTable", () => {
         <TrackBoardTable
           allowClosedOptionalRequests={false}
           eventSlug="spring-jam-night"
-          isOpen={true}
+          isOpen={false}
           locale="en"
           lineupSlots={[
             {
@@ -473,6 +776,7 @@ describe("TrackBoardTable", () => {
                 fullName: "Proposer",
               },
               song: {
+                id: "song-owned",
                 title: "Owned Song",
                 artist: { name: "The Band" },
               },
@@ -495,26 +799,16 @@ describe("TrackBoardTable", () => {
             },
           ]}
           user={{
-            id: "user-proposer",
-            role: UserRole.USER,
-            telegramUsername: "proposer",
-            fullName: "Proposer",
+            id: "admin-1",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
           }}
         />,
       );
     });
 
-    await act(async () => {
-      fireEvent.click(host.querySelector('button[title="Track settings"]')!);
-    });
-
-    expect(document.body.querySelector('[data-testid="track-settings-popover"]')).not.toBeNull();
-
-    await act(async () => {
-      fireEvent.pointerDown(document.body);
-    });
-
-    expect(document.body.querySelector('[data-testid="track-settings-popover"]')).toBeNull();
+    expect(host.querySelector('button[title="Edit track"]')).not.toBeNull();
   });
 
   it("closes the invite popover when clicking outside it", async () => {
@@ -552,6 +846,7 @@ describe("TrackBoardTable", () => {
                 fullName: "Proposer",
               },
               song: {
+                id: "song-invite",
                 title: "Invite Song",
                 artist: { name: "The Band" },
               },

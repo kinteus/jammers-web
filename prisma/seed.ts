@@ -95,6 +95,24 @@ async function seedUsers() {
     users.push(user);
   }
 
+  await db.user.upsert({
+    where: { id: "local-null-telegram-user" },
+    update: {
+      fullName: "Local User Without Telegram Username",
+      role: UserRole.USER,
+      telegramId: "local-null-telegram-user",
+      telegramUsername: null,
+    },
+    create: {
+      id: "local-null-telegram-user",
+      telegramId: "local-null-telegram-user",
+      telegramUsername: null,
+      fullName: "Local User Without Telegram Username",
+      role: UserRole.USER,
+      bio: "Seeded local account for testing users without public Telegram usernames.",
+    },
+  });
+
   return { admin, users };
 }
 

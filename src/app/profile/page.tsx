@@ -224,8 +224,21 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   className="w-full px-4 py-3"
                   defaultValue="anna_drums"
                   name="telegramUsername"
-                  required
                 />
+              </label>
+              <label className="block space-y-2 text-sm">
+                <span>{pick(locale, { en: "User ID override", ru: "Войти по ID пользователя" })}</span>
+                <input
+                  className="w-full px-4 py-3"
+                  name="devUserId"
+                  placeholder="local-null-telegram-user"
+                />
+                <span className="block text-xs leading-5 text-white/55">
+                  {pick(locale, {
+                    en: "Use this to sign in as a local seed user that has no Telegram username.",
+                    ru: "Используй это поле для локального seed-пользователя без Telegram-ника.",
+                  })}
+                </span>
               </label>
               {env.LIVE_PRODUCTION_TUNNEL ? null : (
                 <label className="block space-y-2 text-sm">

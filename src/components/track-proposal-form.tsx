@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
 import type { LineupSlotLite } from "@/lib/event-board";
 import { pick, type Locale } from "@/lib/i18n";
@@ -17,6 +17,7 @@ export function TrackProposalForm({
   inviteableUsers,
   lineupSlots,
   locale,
+  requiresSelfSeat = true,
   trackInfoFields,
 }: {
   createTrackAction: (formData: FormData) => void | Promise<void>;
@@ -29,12 +30,25 @@ export function TrackProposalForm({
   }>;
   lineupSlots: LineupSlotLite[];
   locale: Locale;
+  requiresSelfSeat?: boolean;
   trackInfoFields: TrackInfoField[];
 }) {
   const [selectedSong, setSelectedSong] = useState<SongSearchSelection | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const formData = new FormData(event.currentTarget);
+    if (requiresSelfSeat && formData.getAll("claimSeatKeys").length === 0) {
+      event.preventDefault();
+      setSubmitError(pick(locale, { en: "Add yourself first", ru: "Сначала впишись сам" }));
+      return;
+    }
+
+    setSubmitError(null);
+  }
 
   return (
-    <form action={createTrackAction} className="space-y-5">
+    <form action={createTrackAction} className="space-y-5" onSubmit={handleSubmit}>
       <input name="eventId" type="hidden" value={eventId} />
       <input name="eventSlug" type="hidden" value={eventSlug} />
       <TrackProposalComposer
@@ -45,6 +59,15 @@ export function TrackProposalForm({
         selectedSong={selectedSong}
         trackInfoFields={trackInfoFields}
       />
+      {submitError ? (
+        <div
+          aria-live="polite"
+          className="rounded-md border border-red/35 bg-red/12 px-4 py-3 text-sm font-medium text-white"
+          role="alert"
+        >
+          {submitError}
+        </div>
+      ) : null}
       <div className="flex justify-end">
         <SubmitButton
           className="min-w-[220px]"
