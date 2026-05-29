@@ -1530,7 +1530,17 @@ export async function createTrackAction(formData: FormData) {
   const inviteSeatRequests = parseSeatInviteRequests(formData);
   if (claimSeatIds.length > 0) {
     const joinedCount = await countUniqueJoinedTracks(user.id, event.id);
-    assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
+    if (joinedCount >= event.maxTracksPerUser) {
+      if (eventKey) {
+        redirect(
+          buildEventRedirectUrl(eventKey, {
+            error: "track-limit",
+            maxTracks: String(event.maxTracksPerUser),
+          }),
+        );
+      }
+      assertWithinTrackLimit(joinedCount, event.maxTracksPerUser);
+    }
   }
 
   const selectedTrackInfoKeys = formData

@@ -563,6 +563,45 @@ describe("event route slugs in server actions", () => {
     expect(txMock.track.create).not.toHaveBeenCalled();
   });
 
+  it("redirects with a friendly error instead of crashing when the proposer is at the track limit", async () => {
+    requireUserMock.mockResolvedValue({
+      bans: [],
+      email: null,
+      fullName: "Anna",
+      id: "user-1",
+      role: UserRole.USER,
+      status: UserStatus.ACTIVE,
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(
+      futureOpenEvent({ maxTracksPerUser: 3 }),
+    );
+    dbMock.track.findFirst.mockResolvedValue(null);
+    dbMock.trackSeat.findMany.mockResolvedValue([
+      { trackId: "track-a" },
+      { trackId: "track-b" },
+      { trackId: "track-c" },
+    ]);
+
+    const { createTrackAction } = await import("@/server/actions");
+
+    await expect(
+      createTrackAction(
+        formData({
+          claimSeatKeys: "Guitar:1",
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          songId: "song-1",
+        }),
+      ),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/events/spring-jam-night?error=track-limit&maxTracks=3#track-board",
+    );
+
+    expect(txMock.track.create).not.toHaveBeenCalled();
+  });
+
   it("refuses to move incomplete setlist items into the main set", async () => {
     requireAdminMock.mockResolvedValue({
       id: "admin-1",

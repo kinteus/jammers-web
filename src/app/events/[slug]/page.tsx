@@ -165,11 +165,13 @@ function getFloatingFeedback({
   locale,
   notice,
   minRequired,
+  maxTracks,
 }: {
   error: string | null;
   locale: Locale;
   notice: string | null;
   minRequired?: number | null;
+  maxTracks?: number | null;
 }) {
   if (notice === "seat-claimed") {
     return {
@@ -295,6 +297,23 @@ function getFloatingFeedback({
         en: "Pick a track from the search results before publishing the proposal.",
         ru: "Выбери трек из результатов поиска, прежде чем публиковать трек в сетлист.",
       }),
+    };
+  }
+
+  if (error === "track-limit") {
+    const limit = maxTracks && maxTracks > 0 ? maxTracks : null;
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Track limit reached", ru: "Достигнут лимит треков" }),
+      description: limit
+        ? pick(locale, {
+            en: `You can join at most ${limit} songs on this gig. Leave one of your current songs before proposing another with yourself in it.`,
+            ru: `На этом гиге можно участвовать максимум в ${limit} песнях. Выпишись из одной из текущих песен, прежде чем предлагать новую с собой в составе.`,
+          })
+        : pick(locale, {
+            en: "You have reached this gig's track limit. Leave one of your current songs before proposing another with yourself in it.",
+            ru: "Ты достиг лимита треков на этом гиге. Выпишись из одной из текущих песен, прежде чем предлагать новую с собой в составе.",
+          }),
     };
   }
 
@@ -450,6 +469,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     typeof resolvedSearchParams.minRequired === "string"
       ? Number.parseInt(resolvedSearchParams.minRequired, 10)
       : null;
+  const maxTracks =
+    typeof resolvedSearchParams.maxTracks === "string"
+      ? Number.parseInt(resolvedSearchParams.maxTracks, 10)
+      : null;
   const requestedView =
     typeof resolvedSearchParams.view === "string"
       ? resolvedSearchParams.view
@@ -495,6 +518,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     locale,
     notice,
     minRequired: minRequired && Number.isFinite(minRequired) ? minRequired : null,
+    maxTracks: maxTracks && Number.isFinite(maxTracks) ? maxTracks : null,
   });
 
   const roleOptions = roleFamilyOrder.filter((family) =>
