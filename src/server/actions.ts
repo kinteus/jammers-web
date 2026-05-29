@@ -80,6 +80,8 @@ import {
   sendTelegramInviteMessage,
   sendTelegramPublishedSetMessage,
   sendTelegramSeatApprovalRequestMessage,
+  sendTelegramSeatTakenMessage,
+  sendTelegramTrackCompleteMessage,
 } from "@/server/telegram-bot";
 import { buildPublishedSetNotifications } from "@/server/published-set-notifications";
 import { publishBoardUpdate } from "@/server/board-event-bus";
@@ -493,6 +495,93 @@ async function countUniqueJoinedTracks(userId: string, eventId: string) {
   return new Set(seats.map((seat) => seat.trackId)).size;
 }
 
+function formatSongLabel(song: {
+  title: string;
+  artist: { name: string } | null;
+}) {
+  return song.artist?.name ? `${song.artist.name} — ${song.title}` : song.title;
+}
+
+// When a seat is filled, cancel any other pending invites for that exact seat
+// and let those invitees know the spot is no longer available. Best-effort.
+async function cancelOtherSeatInvitesAndNotify(
+  seatId: string,
+  { excludeRecipientId }: { excludeRecipientId?: string } = {},
+) {
+  const others = await db.trackInvite.findMany({
+    where: {
+      seatId,
+      status: TrackInviteStatus.PENDING,
+      ...(excludeRecipientId ? { recipientId: { not: excludeRecipientId } } : {}),
+    },
+    include: {
+      recipient: { select: { telegramId: true } },
+      seat: {
+        select: {
+          label: true,
+          track: {
+            select: {
+              event: { select: { title: true } },
+              song: {
+                select: { title: true, artist: { select: { name: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (others.length === 0) {
+    return;
+  }
+
+  await db.trackInvite.updateMany({
+    where: { id: { in: others.map((invite) => invite.id) } },
+    data: { status: TrackInviteStatus.CANCELED, respondedAt: new Date() },
+  });
+
+  await Promise.allSettled(
+    others.map((invite) =>
+      sendTelegramSeatTakenMessage({
+        recipientTelegramId: invite.recipient.telegramId,
+        eventTitle: invite.seat.track.event.title,
+        seatLabel: invite.seat.label,
+        songLabel: formatSongLabel(invite.seat.track.song),
+      }),
+    ),
+  );
+}
+
+// Notify the track proposer once a freshly-claimed required seat completes the
+// track. Completion is unaffected by optional seats, so only required claims can
+// trigger the transition — which keeps this from firing more than once.
+async function maybeNotifyTrackComplete(trackId: string) {
+  const track = await db.track.findUnique({
+    where: { id: trackId },
+    include: {
+      seats: true,
+      event: { select: { title: true } },
+      song: { select: { title: true, artist: { select: { name: true } } } },
+      proposedBy: { select: { telegramId: true } },
+    },
+  });
+
+  if (!track?.proposedBy?.telegramId) {
+    return;
+  }
+
+  if (!getTrackCompletionSummary(track.seats).isComplete) {
+    return;
+  }
+
+  await sendTelegramTrackCompleteMessage({
+    recipientTelegramId: track.proposedBy.telegramId,
+    eventTitle: track.event.title,
+    songLabel: formatSongLabel(track.song),
+  }).catch(() => {});
+}
+
 function throwDuplicateRoleFamilyError(eventSlug?: string): never {
   if (eventSlug) {
     redirect(buildEventRedirectUrl(eventSlug, { error: "duplicate-role-family" }));
@@ -833,6 +922,13 @@ async function runClaimSeat({
     eventId: seat.track.eventId,
     reason: "seat-claimed",
   }).catch(() => {});
+
+  await cancelOtherSeatInvitesAndNotify(seat.id, {
+    excludeRecipientId: user.id,
+  }).catch(() => {});
+  if (!seat.isOptional) {
+    await maybeNotifyTrackComplete(seat.trackId).catch(() => {});
+  }
 
   return {
     ok: true,
@@ -2221,17 +2317,6 @@ async function runRespondToInvite(
             respondedAt: new Date(),
           },
         });
-        await tx.trackInvite.updateMany({
-          where: {
-            seatId: freshInvite.seatId,
-            status: TrackInviteStatus.PENDING,
-            id: { not: inviteId },
-          },
-          data: {
-            status: TrackInviteStatus.CANCELED,
-            respondedAt: new Date(),
-          },
-        });
       });
     } catch (error) {
       if (error instanceof Error && error.message === "seat-occupied") {
@@ -2241,6 +2326,13 @@ async function runRespondToInvite(
         return fail("invite-stale");
       }
       throw error;
+    }
+
+    await cancelOtherSeatInvitesAndNotify(invite.seat.id, {
+      excludeRecipientId: targetUserId,
+    }).catch(() => {});
+    if (!invite.seat.isOptional) {
+      await maybeNotifyTrackComplete(invite.trackId).catch(() => {});
     }
   } else {
     await db.trackInvite.update({
@@ -2758,6 +2850,13 @@ export async function adminAssignSeatAction(formData: FormData) {
     eventId: seat.track.eventId,
     reason: "seat-claimed",
   }).catch(() => {});
+
+  await cancelOtherSeatInvitesAndNotify(seat.id, {
+    excludeRecipientId: user.id,
+  }).catch(() => {});
+  if (!seat.isOptional) {
+    await maybeNotifyTrackComplete(seat.trackId).catch(() => {});
+  }
 }
 
 export async function adminClearSeatAction(formData: FormData) {

@@ -219,6 +219,69 @@ export async function sendTelegramInviteMessage({
   });
 }
 
+export function buildTelegramSeatTakenMessage({
+  eventTitle,
+  seatLabel,
+  songLabel,
+}: {
+  eventTitle: string;
+  seatLabel: string;
+  songLabel: string;
+}) {
+  return `Unfortunately, the ${seatLabel} spot on ${songLabel} for ${eventTitle} was just filled by someone else, so your invitation is no longer active.`;
+}
+
+export async function sendTelegramSeatTakenMessage({
+  recipientTelegramId,
+  eventTitle,
+  songLabel,
+  seatLabel,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+  songLabel: string;
+  seatLabel: string;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    disableWebPagePreview: true,
+    text: buildTelegramSeatTakenMessage({
+      eventTitle,
+      seatLabel,
+      songLabel,
+    }),
+  });
+}
+
+export function buildTelegramTrackCompleteMessage({
+  eventTitle,
+  songLabel,
+}: {
+  eventTitle: string;
+  songLabel: string;
+}) {
+  return `Your track ${songLabel} is fully staffed for ${eventTitle} — every required position is now filled.`;
+}
+
+export async function sendTelegramTrackCompleteMessage({
+  recipientTelegramId,
+  eventTitle,
+  songLabel,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+  songLabel: string;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    disableWebPagePreview: true,
+    text: buildTelegramTrackCompleteMessage({
+      eventTitle,
+      songLabel,
+    }),
+  });
+}
+
 export async function sendTelegramAdminSeatAssignedMessage({
   recipientTelegramId,
   eventTitle,

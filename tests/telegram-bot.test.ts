@@ -5,6 +5,8 @@ import {
   buildTelegramBoardClosedChannelMessage,
   buildTelegramInviteMessage,
   buildTelegramPublishedSetMessage,
+  buildTelegramSeatTakenMessage,
+  buildTelegramTrackCompleteMessage,
 } from "@/server/telegram-bot";
 
 describe("telegram published-set message", () => {
@@ -59,6 +61,34 @@ describe("telegram admin seat assignment message", () => {
     expect(message).toContain("Blur - Song 2");
     expect(message).toContain("Bass");
     expect(message).toContain("Spring Jam Night");
+  });
+});
+
+describe("telegram seat-taken message", () => {
+  it("tells the invitee the spot was filled by someone else", () => {
+    const message = buildTelegramSeatTakenMessage({
+      eventTitle: "Spring Jam Night",
+      seatLabel: "Bass",
+      songLabel: "Blur — Song 2",
+    });
+
+    expect(message).toContain("Bass");
+    expect(message).toContain("Blur — Song 2");
+    expect(message).toContain("Spring Jam Night");
+    expect(message.toLowerCase()).toContain("filled");
+  });
+});
+
+describe("telegram track-complete message", () => {
+  it("tells the proposer the track is fully staffed", () => {
+    const message = buildTelegramTrackCompleteMessage({
+      eventTitle: "Spring Jam Night",
+      songLabel: "Blur — Song 2",
+    });
+
+    expect(message).toContain("Blur — Song 2");
+    expect(message).toContain("Spring Jam Night");
+    expect(message.toLowerCase()).toContain("fully staffed");
   });
 });
 
