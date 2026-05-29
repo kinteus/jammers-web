@@ -196,9 +196,7 @@ test.describe("Jammers smoke", () => {
     await nextGigLink.click();
     await expect(page).toHaveURL(/\/events\/[a-z0-9-]+/i);
     await expect(page.locator("main")).toContainText(/FAQ|Gig|Гиг|сет/i);
-    await expect(
-      page.locator("main a[href*='youtube.com']").filter({ hasText: /YouTube/i }).first(),
-    ).toBeVisible();
+    await expect(page.locator("main a[href*='youtube.com/results']").first()).toBeVisible();
 
     await page.goto("/faq");
     await expect(page.getByRole("heading", { name: /How The Jammers works|Как всё устроено у The Jammers/i })).toBeVisible();
@@ -292,16 +290,20 @@ test.describe("Jammers smoke", () => {
       .getByPlaceholder(/Start typing a song title|Начни вводить название песни/i)
       .fill(songTitle);
     await page.getByRole("button", { name: new RegExp(songTitle) }).click();
+    await page.getByRole("button", { name: /I’m in|I'm in|Я играю/i }).click();
     await page.getByRole("button", { name: /Publish proposal to board|Опубликовать трек/i }).click();
 
-    await expect(page.getByText(songTitle).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });
+    await expect(
+      page.locator("main a[href*='youtube.com/results']").filter({ hasText: songTitle }).first(),
+    ).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: /Track settings|Настройки трека/i }).first().click();
-    const settingsPanel = page.getByTestId("track-settings-popover");
-    await expect(settingsPanel).toBeVisible();
+    await page.getByRole("button", { name: /Edit track|Редактировать трек/i }).first().click();
+    const editDialog = page.getByRole("dialog").filter({ hasText: songTitle });
+    await expect(editDialog).toBeVisible();
     const updatedComment = `Smoke updated comment ${smokeRunId}`;
-    await settingsPanel.locator('textarea[name="comment"]').fill(updatedComment);
-    await settingsPanel.getByRole("button", { name: /Save track settings|Сохранить настройки трека/i }).click();
+    await editDialog.locator('textarea[name="comment"]').fill(updatedComment);
+    await editDialog.getByRole("button", { name: /Save changes|Сохранить изменения/i }).click();
 
     await expect(async () => {
       const track = await db.track.findFirstOrThrow({
@@ -321,7 +323,7 @@ test.describe("Jammers smoke", () => {
     await page.getByRole("button", { name: /Sign in|Войти/i }).first().click();
     await expect(page).toHaveURL(/\/profile\?returnTo=/i);
 
-    await page.getByLabel(/Telegram username|Telegram-ник/i).fill("anna_drums");
+    await page.locator('input[name="telegramUsername"]').fill("anna_drums");
     await page.getByRole("button", { name: /Continue locally|Продолжить локально/i }).click();
 
     await expect(page).toHaveURL(/\/about(?:\?auth=\d+)?$/i);
