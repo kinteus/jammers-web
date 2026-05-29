@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { CheckSquare, Disc3, Music2 } from "lucide-react";
 
 import type { LineupSlotLite } from "@/lib/event-board";
@@ -18,6 +17,8 @@ export function TrackProposalComposer({
   trackInfoFields,
   lineupSlots,
   locale,
+  selectedSong,
+  onSelectedChange,
 }: {
   inviteableUsers: Array<{
     id: string;
@@ -27,9 +28,9 @@ export function TrackProposalComposer({
   trackInfoFields: TrackInfoField[];
   lineupSlots: LineupSlotLite[];
   locale: Locale;
+  selectedSong: SongSearchSelection | null;
+  onSelectedChange: (value: SongSearchSelection | null) => void;
 }) {
-  const [selectedSong, setSelectedSong] = useState<SongSearchSelection | null>(null);
-
   return (
     <div className="space-y-5">
       <div className="space-y-4">
@@ -39,7 +40,7 @@ export function TrackProposalComposer({
             {pick(locale, { en: "Song", ru: "Песня" })}
           </h3>
         </div>
-        <SongSearchField locale={locale} onSelectedChange={setSelectedSong} selected={selectedSong} />
+        <SongSearchField locale={locale} onSelectedChange={onSelectedChange} selected={selectedSong} />
       </div>
 
       {selectedSong ? (

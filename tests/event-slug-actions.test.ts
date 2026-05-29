@@ -557,7 +557,7 @@ describe("event route slugs in server actions", () => {
         }),
       ),
     ).rejects.toThrow(
-      "NEXT_REDIRECT:/events/spring-jam-night?error=min-required-seats#track-board",
+      "NEXT_REDIRECT:/events/spring-jam-night?error=min-required-seats&minRequired=2#track-board",
     );
 
     expect(txMock.track.create).not.toHaveBeenCalled();

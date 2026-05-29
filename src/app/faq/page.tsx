@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { MessageCircleMore, ShieldCheck, Video } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
-import { resolveCurrentSetlistHref } from "@/lib/public-setlist-link";
-import { extractYoutubeId, resolveFaqMarkdown } from "@/lib/site-content";
+import { extractYoutubeId, resolveFaqSectionMarkdown } from "@/lib/site-content";
 import { sendFaqFeedbackAction } from "@/server/actions";
-import { getFaqPageData, getHomePageData } from "@/server/query-data";
+import { getFaqPageData } from "@/server/query-data";
 
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -48,15 +46,10 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
   const params = await searchParams;
   const locale = await getLocale();
   let faq;
-  let homePageData;
   let user;
 
   try {
-    [faq, homePageData, user] = await Promise.all([
-      getFaqPageData(),
-      getHomePageData(),
-      getCurrentUser(),
-    ]);
+    [faq, user] = await Promise.all([getFaqPageData(), getCurrentUser()]);
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) {
       throw error;
@@ -75,49 +68,18 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
 
   const notice = typeof params.notice === "string" ? params.notice : null;
   const error = typeof params.error === "string" ? params.error : null;
-  const participationRulesMarkdown = resolveFaqMarkdown({
+  const participationRulesMarkdown = resolveFaqSectionMarkdown({
     kind: "participation",
     locale,
-    value: faq.participationRulesMarkdown,
+    faqContentJson: faq.faqContentJson,
+    legacyValue: faq.participationRulesMarkdown,
   });
-  const lineupDetailsMarkdown = resolveFaqMarkdown({
+  const lineupDetailsMarkdown = resolveFaqSectionMarkdown({
     kind: "lineup",
     locale,
-    value: faq.lineupDetailsMarkdown,
+    faqContentJson: faq.faqContentJson,
+    legacyValue: faq.lineupDetailsMarkdown,
   });
-  const latestSetlistHref = resolveCurrentSetlistHref({
-    publishedEvents: homePageData.publishedEvents.map((event) => ({
-      id: event.id,
-      startsAt: new Date(event.startsAt),
-    })),
-    currentEvents: homePageData.events.map((event) => ({
-      id: event.id,
-      startsAt: new Date(event.startsAt),
-    })),
-  });
-  const quickStartCards = [
-    {
-      title: pick(locale, { en: "Scan first", ru: "Сначала смотри" }),
-      body: pick(locale, {
-        en: "Open the current gig board, scan open seats, and join a real need before proposing more songs.",
-        ru: "Открой текущий сетлист, посмотри открытые места и сначала закрой реальную нехватку, прежде чем нести новые песни.",
-      }),
-    },
-    {
-      title: pick(locale, { en: "Commit honestly", ru: "Вписывайся честно" }),
-      body: pick(locale, {
-        en: "Join only the parts you can truly cover. It keeps the board trustworthy for everyone else.",
-        ru: "Занимай только те партии, которые действительно можешь закрыть. Так сетлист остаётся надёжным для всех.",
-      }),
-    },
-    {
-      title: pick(locale, { en: "Ask early", ru: "Спрашивай заранее" }),
-      body: pick(locale, {
-        en: "If something is unclear, use feedback before the deadline rather than improvising around missing context.",
-        ru: "Если что-то непонятно, пиши в feedback заранее, а не пытайся угадывать уже у дедлайна.",
-      }),
-    },
-  ];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 text-sand">
@@ -134,72 +96,6 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
             })}
           </p>
         </div>
-      </section>
-
-      <section className="grid items-stretch gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="brand-shell space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Quick start", ru: "Быстрый старт" })}
-            </p>
-            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
-              {locale === "ru" ? (
-                <>
-                  Как влиться и не затормозить{" "}
-                  <Link
-                    className="text-gold transition hover:text-gold/80 hover:underline"
-                    href={latestSetlistHref}
-                  >
-                    сетлист
-                  </Link>
-                </>
-              ) : (
-                "How to join without slowing the board down"
-              )}
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {quickStartCards.map((card, index) => (
-              <div className="brand-shell-soft rounded-xl p-4" key={card.title}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
-                  0{index + 1}
-                </p>
-                <h3 className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-sand">
-                  {card.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-white/72">{card.body}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="brand-stage space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Need help?", ru: "Нужна помощь?" })}
-            </p>
-            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
-              {pick(locale, {
-                en: "What happens after feedback",
-                ru: "Что будет после feedback",
-              })}
-            </h2>
-          </div>
-          <div className="space-y-3 text-sm leading-6 text-white/74">
-            <p>
-              {pick(locale, {
-                en: "Your message goes straight to the team in Telegram, so product bugs, unclear rules, and gig-specific questions reach the people who can actually fix them.",
-                ru: "Сообщение сразу уходит команде в Telegram, так что продуктовые баги, неясные правила и вопросы по конкретному гигу попадают к тем, кто реально может это поправить.",
-              })}
-            </p>
-            <p>
-              {pick(locale, {
-                en: "The best feedback names the gig, the song, and the exact place where the flow became confusing.",
-                ru: "Лучший feedback сразу называет гиг, песню и точное место, где сценарий стал непонятным.",
-              })}
-            </p>
-          </div>
-        </Card>
       </section>
 
       {notice === "feedback-sent" ? (

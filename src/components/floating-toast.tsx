@@ -6,8 +6,19 @@ import { X } from "lucide-react";
 import { pick, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+export const FLOATING_TOAST_SUCCESS_AUTO_HIDE_MS = 5000;
+// Validation / error toasts often carry constraints the user must read and act on, so they
+// stay on screen noticeably longer than transient success / board-update confirmations.
+export const FLOATING_TOAST_ERROR_AUTO_HIDE_MS = 10000;
+
+export function getFloatingToastAutoHideMs(tone: "error" | "success") {
+  return tone === "error"
+    ? FLOATING_TOAST_ERROR_AUTO_HIDE_MS
+    : FLOATING_TOAST_SUCCESS_AUTO_HIDE_MS;
+}
+
 export function FloatingToast({
-  autoHideMs = 5000,
+  autoHideMs,
   description,
   locale,
   title,
@@ -20,6 +31,7 @@ export function FloatingToast({
   tone: "error" | "success";
 }) {
   const [visible, setVisible] = useState(true);
+  const resolvedAutoHideMs = autoHideMs ?? getFloatingToastAutoHideMs(tone);
 
   useEffect(() => {
     setVisible(true);
@@ -30,9 +42,9 @@ export function FloatingToast({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => setVisible(false), autoHideMs);
+    const timeoutId = window.setTimeout(() => setVisible(false), resolvedAutoHideMs);
     return () => window.clearTimeout(timeoutId);
-  }, [autoHideMs, visible]);
+  }, [resolvedAutoHideMs, visible]);
 
   if (!visible) {
     return null;

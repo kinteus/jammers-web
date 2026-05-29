@@ -367,6 +367,7 @@ model SitePageContent {
   id                         String   @id
   participationRulesMarkdown String   @db.Text
   lineupDetailsMarkdown      String   @db.Text
+  faqContentJson             String?  @db.Text
   lineupVideoUrlsJson        String?  @db.Text
   communityQuotesDesktopDisplayLimit Int @default(18)
   communityQuotesMobileDisplayLimit  Int @default(8)

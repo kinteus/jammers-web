@@ -97,6 +97,81 @@ export function resolveFaqMarkdown({
   return value!;
 }
 
+export type FaqSectionKind = "participation" | "lineup";
+
+type FaqSectionKey = "participationRules" | "lineupDetails";
+
+type FaqLocaleContent = Record<FaqSectionKey, string>;
+
+export type FaqContent = Record<Locale, FaqLocaleContent>;
+
+function sectionKeyForKind(kind: FaqSectionKind): FaqSectionKey {
+  return kind === "participation" ? "participationRules" : "lineupDetails";
+}
+
+function emptyLocaleContent(): FaqLocaleContent {
+  return { participationRules: "", lineupDetails: "" };
+}
+
+export function parseFaqContent(value: string | null | undefined): FaqContent | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<Record<Locale, Partial<FaqLocaleContent>>>;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const read = (locale: Locale): FaqLocaleContent => {
+      const localeContent = parsed[locale];
+      return {
+        participationRules:
+          typeof localeContent?.participationRules === "string"
+            ? localeContent.participationRules
+            : "",
+        lineupDetails:
+          typeof localeContent?.lineupDetails === "string" ? localeContent.lineupDetails : "",
+      };
+    };
+
+    return { en: read("en"), ru: read("ru") };
+  } catch {
+    return null;
+  }
+}
+
+export function serializeFaqContent(content: FaqContent) {
+  return JSON.stringify(content);
+}
+
+export function getFaqContentForLocale(
+  faqContentJson: string | null | undefined,
+  locale: Locale,
+): FaqLocaleContent {
+  return parseFaqContent(faqContentJson)?.[locale] ?? emptyLocaleContent();
+}
+
+export function resolveFaqSectionMarkdown({
+  kind,
+  locale,
+  faqContentJson,
+  legacyValue,
+}: {
+  kind: FaqSectionKind;
+  locale: Locale;
+  faqContentJson: string | null | undefined;
+  legacyValue?: string | null;
+}) {
+  const fromJson = parseFaqContent(faqContentJson)?.[locale]?.[sectionKeyForKind(kind)]?.trim();
+  if (fromJson) {
+    return fromJson;
+  }
+
+  return resolveFaqMarkdown({ kind, locale, value: legacyValue });
+}
+
 export function parseVideoUrls(value: string | null | undefined) {
   try {
     const parsed = value ? (JSON.parse(value) as string[]) : [];

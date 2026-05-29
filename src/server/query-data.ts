@@ -657,6 +657,7 @@ const getCachedFaqPageData = unstable_cache(
         participationRulesMarkdown:
           content?.participationRulesMarkdown ?? DEFAULT_PARTICIPATION_RULES_MARKDOWN,
         lineupDetailsMarkdown: content?.lineupDetailsMarkdown ?? DEFAULT_LINEUP_DETAILS_MARKDOWN,
+        faqContentJson: content?.faqContentJson ?? null,
         lineupVideoUrls: parseVideoUrls(content?.lineupVideoUrlsJson),
         communityQuotesDesktopDisplayLimit:
           content?.communityQuotesDesktopDisplayLimit ??
@@ -669,6 +670,7 @@ const getCachedFaqPageData = unstable_cache(
       return {
         participationRulesMarkdown: DEFAULT_PARTICIPATION_RULES_MARKDOWN,
         lineupDetailsMarkdown: DEFAULT_LINEUP_DETAILS_MARKDOWN,
+        faqContentJson: null as string | null,
         lineupVideoUrls: [],
         communityQuotesDesktopDisplayLimit: DEFAULT_COMMUNITY_QUOTES_DESKTOP_DISPLAY_LIMIT,
         communityQuotesMobileDisplayLimit: DEFAULT_COMMUNITY_QUOTES_MOBILE_DISPLAY_LIMIT,

@@ -392,6 +392,41 @@ describe("song search route", () => {
     expect(new URL(String(fetchMock.mock.calls[2][0])).pathname).toBe("/lookup");
   });
 
+  it("paginates results with an offset so the dropdown can lazy-load more", async () => {
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");
+    songFindManyMock.mockResolvedValue([]);
+
+    const songs = Array.from({ length: 12 }, (_, index) => ({
+      wrapperType: "track",
+      kind: "song",
+      trackId: 2000 + index,
+      trackName: `Song ${index}`,
+      artistName: "Queen",
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => mockItunesJson({ results: songs })),
+    );
+
+    const { GET } = await import("@/app/api/song-search/route");
+
+    const firstResponse = await GET(
+      new Request("http://localhost/api/song-search?query=queen"),
+    );
+    const firstPage = await firstResponse.json();
+    expect(firstPage.results).toHaveLength(8);
+    expect(firstPage.hasMore).toBe(true);
+
+    const secondResponse = await GET(
+      new Request("http://localhost/api/song-search?query=queen&offset=8"),
+    );
+    const secondPage = await secondResponse.json();
+    expect(secondPage.results).toHaveLength(4);
+    expect(secondPage.hasMore).toBe(false);
+    expect(secondPage.results[0].trackTitle).toBe("Song 8");
+  });
+
   it("returns local catalog matches when iTunes is unavailable", async () => {
     consumeRateLimitMock.mockReturnValue({ allowed: true });
     getClientIpFromHeadersMock.mockReturnValue("127.0.0.1");

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { pick, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -20,8 +20,31 @@ type SongSearchResult = {
 
 export type SongSearchSelection = SongSearchResult;
 
-const songSearchCache = new Map<string, SongSearchResult[]>();
+type SongSearchCacheEntry = {
+  results: SongSearchResult[];
+  hasMore: boolean;
+};
+
+const songSearchCache = new Map<string, SongSearchCacheEntry>();
 const SONG_SEARCH_DEBOUNCE_MS = 400;
+
+function getResultKey(result: SongSearchResult) {
+  return result.songId ?? result.externalId;
+}
+
+function mergeResults(existing: SongSearchResult[], incoming: SongSearchResult[]) {
+  const seen = new Set(existing.map(getResultKey));
+  const merged = [...existing];
+  for (const result of incoming) {
+    const key = getResultKey(result);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(result);
+  }
+  return merged;
+}
 
 export function SongSearchField({
   locale,
@@ -35,9 +58,12 @@ export function SongSearchField({
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SongSearchResult[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const listRef = useRef<HTMLUListElement | null>(null);
   const trimmedQuery = query.trim();
   const shouldSearch = debouncedQuery.length >= 2 && !selected;
 
@@ -62,6 +88,7 @@ export function SongSearchField({
   useEffect(() => {
     if (!shouldSearch) {
       setResults([]);
+      setHasMore(false);
       setIsLoading(false);
       setSearchMessage(null);
       setHighlightedIndex(0);
@@ -73,7 +100,8 @@ export function SongSearchField({
 
     if (cachedResults) {
       startTransition(() => {
-        setResults(cachedResults);
+        setResults(cachedResults.results);
+        setHasMore(cachedResults.hasMore);
         setSearchMessage(null);
         setHighlightedIndex(0);
       });
@@ -91,12 +119,20 @@ export function SongSearchField({
         if (!response.ok) {
           throw new Error("Song search provider failed.");
         }
-        return response.json() as Promise<{ results: SongSearchResult[]; warning?: string }>;
+        return response.json() as Promise<{
+          results: SongSearchResult[];
+          hasMore?: boolean;
+          warning?: string;
+        }>;
       })
       .then((payload) => {
-        songSearchCache.set(cacheKey, payload.results);
+        songSearchCache.set(cacheKey, {
+          results: payload.results,
+          hasMore: payload.hasMore ?? false,
+        });
         startTransition(() => {
           setResults(payload.results);
+          setHasMore(payload.hasMore ?? false);
           setSearchMessage(payload.warning ?? null);
           setHighlightedIndex(0);
         });
@@ -104,6 +140,7 @@ export function SongSearchField({
       .catch(() => {
         startTransition(() => {
           setResults([]);
+          setHasMore(false);
           setSearchMessage(
             pick(locale, {
               en: "Song search is temporarily unavailable. Try again in a moment or ask admins to add it.",
@@ -118,6 +155,57 @@ export function SongSearchField({
 
     return () => controller.abort();
   }, [debouncedQuery, locale, shouldSearch]);
+
+  const loadMoreResults = useCallback(() => {
+    if (!shouldSearch || !hasMore || isLoading || isLoadingMore) {
+      return;
+    }
+
+    const cacheKey = debouncedQuery.toLowerCase();
+    const offset = results.length;
+    setIsLoadingMore(true);
+
+    void fetch(
+      `/api/song-search?query=${encodeURIComponent(debouncedQuery)}&offset=${offset}`,
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Song search provider failed.");
+        }
+        return response.json() as Promise<{ results: SongSearchResult[]; hasMore?: boolean }>;
+      })
+      .then((payload) => {
+        startTransition(() => {
+          setResults((current) => {
+            const merged = mergeResults(current, payload.results);
+            songSearchCache.set(cacheKey, {
+              results: merged,
+              hasMore: payload.hasMore ?? false,
+            });
+            return merged;
+          });
+          setHasMore(payload.hasMore ?? false);
+        });
+      })
+      .catch(() => {
+        setHasMore(false);
+      })
+      .finally(() => {
+        setIsLoadingMore(false);
+      });
+  }, [debouncedQuery, hasMore, isLoading, isLoadingMore, results.length, shouldSearch]);
+
+  const handleListScroll = useCallback(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if (remaining < 96) {
+      loadMoreResults();
+    }
+  }, [loadMoreResults]);
 
   const dropdownVisible = useMemo(
     () => !selected && trimmedQuery.length >= 2,
@@ -278,7 +366,11 @@ export function SongSearchField({
               {pick(locale, { en: "Searching songs…", ru: "Ищем песни…" })}
             </div>
           ) : results.length > 0 ? (
-            <ul className="divide-y divide-white/10">
+            <ul
+              className="max-h-80 divide-y divide-white/10 overflow-y-auto"
+              onScroll={handleListScroll}
+              ref={listRef}
+            >
               {results.map((result, index) => (
                 <li key={result.songId ?? result.externalId}>
                   <button
@@ -325,6 +417,24 @@ export function SongSearchField({
                   </button>
                 </li>
               ))}
+              {isLoadingMore ? (
+                <li className="px-4 py-3 text-center text-xs text-white/55">
+                  {pick(locale, { en: "Loading more…", ru: "Загружаем ещё…" })}
+                </li>
+              ) : hasMore ? (
+                <li>
+                  <button
+                    className="w-full px-4 py-3 text-center text-xs uppercase tracking-[0.16em] text-white/55 transition hover:bg-white/6 hover:text-white"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      loadMoreResults();
+                    }}
+                    type="button"
+                  >
+                    {pick(locale, { en: "Load more", ru: "Показать ещё" })}
+                  </button>
+                </li>
+              ) : null}
             </ul>
           ) : (
             <div className="space-y-3 px-4 py-4 text-sm text-white/60">

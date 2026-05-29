@@ -23,7 +23,10 @@ type ItunesArtistResult = {
 };
 
 const SONG_SEARCH_CACHE_SECONDS = 60 * 60;
-const SONG_SEARCH_LIMIT = 8;
+// Page returned to the client per request; the dropdown lazy-loads further pages via `offset`.
+const SONG_SEARCH_PAGE_SIZE = 8;
+// Overall pool we build, dedupe and paginate through for a single query.
+const SONG_SEARCH_RESULT_POOL = 50;
 const ARTIST_LOOKUP_LIMIT = 200;
 const ITUNES_TIMEOUT_MS = 6000;
 
@@ -284,7 +287,7 @@ async function fetchLocalCatalogResults(query: string) {
       },
     },
     orderBy: [{ updatedAt: "desc" }, { title: "asc" }],
-    take: SONG_SEARCH_LIMIT,
+    take: SONG_SEARCH_RESULT_POOL,
   });
 
   return localSongs.map((song) => ({
@@ -414,9 +417,11 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("query")?.trim();
+  const parsedOffset = Number.parseInt(searchParams.get("offset") ?? "0", 10);
+  const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0;
 
   if (!query || query.length < 2) {
-    return NextResponse.json({ results: [] });
+    return NextResponse.json({ results: [], hasMore: false });
   }
 
   const url = createSearchUrl("/search", {
@@ -424,7 +429,7 @@ export async function GET(request: Request) {
     media: "music",
     entity: "song",
     country: "US",
-    limit: String(SONG_SEARCH_LIMIT),
+    limit: String(SONG_SEARCH_RESULT_POOL),
   });
 
   let localResults: SongSearchResult[] = [];
@@ -438,8 +443,10 @@ export async function GET(request: Request) {
   try {
     searchResults = (await fetchItunesResults<ItunesSongResult>(url)).filter(isSongResult);
   } catch {
+    const localPage = localResults.slice(offset, offset + SONG_SEARCH_PAGE_SIZE);
     return NextResponse.json({
-      results: localResults,
+      results: localPage,
+      hasMore: localResults.length > offset + SONG_SEARCH_PAGE_SIZE,
       warning: localResults.length > 0
         ? "Song search provider is unavailable. Showing local catalog matches."
         : "Song search provider is unavailable.",
@@ -474,8 +481,14 @@ export async function GET(request: Request) {
   addDedupedLocalResults(dedupedResults, localResults);
   addDedupedResults(dedupedResults, searchResults);
 
+  const orderedResults = [...dedupedResults.values()].slice(0, SONG_SEARCH_RESULT_POOL);
+  const pageResults = orderedResults.slice(offset, offset + SONG_SEARCH_PAGE_SIZE);
+
   return NextResponse.json(
-    { results: [...dedupedResults.values()].slice(0, SONG_SEARCH_LIMIT) },
+    {
+      results: pageResults,
+      hasMore: orderedResults.length > offset + SONG_SEARCH_PAGE_SIZE,
+    },
     {
       headers: {
         "Cache-Control": `public, s-maxage=${SONG_SEARCH_CACHE_SECONDS}, stale-while-revalidate=${SONG_SEARCH_CACHE_SECONDS}`,

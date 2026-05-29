@@ -33,7 +33,7 @@ import {
   updateTrackSettingsAction,
 } from "@/server/actions";
 
-import { FloatingToast } from "@/components/floating-toast";
+import { FLOATING_TOAST_ERROR_AUTO_HIDE_MS, FloatingToast } from "@/components/floating-toast";
 import { Loader } from "@/components/ui/loader";
 import { SubmitButton } from "@/components/ui/submit-button";
 
@@ -188,6 +188,89 @@ function getStickyTableHeaderBottom(trigger: HTMLElement) {
   const headerBottom = header?.getBoundingClientRect().bottom;
 
   return typeof headerBottom === "number" ? headerBottom + invitePopoverGap : undefined;
+}
+
+// The board table grows with the page (no internal vertical scroll). Its horizontal scroll
+// wrapper uses `overflow-x: auto`, which makes it a vertical scroll container too, so a plain
+// `position: sticky` header sticks to that never-scrolling wrapper instead of the viewport.
+// We instead translate the whole <thead> down by the distance needed to hold it just under the
+// sticky site header while the table body is still in view.
+export function getStickyHeaderTranslateY({
+  tableTop,
+  tableHeight,
+  theadHeight,
+  stickyOffset,
+}: {
+  tableTop: number;
+  tableHeight: number;
+  theadHeight: number;
+  stickyOffset: number;
+}) {
+  const desired = stickyOffset - tableTop;
+  const maxTranslate = Math.max(0, tableHeight - theadHeight);
+  return Math.max(0, Math.min(desired, maxTranslate));
+}
+
+function measureStickyHeaderOffset() {
+  if (typeof document === "undefined") {
+    return 0;
+  }
+
+  const siteHeader = document.querySelector("header");
+  const rect = siteHeader?.getBoundingClientRect();
+  if (!rect || rect.top > 1) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(rect.bottom));
+}
+
+function useStickyTableHeader() {
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const theadRef = useRef<HTMLTableSectionElement | null>(null);
+
+  useEffect(() => {
+    const table = tableRef.current;
+    const thead = theadRef.current;
+    if (!table || !thead) {
+      return;
+    }
+
+    let frameId = 0;
+    const update = () => {
+      frameId = 0;
+      const tableRect = table.getBoundingClientRect();
+      const translateY = getStickyHeaderTranslateY({
+        tableTop: tableRect.top,
+        tableHeight: tableRect.height,
+        theadHeight: thead.getBoundingClientRect().height,
+        stickyOffset: measureStickyHeaderOffset(),
+      });
+      thead.style.transform = translateY > 0 ? `translateY(${translateY}px)` : "";
+    };
+
+    const scheduleUpdate = () => {
+      if (frameId) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      thead.style.transform = "";
+    };
+  }, []);
+
+  return { tableRef, theadRef };
 }
 
 type SeatAvailabilitySort = {
@@ -1305,6 +1388,7 @@ export function TrackBoardTable({
   );
   const [flashingSeatIds, setFlashingSeatIds] = useState<Set<string>>(new Set());
   const previousTracksRef = useRef(tracks);
+  const { tableRef, theadRef } = useStickyTableHeader();
   const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
@@ -1394,9 +1478,12 @@ export function TrackBoardTable({
       return;
     }
 
+    // Validation / error feedback must stay long enough to read the constraint; routine
+    // board-update confirmations clear quickly.
+    const autoHideMs = feedback.tone === "error" ? FLOATING_TOAST_ERROR_AUTO_HIDE_MS : 3200;
     const timeoutId = window.setTimeout(() => {
       setFeedback(null);
-    }, 3200);
+    }, autoHideMs);
 
     return () => window.clearTimeout(timeoutId);
   }, [feedback]);
@@ -1626,6 +1713,7 @@ export function TrackBoardTable({
         <div className="table-scroll overflow-x-auto">
         <table
           className="table-fixed border-separate border-spacing-0"
+          ref={tableRef}
           style={{ minWidth: `${tableMinWidthRem}rem`, width: `${tableMinWidthRem}rem` }}
         >
           <colgroup>
@@ -1635,17 +1723,17 @@ export function TrackBoardTable({
               <col key={column.seatKey} style={{ width: "7.5rem" }} />
             ))}
           </colgroup>
-          <thead>
+          <thead className="relative z-30" ref={theadRef}>
             <tr className="h-9 bg-[#1b1b1b] text-white">
               <th
-                className="sticky left-0 top-0 z-40 border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
+                className="sticky left-0 z-40 border-b border-r border-white/16 bg-[#1b1b1b] px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.24em] text-white/92"
                 rowSpan={2}
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
               </th>
               {showPlaybackColumn ? (
                 <th
-                  className="sticky top-0 z-30 border-b border-r border-white/16 bg-[#1b1b1b] px-2 py-2 text-center text-[11px] uppercase tracking-[0.2em] text-white/92"
+                  className="z-30 border-b border-r border-white/16 bg-[#1b1b1b] px-2 py-2 text-center text-[11px] uppercase tracking-[0.2em] text-white/92"
                   rowSpan={2}
                 >
                   {pick(locale, { en: "Playback", ru: "Плейбэк" })}
@@ -1654,7 +1742,7 @@ export function TrackBoardTable({
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
-                    "sticky top-0 z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
+                    "z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
                     index > 0 && "border-l border-white/16",
                   )}
                   colSpan={group.columns.length}
@@ -1676,7 +1764,7 @@ export function TrackBoardTable({
                 return (
                   <th
                     className={cn(
-                      "sticky top-9 z-30 border-b border-r border-white/14 bg-[#1b1b1b] px-1 py-1.5 text-left text-[11px] font-semibold text-white/92",
+                      "z-30 border-b border-r border-white/14 bg-[#1b1b1b] px-1 py-1.5 text-left text-[11px] font-semibold text-white/92",
                       startsNewGroup && "border-l border-white/16",
                     )}
                     key={column.seatKey}

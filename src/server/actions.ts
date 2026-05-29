@@ -58,6 +58,7 @@ import {
   DEFAULT_PARTICIPATION_RULES_MARKDOWN,
   SITE_CONTENT_ID,
   parseVideoUrlsInput,
+  serializeFaqContent,
   serializeVideoUrls,
 } from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
@@ -919,7 +920,7 @@ async function resolveSongId(formData: FormData) {
         : 0;
 
   if (!artistName || !trackTitle) {
-    throw new Error("Choose a song from search results before proposing it.");
+    return null;
   }
 
   const artist = await db.artist.upsert({
@@ -1324,26 +1325,43 @@ export async function requestSongCatalogAction(formData: FormData) {
 export async function updateFaqContentAction(formData: FormData) {
   await requireAdmin();
 
+  const faqContent = {
+    en: {
+      participationRules: getString(formData, "participationRulesMarkdownEn"),
+      lineupDetails: getString(formData, "lineupDetailsMarkdownEn"),
+    },
+    ru: {
+      participationRules: getString(formData, "participationRulesMarkdownRu"),
+      lineupDetails: getString(formData, "lineupDetailsMarkdownRu"),
+    },
+  };
+  const faqContentJson = serializeFaqContent(faqContent);
+  // Keep the legacy single-blob columns populated for any older reader; the JSON blob is the
+  // source of truth going forward.
+  const legacyParticipation =
+    faqContent.en.participationRules ||
+    faqContent.ru.participationRules ||
+    DEFAULT_PARTICIPATION_RULES_MARKDOWN;
+  const legacyLineup =
+    faqContent.en.lineupDetails || faqContent.ru.lineupDetails || DEFAULT_LINEUP_DETAILS_MARKDOWN;
+  const lineupVideoUrlsJson = serializeVideoUrls(
+    parseVideoUrlsInput(getString(formData, "lineupVideoUrlsInput")),
+  );
+
   await db.sitePageContent.upsert({
     where: { id: SITE_CONTENT_ID },
     update: {
-      participationRulesMarkdown:
-        getString(formData, "participationRulesMarkdown") || DEFAULT_PARTICIPATION_RULES_MARKDOWN,
-      lineupDetailsMarkdown:
-        getString(formData, "lineupDetailsMarkdown") || DEFAULT_LINEUP_DETAILS_MARKDOWN,
-      lineupVideoUrlsJson: serializeVideoUrls(
-        parseVideoUrlsInput(getString(formData, "lineupVideoUrlsInput")),
-      ),
+      participationRulesMarkdown: legacyParticipation,
+      lineupDetailsMarkdown: legacyLineup,
+      faqContentJson,
+      lineupVideoUrlsJson,
     },
     create: {
       id: SITE_CONTENT_ID,
-      participationRulesMarkdown:
-        getString(formData, "participationRulesMarkdown") || DEFAULT_PARTICIPATION_RULES_MARKDOWN,
-      lineupDetailsMarkdown:
-        getString(formData, "lineupDetailsMarkdown") || DEFAULT_LINEUP_DETAILS_MARKDOWN,
-      lineupVideoUrlsJson: serializeVideoUrls(
-        parseVideoUrlsInput(getString(formData, "lineupVideoUrlsInput")),
-      ),
+      participationRulesMarkdown: legacyParticipation,
+      lineupDetailsMarkdown: legacyLineup,
+      faqContentJson,
+      lineupVideoUrlsJson,
     },
   });
 
@@ -1481,6 +1499,12 @@ export async function createTrackAction(formData: FormData) {
   const eventId = getString(formData, "eventId");
   const eventKey = getString(formData, "eventSlug");
   const songId = await resolveSongId(formData);
+  if (!songId) {
+    if (eventKey) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "no-song-selected" }));
+    }
+    throw new Error("Choose a song from search results before proposing it.");
+  }
   const event = await db.event.findUniqueOrThrow({
     where: { id: eventId },
   });
@@ -1525,7 +1549,12 @@ export async function createTrackAction(formData: FormData) {
       minimumRequiredPositions
   ) {
     if (eventKey) {
-      redirect(buildEventRedirectUrl(eventKey, { error: "min-required-seats" }));
+      redirect(
+        buildEventRedirectUrl(eventKey, {
+          error: "min-required-seats",
+          minRequired: String(minimumRequiredPositions),
+        }),
+      );
     }
     throw new Error("Track has fewer required positions than the event minimum.");
   }

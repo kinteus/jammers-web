@@ -164,10 +164,12 @@ function getFloatingFeedback({
   error,
   locale,
   notice,
+  minRequired,
 }: {
   error: string | null;
   locale: Locale;
   notice: string | null;
+  minRequired?: number | null;
 }) {
   if (notice === "seat-claimed") {
     return {
@@ -269,12 +271,29 @@ function getFloatingFeedback({
   }
 
   if (error === "min-required-seats") {
+    const requiredCount = minRequired && minRequired > 0 ? minRequired : null;
     return {
       tone: "error" as const,
       title: pick(locale, { en: "Too few required parts", ru: "Слишком мало обязательных партий" }),
+      description: requiredCount
+        ? pick(locale, {
+            en: `This gig needs at least ${requiredCount} required players per song. Mark more positions as required before publishing the track.`,
+            ru: `Этому гигу нужно минимум ${requiredCount} обязательных музыкантов на песню. Оставь больше позиций обязательными перед публикацией трека.`,
+          })
+        : pick(locale, {
+            en: "This gig has a minimum player count per song. Mark more positions as required before publishing the track.",
+            ru: "У этого гига задан минимум людей на песню. Оставь больше позиций обязательными перед публикацией трека.",
+          }),
+    };
+  }
+
+  if (error === "no-song-selected") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "No song chosen", ru: "Песня не выбрана" }),
       description: pick(locale, {
-        en: "This gig has a minimum player count per song. Mark more positions as required before publishing the track.",
-        ru: "У этого гига задан минимум людей на песню. Оставь больше позиций обязательными перед публикацией трека.",
+        en: "Pick a track from the search results before publishing the proposal.",
+        ru: "Выбери трек из результатов поиска, прежде чем публиковать трек в сетлист.",
       }),
     };
   }
@@ -427,6 +446,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     typeof resolvedSearchParams.notice === "string" ? resolvedSearchParams.notice : null;
   const error =
     typeof resolvedSearchParams.error === "string" ? resolvedSearchParams.error : null;
+  const minRequired =
+    typeof resolvedSearchParams.minRequired === "string"
+      ? Number.parseInt(resolvedSearchParams.minRequired, 10)
+      : null;
   const requestedView =
     typeof resolvedSearchParams.view === "string"
       ? resolvedSearchParams.view
@@ -467,7 +490,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       : requestedView === "open"
         ? "open"
         : "all";
-  const floatingFeedback = getFloatingFeedback({ error, locale, notice });
+  const floatingFeedback = getFloatingFeedback({
+    error,
+    locale,
+    notice,
+    minRequired: minRequired && Number.isFinite(minRequired) ? minRequired : null,
+  });
 
   const roleOptions = roleFamilyOrder.filter((family) =>
     event.lineupSlots.some((slot) => getRoleFamilyKey(slot.label, slot.key) === family),

@@ -11,7 +11,7 @@ import {
   formatTrackInfoFieldsForTextarea,
 } from "@/lib/track-info-flags";
 import { env } from "@/lib/env";
-import { formatVideoUrlsForTextarea } from "@/lib/site-content";
+import { formatVideoUrlsForTextarea, resolveFaqSectionMarkdown } from "@/lib/site-content";
 import { isSuperAdminUser } from "@/lib/auth/admin-access";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
@@ -491,22 +491,62 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           >
             <div className="space-y-5">
               <form action={updateFaqContentAction} className="grid gap-4">
-                <label className="space-y-2 text-sm">
-                  <span>{pick(locale, { en: "Participation rules (Markdown)", ru: "Правила участия (Markdown)" })}</span>
-                  <textarea
-                    className="min-h-56 w-full px-4 py-3"
-                    defaultValue={faq.participationRulesMarkdown}
-                    name="participationRulesMarkdown"
-                  />
-                </label>
-                <label className="space-y-2 text-sm">
-                  <span>{pick(locale, { en: "Line-up technical details (Markdown)", ru: "Технические детали лайнапа (Markdown)" })}</span>
-                  <textarea
-                    className="min-h-56 w-full px-4 py-3"
-                    defaultValue={faq.lineupDetailsMarkdown}
-                    name="lineupDetailsMarkdown"
-                  />
-                </label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm">
+                    <span>{pick(locale, { en: "Participation rules · EN (Markdown)", ru: "Правила участия · EN (Markdown)" })}</span>
+                    <textarea
+                      className="min-h-56 w-full px-4 py-3"
+                      defaultValue={resolveFaqSectionMarkdown({
+                        kind: "participation",
+                        locale: "en",
+                        faqContentJson: faq.faqContentJson,
+                        legacyValue: faq.participationRulesMarkdown,
+                      })}
+                      name="participationRulesMarkdownEn"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm">
+                    <span>{pick(locale, { en: "Participation rules · RU (Markdown)", ru: "Правила участия · RU (Markdown)" })}</span>
+                    <textarea
+                      className="min-h-56 w-full px-4 py-3"
+                      defaultValue={resolveFaqSectionMarkdown({
+                        kind: "participation",
+                        locale: "ru",
+                        faqContentJson: faq.faqContentJson,
+                        legacyValue: faq.participationRulesMarkdown,
+                      })}
+                      name="participationRulesMarkdownRu"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm">
+                    <span>{pick(locale, { en: "Line-up details · EN (Markdown)", ru: "Технические детали лайнапа · EN (Markdown)" })}</span>
+                    <textarea
+                      className="min-h-56 w-full px-4 py-3"
+                      defaultValue={resolveFaqSectionMarkdown({
+                        kind: "lineup",
+                        locale: "en",
+                        faqContentJson: faq.faqContentJson,
+                        legacyValue: faq.lineupDetailsMarkdown,
+                      })}
+                      name="lineupDetailsMarkdownEn"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm">
+                    <span>{pick(locale, { en: "Line-up details · RU (Markdown)", ru: "Технические детали лайнапа · RU (Markdown)" })}</span>
+                    <textarea
+                      className="min-h-56 w-full px-4 py-3"
+                      defaultValue={resolveFaqSectionMarkdown({
+                        kind: "lineup",
+                        locale: "ru",
+                        faqContentJson: faq.faqContentJson,
+                        legacyValue: faq.lineupDetailsMarkdown,
+                      })}
+                      name="lineupDetailsMarkdownRu"
+                    />
+                  </label>
+                </div>
                 <label className="space-y-2 text-sm">
                   <span>{pick(locale, { en: "YouTube video links", ru: "Ссылки на YouTube" })}</span>
                   <textarea
