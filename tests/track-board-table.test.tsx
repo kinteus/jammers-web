@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sortTracksBySeatAvailability, TrackBoardTable } from "@/components/track-board-table";
+import { cancelTrackAction } from "@/server/actions";
 
 vi.mock("@/server/actions", () => ({
   cancelTrackAction: vi.fn(),
@@ -179,6 +180,78 @@ describe("TrackBoardTable", () => {
 
     expect(host.textContent).toContain("7.");
     expect(host.textContent).not.toContain("1.");
+  });
+
+  it("lets a non-admin proposer delete their own track", async () => {
+    vi.mocked(cancelTrackAction).mockReset();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-mine",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { title: "My Song", artist: { name: "My Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.CLAIMED,
+                  isOptional: false,
+                  userId: "user-proposer",
+                  user: { telegramUsername: "proposer", fullName: "Proposer" },
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-proposer",
+            role: UserRole.USER,
+            telegramUsername: "proposer",
+            fullName: "Proposer",
+          }}
+        />,
+      );
+    });
+
+    const deleteButton = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Delete My Song"]',
+    );
+    expect(deleteButton).not.toBeNull();
+
+    await act(async () => {
+      deleteButton?.closest("form")?.requestSubmit(deleteButton ?? undefined);
+    });
+
+    expect(cancelTrackAction).toHaveBeenCalledTimes(1);
   });
 
   it("renders playback as a readonly table column outside the claimable seats", async () => {
