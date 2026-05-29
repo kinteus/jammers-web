@@ -623,6 +623,13 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     return true;
   });
 
+  // Stable song numbers keyed by the full board order (or the published setlist
+  // order). Client-side filtering/sorting must not renumber the songs.
+  const trackNumberById: Record<string, number> = {};
+  boardTracks.forEach((track, index) => {
+    trackNumberById[track.id] = index + 1;
+  });
+
   const participantCount = new Set(
     event.tracks.flatMap((track) => track.seats.map((seat) => seat.userId).filter(Boolean)),
   ).size;
@@ -895,6 +902,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
             lineupSlots={event.lineupSlots}
             locale={locale}
             trackInfoFields={trackInfoFields}
+            trackNumbers={trackNumberById}
             tracks={visibleTracks}
             user={
               user

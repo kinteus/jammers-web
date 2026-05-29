@@ -9,11 +9,18 @@ import { respondToInviteInlineAction } from "@/server/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+type InvitationLineupSeat = {
+  isOpen: boolean;
+  label: string;
+  occupantLabel: string | null;
+};
+
 type InvitationItem = {
   eventId: string;
   eventTitle: string;
   id: string;
   isApprovalRequest: boolean;
+  lineup?: InvitationLineupSeat[];
   maxTracksPerUser: number;
   requestDescription: string | null;
   seatLabel: string;
@@ -207,6 +214,32 @@ export function ProfileInvitationsPanel({
                     </>
                   )}
                 </p>
+                {invite.lineup && invite.lineup.length > 0 ? (
+                  <div className="mt-3 space-y-1 text-xs leading-5 text-white/65">
+                    {invite.lineup.some((seat) => seat.occupantLabel) ? (
+                      <p>
+                        <span className="text-white/45">
+                          {pick(locale, { en: "Seated: ", ru: "Вписаны: " })}
+                        </span>
+                        {invite.lineup
+                          .filter((seat) => seat.occupantLabel)
+                          .map((seat) => `${seat.label} — ${seat.occupantLabel}`)
+                          .join(", ")}
+                      </p>
+                    ) : null}
+                    {invite.lineup.some((seat) => seat.isOpen) ? (
+                      <p>
+                        <span className="text-white/45">
+                          {pick(locale, { en: "Still open: ", ru: "Ещё свободно: " })}
+                        </span>
+                        {invite.lineup
+                          .filter((seat) => seat.isOpen)
+                          .map((seat) => seat.label)
+                          .join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button
                     aria-busy={isAcceptPending}

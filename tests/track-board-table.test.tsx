@@ -119,6 +119,68 @@ describe("TrackBoardTable", () => {
     expect(host.textContent).toContain("Обязательные закрыты");
   });
 
+  it("numbers songs from the stable trackNumbers map instead of the row index", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="ru"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          trackNumbers={{ "track-only": 7 }}
+          tracks={[
+            {
+              id: "track-only",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { title: "Numbered Song", artist: { name: "The Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    expect(host.textContent).toContain("7.");
+    expect(host.textContent).not.toContain("1.");
+  });
+
   it("renders playback as a readonly table column outside the claimable seats", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);

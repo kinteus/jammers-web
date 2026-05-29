@@ -312,11 +312,24 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           })
       : null;
 
+    const lineup = invite.track.seats
+      .filter((seat) => seat.status !== "UNAVAILABLE")
+      .map((seat) => ({
+        isOpen: seat.status === "OPEN" && !seat.userId,
+        label: seat.label,
+        occupantLabel: seat.user
+          ? seat.user.telegramUsername
+            ? `@${seat.user.telegramUsername}`
+            : seat.user.fullName ?? pick(locale, { en: "someone", ru: "кто-то" })
+          : null,
+      }));
+
     return {
       eventId: invite.track.event.id,
       eventTitle: invite.track.event.title,
       id: invite.id,
       isApprovalRequest: Boolean(requestMeta),
+      lineup,
       maxTracksPerUser: invite.track.event.maxTracksPerUser,
       requestDescription,
       seatLabel: invite.seat.label,

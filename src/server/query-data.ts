@@ -530,6 +530,18 @@ export async function getProfileWorkspace(userId: string) {
                 song: {
                   include: { artist: true },
                 },
+                seats: {
+                  include: {
+                    user: {
+                      select: archiveUserSelect,
+                    },
+                    lineupSlot: true,
+                  },
+                  orderBy: [
+                    { lineupSlot: { displayOrder: "asc" as const } },
+                    { seatIndex: "asc" as const },
+                  ],
+                },
               },
             },
             seat: true,
