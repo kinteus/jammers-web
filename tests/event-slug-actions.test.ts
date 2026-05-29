@@ -221,6 +221,63 @@ describe("event route slugs in server actions", () => {
     10_000,
   );
 
+  it(
+    "persists default-optional seat indexes from the lineup config",
+    async () => {
+      requireAdminMock.mockResolvedValue({
+        id: "admin-1",
+        role: UserRole.ADMIN,
+      });
+      dbMock.event.create.mockResolvedValue({
+        id: "event-1",
+        slug: "optional-grid-gig",
+      });
+
+      const { createEventAction } = await import("@/server/actions");
+
+      await expect(
+        createEventAction(
+          formData({
+            title: "Optional Grid Gig",
+            startsAt: "2099-05-01T19:30",
+            registrationOpensAt: "2099-04-01T19:30",
+            registrationClosesAt: "2099-04-30T19:30",
+            lineupJson: JSON.stringify([
+              {
+                key: "vocals",
+                label: "Vocals",
+                seatCount: 3,
+                allowOptional: true,
+                defaultOptionalSeats: [3, 2, 2, 9],
+              },
+              {
+                key: "extra",
+                label: "Extra",
+                seatCount: 1,
+                allowOptional: true,
+                defaultOptionalSeats: [1],
+              },
+            ]),
+          }),
+        ),
+      ).rejects.toThrow("NEXT_REDIRECT:/admin/events/event-1");
+
+      expect(dbMock.eventLineupSlot.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          key: "vocals",
+          defaultOptionalSeats: [2, 3],
+        }),
+      });
+      expect(dbMock.eventLineupSlot.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          key: "extra",
+          defaultOptionalSeats: [1],
+        }),
+      });
+    },
+    10_000,
+  );
+
   it("redirects back to the admin event with a saved notice after updating event settings", async () => {
     requireAdminMock.mockResolvedValue({
       id: "admin-1",

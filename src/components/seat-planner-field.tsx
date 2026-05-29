@@ -38,7 +38,16 @@ export function SeatPlannerField({
     () => new Map(lineupSlots.map((slot) => [slot.id, slot])),
     [lineupSlots],
   );
-  const [modes, setModes] = useState<Record<string, SeatMode>>({});
+  const [modes, setModes] = useState<Record<string, SeatMode>>(() => {
+    const initial: Record<string, SeatMode> = {};
+    for (const seat of seatColumns) {
+      const slot = slotsById.get(seat.slotId);
+      if (slot?.allowOptional && slot.defaultOptionalSeats?.includes(seat.seatIndex)) {
+        initial[seat.seatKey] = "optional";
+      }
+    }
+    return initial;
+  });
   const [inviteRecipients, setInviteRecipients] = useState<Record<string, string>>({});
   const modeOptions = [
     {

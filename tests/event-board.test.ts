@@ -129,6 +129,7 @@ describe("event board helpers", () => {
       "Bass",
       "Drums",
       "Keys",
+      "Extra",
     ]);
     expect(defaultLineup.every((slot) => slot.allowOptional)).toBe(true);
   });

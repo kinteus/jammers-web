@@ -184,7 +184,20 @@ const lineupSlotSchema = z.object({
   label: z.string().trim().min(1).max(120),
   seatCount: z.number().int().min(1).max(24),
   allowOptional: z.boolean().optional(),
+  defaultOptionalSeats: z.array(z.number().int().min(1).max(24)).optional(),
 });
+
+function resolveDefaultOptionalSeats(slot: z.infer<typeof lineupSlotSchema>) {
+  if (slot.allowOptional === false) {
+    return [];
+  }
+  const unique = new Set(
+    (slot.defaultOptionalSeats ?? []).filter(
+      (index) => Number.isInteger(index) && index >= 1 && index <= slot.seatCount,
+    ),
+  );
+  return [...unique].sort((a, b) => a - b);
+}
 
 function parseLineupJson(value: string) {
   if (!value.trim()) {
@@ -2251,6 +2264,7 @@ export async function createEventAction(formData: FormData) {
         label: slot.label,
         seatCount: slot.seatCount,
         allowOptional: slot.allowOptional ?? true,
+        defaultOptionalSeats: resolveDefaultOptionalSeats(slot),
         displayOrder: index + 1,
       },
     });
@@ -2328,6 +2342,7 @@ export async function updateEventAction(formData: FormData) {
           label: slot.label,
           seatCount: slot.seatCount,
           allowOptional: slot.allowOptional ?? true,
+          defaultOptionalSeats: resolveDefaultOptionalSeats(slot),
           displayOrder: index + 1,
         },
       });

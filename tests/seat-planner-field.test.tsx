@@ -57,4 +57,34 @@ describe("SeatPlannerField", () => {
     );
     expect(hiddenInvite?.value).toBe("Bass:1|user-boris");
   });
+
+  it("pre-selects the configured default-optional seats", () => {
+    render(
+      <form data-testid="proposal-form">
+        <SeatPlannerField
+          inviteableUsers={[]}
+          lineupSlots={[
+            {
+              allowOptional: true,
+              defaultOptionalSeats: [2, 3],
+              displayOrder: 1,
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 3,
+            },
+          ]}
+          locale="en"
+        />
+      </form>,
+    );
+
+    const optionalValues = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[name="optionalSeatKeys"]'),
+    ).map((input) => input.value);
+
+    expect(optionalValues).toContain("Vocals 2:2");
+    expect(optionalValues).toContain("Vocals 3:3");
+    expect(optionalValues).not.toContain("Vocals 1:1");
+  });
 });

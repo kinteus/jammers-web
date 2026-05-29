@@ -6,6 +6,7 @@ export type LineupSlotLite = {
   label: string;
   seatCount: number;
   allowOptional: boolean;
+  defaultOptionalSeats?: readonly number[];
   displayOrder: number;
 };
 

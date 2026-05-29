@@ -181,6 +181,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       label: slot.label,
       seatCount: slot.seatCount,
       allowOptional: slot.allowOptional,
+      defaultOptionalSeats: slot.defaultOptionalSeats,
     })),
     null,
     2,

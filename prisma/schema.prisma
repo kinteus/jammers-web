@@ -209,6 +209,7 @@ model EventLineupSlot {
   label          String
   seatCount      Int
   allowOptional  Boolean     @default(true)
+  defaultOptionalSeats Int[] @default([])
   displayOrder   Int
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

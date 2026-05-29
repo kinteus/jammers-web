@@ -1,0 +1,2 @@
+ALTER TABLE "EventLineupSlot"
+ADD COLUMN "defaultOptionalSeats" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];

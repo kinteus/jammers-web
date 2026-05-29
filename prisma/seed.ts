@@ -19,6 +19,7 @@ async function seedInstruments() {
     "Vocals",
     "Keys",
     "Percussion",
+    "Extra",
     "Other",
   ];
 
@@ -134,6 +135,7 @@ async function seedEvent() {
       update: {
         label: slot.label,
         seatCount: slot.seatCount,
+        defaultOptionalSeats: [...slot.defaultOptionalSeats],
         displayOrder: slot.displayOrder,
         instrumentId: instrument?.id,
       },
@@ -142,6 +144,7 @@ async function seedEvent() {
         key: slot.key,
         label: slot.label,
         seatCount: slot.seatCount,
+        defaultOptionalSeats: [...slot.defaultOptionalSeats],
         displayOrder: slot.displayOrder,
         instrumentId: instrument?.id,
       },

@@ -309,6 +309,12 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                   defaultValue={defaultLineup}
                   name="lineupJson"
                 />
+                <p className="text-xs leading-5 text-white/55">
+                  {pick(locale, {
+                    en: '"defaultOptionalSeats" lists the seat numbers within a slot (1-based) that start as optional when a song is proposed. Proposers can still change each seat.',
+                    ru: '"defaultOptionalSeats" — номера позиций внутри слота (с 1), которые при создании песни по умолчанию помечаются как optional. Автор заявки может изменить любую позицию.',
+                  })}
+                </p>
               </label>
               <SubmitButton
                 className="md:col-span-2"
