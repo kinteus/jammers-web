@@ -38,6 +38,25 @@ export function assertUserCanParticipate(user: UserWithBan | null) {
   }
 }
 
+// A user must have a Telegram username on file before they can write to a board.
+// Telegram cannot deliver a username privately, so users without a public handle
+// set it manually in their profile first.
+export function userNeedsTelegramUsername(
+  user: Pick<UserWithBan, "telegramUsername"> | null,
+) {
+  return !user?.telegramUsername;
+}
+
+export const TELEGRAM_USERNAME_REQUIRED_ERROR = "telegram-username-required";
+
+export function assertUserHasTelegramUsername(
+  user: Pick<UserWithBan, "telegramUsername"> | null,
+) {
+  if (userNeedsTelegramUsername(user)) {
+    throw new Error(TELEGRAM_USERNAME_REQUIRED_ERROR);
+  }
+}
+
 export function assertEventOpen(status: EventStatus) {
   if (status !== EventStatus.OPEN) {
     throw new Error("This event is currently locked for participant changes.");

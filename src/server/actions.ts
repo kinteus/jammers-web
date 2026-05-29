@@ -20,7 +20,10 @@ import { FAQ_PAGE_DATA_TAG, HOME_PAGE_DATA_TAG } from "@/lib/cache-tags";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { isSuperAdminUser } from "@/lib/auth/admin-access";
-import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
+import {
+  isValidTelegramUsername,
+  normalizeTelegramUsername,
+} from "@/lib/auth/telegram-username";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
@@ -38,6 +41,7 @@ import {
   assertSeatClaimable,
   assertUserCanParticipate,
   assertWithinTrackLimit,
+  userNeedsTelegramUsername,
 } from "@/lib/domain/rules";
 import {
   parseClosedOptionalSeatRequestMeta,
@@ -718,6 +722,10 @@ async function runClaimSeat({
   seatId: string;
   user: Awaited<ReturnType<typeof requireUser>>;
 }): Promise<ClaimSeatResult> {
+  if (userNeedsTelegramUsername(user)) {
+    return { ok: false, error: "username-required" };
+  }
+
   const seat = await db.trackSeat.findUniqueOrThrow({
     where: { id: seatId },
     include: {
@@ -1235,7 +1243,29 @@ export async function devSignInAction(formData: FormData) {
 export async function updateProfileAction(formData: FormData) {
   const user = await requireUser();
   const instrumentIds = parseInstrumentIds(formData);
-  const requestedTelegramUsername = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+
+  // The Telegram username can be set only once, while it is still empty. After
+  // that it is read-only (same as users who arrived with a username already).
+  let telegramUsername = user.telegramUsername;
+  if (!telegramUsername) {
+    const requested = normalizeTelegramUsername(getString(formData, "telegramUsername"));
+    if (requested) {
+      if (!isValidTelegramUsername(requested)) {
+        redirect("/profile?error=invalid-username");
+      }
+      const taken = await db.user.findFirst({
+        where: {
+          id: { not: user.id },
+          telegramUsername: { equals: requested, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (taken) {
+        redirect("/profile?error=username-taken");
+      }
+      telegramUsername = requested;
+    }
+  }
 
   await db.$transaction([
     db.user.update({
@@ -1245,7 +1275,7 @@ export async function updateProfileAction(formData: FormData) {
         phone: getString(formData, "phone") || null,
         email: getString(formData, "email") || null,
         bio: getString(formData, "bio") || null,
-        telegramUsername: user.telegramId ? user.telegramUsername : requestedTelegramUsername,
+        telegramUsername,
       },
     }),
     db.userInstrument.deleteMany({
@@ -1264,6 +1294,7 @@ export async function updateProfileAction(formData: FormData) {
   ]);
 
   revalidateAll(["/profile", "/"]);
+  redirect("/profile?notice=profile-saved");
 }
 
 export async function grantAdminRoleAction(formData: FormData) {
@@ -1511,6 +1542,12 @@ export async function createTrackAction(formData: FormData) {
 
   const eventId = getString(formData, "eventId");
   const eventKey = getString(formData, "eventSlug");
+  if (userNeedsTelegramUsername(user)) {
+    if (eventKey) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "username-required" }));
+    }
+    throw new Error("Set your Telegram username before proposing tracks.");
+  }
   const songId = await resolveSongId(formData);
   if (!songId) {
     if (eventKey) {
@@ -1541,6 +1578,12 @@ export async function createTrackAction(formData: FormData) {
   const claimSeatIds = parseSeatSelections(formData, "claimSeatKeys");
   const optionalSeatIds = parseSeatSelections(formData, "optionalSeatKeys");
   const inviteSeatRequests = parseSeatInviteRequests(formData);
+  if (claimSeatIds.length === 0 && user.role !== UserRole.ADMIN) {
+    if (eventKey) {
+      redirect(buildEventRedirectUrl(eventKey, { error: "no-self-seat" }));
+    }
+    throw new Error("Add yourself to at least one position before proposing a track.");
+  }
   if (claimSeatIds.length > 0) {
     const joinedCount = await countUniqueJoinedTracks(user.id, event.id);
     if (joinedCount >= event.maxTracksPerUser) {
@@ -1853,6 +1896,9 @@ async function runInviteToSeat(
     return { ok: true, notice };
   };
 
+  if (userNeedsTelegramUsername(user)) {
+    return fail("username-required");
+  }
   if (!recipientUserId && !username) {
     return fail("invite-recipient-required");
   }
@@ -1949,10 +1995,7 @@ async function runInviteToSeat(
     return finishNotice(requestResult.notice);
   }
 
-  if (seat.track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    return fail("invite-not-allowed");
-  }
-
+  // Any signed-in user can invite someone to an OPEN seat while the board is open.
   try {
     assertEventAllowsChanges(seat.track.event);
   } catch {
@@ -2027,7 +2070,8 @@ type RespondToInviteResult =
         | "invite-stale"
         | "seat-occupied"
         | "seat-unavailable"
-        | "track-limit";
+        | "track-limit"
+        | "username-required";
     };
 type RespondToInviteError = Extract<RespondToInviteResult, { ok: false }>["error"];
 type RespondToInviteNotice = Extract<RespondToInviteResult, { ok: true }>["notice"];
@@ -2055,6 +2099,9 @@ async function runRespondToInvite(
 
     return { ok: true, notice } as const;
   };
+  if (userNeedsTelegramUsername(user)) {
+    return fail("username-required");
+  }
   const invite = await db.trackInvite.findUniqueOrThrow({
     where: { id: inviteId },
     include: {
@@ -2531,6 +2578,9 @@ export async function cancelTrackAction(formData: FormData) {
   }
 
   if (user.role !== UserRole.ADMIN) {
+    if (userNeedsTelegramUsername(user)) {
+      redirect(buildEventRedirectUrl(eventSlug, { error: "username-required" }));
+    }
     assertEventAllowsChangesOrRedirect(track.event, eventSlug);
   }
 

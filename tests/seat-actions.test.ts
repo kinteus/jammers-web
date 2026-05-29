@@ -434,6 +434,7 @@ describe("respondToInviteAction", () => {
     requireUserMock.mockResolvedValue({
       id: "player-1",
       role: UserRole.USER,
+      telegramUsername: "player_one",
     });
     dbMock.trackInvite.findUniqueOrThrow.mockResolvedValueOnce({
       id: "invite-1",
@@ -486,6 +487,7 @@ describe("respondToInviteAction", () => {
     requireUserMock.mockResolvedValue({
       id: "player-1",
       role: UserRole.USER,
+      telegramUsername: "player_one",
     });
     dbMock.trackInvite.findUniqueOrThrow.mockResolvedValueOnce({
       id: "invite-1",

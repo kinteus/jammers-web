@@ -622,6 +622,17 @@ function buildClaimFeedback(
     };
   }
 
+  if (result.error === "username-required") {
+    return {
+      tone: "error",
+      title: pick(locale, { en: "Telegram username needed", ru: "Нужен Telegram-ник" }),
+      description: pick(locale, {
+        en: "Set your Telegram username in your profile before changing the board.",
+        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять сетлист.",
+      }),
+    };
+  }
+
   if (result.error === "seat-occupied") {
     return {
       tone: "error",
@@ -2011,9 +2022,7 @@ export function TrackBoardTable({
                     const canInvite = Boolean(
                       user &&
                         seat.status === TrackSeatStatus.OPEN &&
-                        ((isOpen &&
-                          (user.role === "ADMIN" || track.proposedById === user.id)) ||
-                          (allowClosedOptionalRequests && seat.isOptional)),
+                        (isOpen || (allowClosedOptionalRequests && seat.isOptional)),
                     );
                     const seatRequests = getSeatRequests(seat);
                     const userHasPendingRequest = Boolean(
@@ -2433,9 +2442,7 @@ export function TrackBoardTable({
                     const canInvite = Boolean(
                       user &&
                         seat.status === TrackSeatStatus.OPEN &&
-                        ((isOpen &&
-                          (user.role === "ADMIN" || track.proposedById === user.id)) ||
-                          (allowClosedOptionalRequests && seat.isOptional)),
+                        (isOpen || (allowClosedOptionalRequests && seat.isOptional)),
                     );
                     const seatRequests = getSeatRequests(seat);
                     const userHasPendingRequest = Boolean(

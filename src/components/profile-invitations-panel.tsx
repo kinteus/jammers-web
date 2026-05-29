@@ -35,9 +35,17 @@ type InviteError =
   | "invite-stale"
   | "seat-occupied"
   | "seat-unavailable"
-  | "track-limit";
+  | "track-limit"
+  | "username-required";
 
 function getInviteErrorMessage(error: InviteError, item: InvitationItem, locale: Locale) {
+  if (error === "username-required") {
+    return pick(locale, {
+      en: "Set your Telegram username in your profile before accepting invites.",
+      ru: "Укажи свой Telegram-ник в профиле, прежде чем принимать приглашения.",
+    });
+  }
+
   if (error === "track-limit") {
     return pick(locale, {
       en: `Could not accept this invite: the limit for ${item.eventTitle} is ${item.maxTracksPerUser} tracks per musician, and that limit is already reached. Leave one current song from this gig before accepting another invite.`,

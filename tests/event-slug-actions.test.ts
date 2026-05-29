@@ -352,7 +352,7 @@ describe("event route slugs in server actions", () => {
       email: null,
       fullName: "Anna",
       id: "user-1",
-      role: UserRole.USER,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       telegramId: "tg-1",
       telegramUsername: "anna",
@@ -481,7 +481,7 @@ describe("event route slugs in server actions", () => {
       email: null,
       fullName: "Anna",
       id: "user-1",
-      role: UserRole.USER,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       telegramId: "tg-1",
       telegramUsername: "anna",
@@ -574,7 +574,7 @@ describe("event route slugs in server actions", () => {
       email: null,
       fullName: "Anna",
       id: "user-1",
-      role: UserRole.USER,
+      role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
       telegramId: "tg-1",
       telegramUsername: "anna",
@@ -615,6 +615,67 @@ describe("event route slugs in server actions", () => {
       ),
     ).rejects.toThrow(
       "NEXT_REDIRECT:/events/spring-jam-night?error=min-required-seats&minRequired=2#track-board",
+    );
+
+    expect(txMock.track.create).not.toHaveBeenCalled();
+  });
+
+  it("blocks proposing a track when the user has no Telegram username", async () => {
+    requireUserMock.mockResolvedValue({
+      bans: [],
+      email: null,
+      fullName: "Anna",
+      id: "user-1",
+      role: UserRole.USER,
+      status: UserStatus.ACTIVE,
+      telegramId: "tg-1",
+      telegramUsername: null,
+    });
+
+    const { createTrackAction } = await import("@/server/actions");
+
+    await expect(
+      createTrackAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          songId: "song-1",
+        }),
+      ),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/events/spring-jam-night?error=username-required#track-board",
+    );
+
+    expect(txMock.track.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-admin proposal that does not seat the proposer", async () => {
+    requireUserMock.mockResolvedValue({
+      bans: [],
+      email: null,
+      fullName: "Anna",
+      id: "user-1",
+      role: UserRole.USER,
+      status: UserStatus.ACTIVE,
+      telegramId: "tg-1",
+      telegramUsername: "anna",
+    });
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(futureOpenEvent());
+    dbMock.track.findFirst.mockResolvedValue(null);
+
+    const { createTrackAction } = await import("@/server/actions");
+
+    await expect(
+      createTrackAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+          inviteSeatRequests: "Guitar:1|user-2",
+          songId: "song-1",
+        }),
+      ),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/events/spring-jam-night?error=no-self-seat#track-board",
     );
 
     expect(txMock.track.create).not.toHaveBeenCalled();

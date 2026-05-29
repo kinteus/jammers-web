@@ -300,6 +300,28 @@ function getFloatingFeedback({
     };
   }
 
+  if (error === "username-required") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Telegram username needed", ru: "Нужен Telegram-ник" }),
+      description: pick(locale, {
+        en: "Set your Telegram username in your profile before changing the board.",
+        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять сетлист.",
+      }),
+    };
+  }
+
+  if (error === "no-self-seat") {
+    return {
+      tone: "error" as const,
+      title: pick(locale, { en: "Add yourself first", ru: "Сначала впишись сам" }),
+      description: pick(locale, {
+        en: "You must take at least one position yourself before proposing a track.",
+        ru: "Нельзя предложить трек, не вписав себя хотя бы на одну позицию.",
+      }),
+    };
+  }
+
   if (error === "track-limit") {
     const limit = maxTracks && maxTracks > 0 ? maxTracks : null;
     return {

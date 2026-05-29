@@ -330,8 +330,41 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     outgoingSeatRequests.length === 0 &&
     currentSongs.length === 0;
 
+  const profileError = typeof params.error === "string" ? params.error : null;
+  const profileNotice = typeof params.notice === "string" ? params.notice : null;
+  const needsUsername = !profile.telegramUsername;
+
   return (
     <div className="space-y-6 text-sand">
+      {needsUsername ? (
+        <div className="rounded-xl border border-ember/40 bg-ember/10 p-4 text-sm text-ember">
+          {pick(locale, {
+            en: "Set your Telegram username below to use the gig board. Until then you can browse, but you can't propose songs, take seats or send invites. Telegram only shares a username if it is public, so enter your handle here (you can set it once).",
+            ru: "Укажи свой Telegram-ник ниже, чтобы пользоваться сеткой гига. До этого можно только просматривать — нельзя предлагать песни, занимать места и отправлять приглашения. Telegram отдаёт ник только если он публичный, поэтому впиши его здесь (указать можно один раз).",
+          })}
+        </div>
+      ) : null}
+      {profileError === "invalid-username" ? (
+        <div className="rounded-xl border border-ember/40 bg-ember/10 p-4 text-sm text-ember">
+          {pick(locale, {
+            en: "That username is invalid. Use 5–32 Latin letters, digits or underscores, starting with a letter.",
+            ru: "Такой ник недопустим. Используй 5–32 латинских буквы, цифры или подчёркивания, начиная с буквы.",
+          })}
+        </div>
+      ) : null}
+      {profileError === "username-taken" ? (
+        <div className="rounded-xl border border-ember/40 bg-ember/10 p-4 text-sm text-ember">
+          {pick(locale, {
+            en: "That username is already linked to another account.",
+            ru: "Этот ник уже привязан к другому аккаунту.",
+          })}
+        </div>
+      ) : null}
+      {profileNotice === "profile-saved" ? (
+        <div className="rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+          {pick(locale, { en: "Profile saved.", ru: "Профиль сохранён." })}
+        </div>
+      ) : null}
       <section className="space-y-4 border-b border-white/8 pb-6">
         <Badge>Profile</Badge>
         <div className="space-y-2">
@@ -611,9 +644,17 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 className="w-full px-4 py-3"
                 defaultValue={profile.telegramUsername ?? ""}
                 name="telegramUsername"
-                readOnly={Boolean(profile.telegramId)}
+                readOnly={Boolean(profile.telegramUsername)}
                 required
               />
+              {needsUsername ? (
+                <span className="block text-xs text-white/55">
+                  {pick(locale, {
+                    en: "Enter your @username (without the @). This can be set once and then becomes read-only.",
+                    ru: "Впиши свой @username (без @). Указать можно один раз, потом поле станет только для чтения.",
+                  })}
+                </span>
+              ) : null}
             </label>
             <label className="space-y-2 text-sm">
               <span>{pick(locale, { en: "Full name", ru: "Имя" })}</span>
