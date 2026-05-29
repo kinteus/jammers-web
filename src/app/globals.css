@@ -100,6 +100,24 @@ details > summary::-webkit-details-marker {
 
 .sticky-song-cell {
   box-shadow: 16px 0 24px -18px rgba(0, 0, 0, 0.55);
+  /* Opaque base so horizontally scrolled seat cells never bleed through. */
+  background-color: var(--stage-2);
+}
+
+.sticky-song-cell[data-tone="even"] {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05));
+}
+
+.sticky-song-cell[data-tone="odd"] {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
+}
+
+.sticky-song-cell[data-tone="ready"] {
+  background-image: linear-gradient(rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.16));
+}
+
+.sticky-song-cell[data-tone="highlight"] {
+  background-image: linear-gradient(rgba(255, 179, 0, 0.18), rgba(255, 179, 0, 0.18));
 }
 
 @keyframes board-cell-flash {

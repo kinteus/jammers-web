@@ -1721,16 +1721,19 @@ export function TrackBoardTable({
         />
       ) : null}
 
-      <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block">
+      <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block md:mx-[calc(50%-50vw)] md:w-screen md:rounded-none">
         <div className="h-1 w-full stage-rule" />
         <div className="table-scroll overflow-x-auto">
         <table
           className="table-fixed border-separate border-spacing-0"
           ref={tableRef}
-          style={{ minWidth: `${tableMinWidthRem}rem`, width: `${tableMinWidthRem}rem` }}
+          style={{ minWidth: `${tableMinWidthRem}rem`, width: "100%" }}
         >
           <colgroup>
-            <col style={{ width: "22rem" }} />
+            {/* Song column is flexible: it absorbs leftover width so the
+                Artist — Track line gets as much room as possible. The table
+                min-width keeps it at ~22rem before horizontal scrolling. */}
+            <col />
             {showPlaybackColumn ? <col style={{ width: "5.75rem" }} /> : null}
             {columns.map((column) => (
               <col key={column.seatKey} style={{ width: "7.5rem" }} />
@@ -1846,22 +1849,30 @@ export function TrackBoardTable({
                   key={track.id}
                 >
                   <td
+                    data-tone={
+                      isHighlighted
+                        ? "highlight"
+                        : readiness.isReady
+                          ? "ready"
+                          : index % 2 === 0
+                            ? "even"
+                            : "odd"
+                    }
                     className={cn(
                       "sticky-song-cell sticky left-0 z-20 border-b border-r border-cloud px-2 py-1.5 align-top",
                       "border-white/14",
                       readiness.isReady &&
                         "relative overflow-hidden border-l-4 border-l-emerald-300 pl-3 shadow-[inset_0_0_0_1px_rgba(110,231,183,0.18)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-emerald-300/90 after:absolute after:inset-x-0 after:top-0 after:h-[3px] after:bg-emerald-300/70",
-                      rowBackground,
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-baseline gap-1.5">
                           <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/44">
                             {trackNumbers?.[track.id] ?? index + 1}.
                           </span>
                           <a
-                            className="min-w-0 truncate font-display text-[1.05rem] font-semibold text-sand transition hover:text-white hover:underline"
+                            className="flex min-w-0 items-baseline gap-1 text-[0.95rem] font-medium text-sand transition hover:text-white"
                             href={getYoutubeSearchUrl(track)}
                             rel="noreferrer"
                             target="_blank"
@@ -1870,7 +1881,13 @@ export function TrackBoardTable({
                               ru: `Искать на YouTube: ${track.song.artist.name} - ${track.song.title}`,
                             })}
                           >
-                            {track.song.title}
+                            <span className="max-w-[45%] shrink truncate text-white/60">
+                              {track.song.artist.name}
+                            </span>
+                            <span className="shrink-0 text-white/35">—</span>
+                            <span className="min-w-0 truncate hover:underline">
+                              {track.song.title}
+                            </span>
                           </a>
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
@@ -1888,10 +1905,11 @@ export function TrackBoardTable({
                         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-white/74">
                           <span
                             className="min-w-0 truncate"
-                            title={`${track.song.artist.name} · ${formatPersonLabel(track.proposedBy, locale)}`}
+                            title={formatPersonLabel(track.proposedBy, locale)}
                           >
-                            {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
+                            {formatPersonLabel(track.proposedBy, locale)}
                           </span>
+                          <span className="shrink-0 text-white/30">·</span>
                           <span className="min-w-0 truncate">
                             {completion.isComplete
                               ? completion.optionalOpen > 0
