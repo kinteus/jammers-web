@@ -390,10 +390,21 @@ test.describe("Jammers smoke", () => {
       .poll(async () => {
         const fresh = await db.event.findUniqueOrThrow({
           where: { id: event.id },
-          select: { status: true },
+          select: {
+            setlistItems: {
+              select: { section: true },
+            },
+            status: true,
+          },
         });
-        return fresh.status;
+        return {
+          mainSetItems: fresh.setlistItems.filter((item) => item.section === SetlistSection.MAIN).length,
+          status: fresh.status,
+        };
       })
-      .toBe(EventStatus.CLOSED);
+      .toEqual({
+        mainSetItems: 1,
+        status: EventStatus.OPEN,
+      });
   });
 });

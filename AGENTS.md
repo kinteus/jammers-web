@@ -3,6 +3,10 @@
 - When the user asks to "подними приложение локально" / "start the app locally", use `npm run local:prod` from the repository root. This starts a Kubernetes port-forward to the production Postgres service and runs the local Next.js app against that tunnel.
 - Keep this mode read-oriented unless the user explicitly asks for production data changes. The app is local, but the database is production.
 
+## Verification
+
+- After implementing new functionality or changing app behavior, always check whether the E2E/smoke tests still describe the current expected behavior. Update `tests/smoke` when the product behavior intentionally changes, and run the relevant E2E locally when it is safe to do so. If running E2E would mutate production-backed data through `npm run local:prod`, do not run it; explain that constraint and verify with narrower tests instead.
+
 ## Production Investigation
 
 - Kubernetes access for The Jammers is available through kubeconfigs in `~/.kube`.
