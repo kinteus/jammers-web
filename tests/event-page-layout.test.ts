@@ -12,6 +12,16 @@ describe("event page layout", () => {
     expect(source).not.toContain("Still need players");
   });
 
+  it("shows separate lineup participant counts before the final set is published", () => {
+    const source = readFileSync("src/app/events/[slug]/page.tsx", "utf8");
+
+    expect(source).toContain("lineupParticipantCounts.total");
+    expect(source).toContain("lineupParticipantCounts.inReadyTracks");
+    expect(source).toContain("Всего музыкантов в таблице");
+    expect(source).toContain("Музыкантов в набранных треках");
+    expect(source).toContain('effectiveStatus === "PUBLISHED" ? null');
+  });
+
   it("keeps the manual song catalog request hidden from the public gig page", () => {
     const source = readFileSync("src/app/events/[slug]/page.tsx", "utf8");
 

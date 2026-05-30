@@ -11,6 +11,7 @@ import {
   getAllowedNextEventStatuses,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
+import { countLineupParticipants } from "@/lib/event-board";
 import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
@@ -641,9 +642,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
     trackNumberById[track.id] = index + 1;
   });
 
-  const participantCount = new Set(
+  const signedParticipantCount = new Set(
     event.tracks.flatMap((track) => track.seats.map((seat) => seat.userId).filter(Boolean)),
   ).size;
+  const lineupParticipantCounts = countLineupParticipants(boardTracks);
   const readyTrackCount = event.tracks.filter(
     (track) => getTrackCompletionSummary(track.seats).isComplete,
   ).length;
@@ -729,7 +731,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 <span>{formatDateTime(event.startsAt, locale)}</span>
                 <span>{event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}</span>
                 <span>
-                  {participantCount} {pick(locale, { en: "jammers signed", ru: "участников вписано" })}
+                  {signedParticipantCount} {pick(locale, { en: "jammers signed", ru: "участников вписано" })}
                 </span>
               </div>
               {event.description ? (
@@ -737,7 +739,11 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               ) : null}
             </div>
 
-            <div className="reference-section grid gap-4 px-5 py-4 sm:grid-cols-3">
+            <div
+              className={`reference-section grid gap-4 px-5 py-4 ${
+                effectiveStatus === "PUBLISHED" ? "sm:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-4"
+              }`}
+            >
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
                   {pick(locale, { en: "Songs on board", ru: "Песен в сетлисте" })}
@@ -752,10 +758,23 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               </div>
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Players committed", ru: "Музыкантов в лайнапе" })}
+                  {pick(locale, { en: "Players on board", ru: "Всего музыкантов в таблице" })}
                 </p>
-                <p className="mt-2 font-display text-4xl text-emerald-300">{participantCount}</p>
+                <p className="mt-2 font-display text-4xl text-emerald-300">{lineupParticipantCounts.total}</p>
               </div>
+              {effectiveStatus === "PUBLISHED" ? null : (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
+                    {pick(locale, {
+                      en: "Players in ready songs",
+                      ru: "Музыкантов в набранных треках",
+                    })}
+                  </p>
+                  <p className="mt-2 font-display text-4xl text-emerald-300">
+                    {lineupParticipantCounts.inReadyTracks}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-3">

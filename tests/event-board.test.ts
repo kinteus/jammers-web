@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { TrackSeatStatus } from "@prisma/client";
 
-import { expandSeatColumns, getTrackReadinessState } from "@/lib/event-board";
+import {
+  countLineupParticipants,
+  expandSeatColumns,
+  getTrackReadinessState,
+} from "@/lib/event-board";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
 
 describe("event board helpers", () => {
@@ -108,6 +112,34 @@ describe("event board helpers", () => {
     expect(readiness).toEqual({
       isReady: false,
       optionalOpen: 0,
+    });
+  });
+
+  it("counts all participants separately from participants in ready tracks", () => {
+    const counts = countLineupParticipants([
+      {
+        seats: [
+          { status: TrackSeatStatus.CLAIMED, isOptional: false, userId: "user-a" },
+          { status: TrackSeatStatus.CLAIMED, isOptional: true, userId: "user-b" },
+        ],
+      },
+      {
+        seats: [
+          { status: TrackSeatStatus.CLAIMED, isOptional: false, userId: "user-c" },
+          { status: TrackSeatStatus.OPEN, isOptional: false, userId: null },
+        ],
+      },
+      {
+        seats: [
+          { status: TrackSeatStatus.CLAIMED, isOptional: false, userId: "user-a" },
+          { status: TrackSeatStatus.CLAIMED, isOptional: false, userId: "user-d" },
+        ],
+      },
+    ]);
+
+    expect(counts).toEqual({
+      total: 4,
+      inReadyTracks: 3,
     });
   });
 

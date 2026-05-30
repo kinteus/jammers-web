@@ -1,5 +1,7 @@
 import { TrackSeatStatus } from "@prisma/client";
 
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+
 export type LineupSlotLite = {
   id: string;
   key: string;
@@ -57,5 +59,40 @@ export function getTrackReadinessState(
   return {
     isReady: requiredSeats.length > 0 && requiredOpen === 0,
     optionalOpen,
+  };
+}
+
+type ParticipantCountSeat = {
+  status: TrackSeatStatus;
+  isOptional: boolean;
+  userId: string | null;
+};
+
+type ParticipantCountTrack = {
+  seats: ParticipantCountSeat[];
+};
+
+export function countLineupParticipants(tracks: ParticipantCountTrack[]) {
+  const total = new Set<string>();
+  const inReadyTracks = new Set<string>();
+
+  for (const track of tracks) {
+    const isReady = getTrackCompletionSummary(track.seats).isComplete;
+
+    for (const seat of track.seats) {
+      if (!seat.userId) {
+        continue;
+      }
+
+      total.add(seat.userId);
+      if (isReady) {
+        inReadyTracks.add(seat.userId);
+      }
+    }
+  }
+
+  return {
+    total: total.size,
+    inReadyTracks: inReadyTracks.size,
   };
 }

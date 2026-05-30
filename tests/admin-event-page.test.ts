@@ -24,4 +24,10 @@ describe("admin event page", () => {
     expect(source).not.toContain("text-ink/55");
     expect(source).not.toContain("text-ink\">");
   });
+
+  it("describes selection as independent from closing the board", () => {
+    expect(source).toContain("without changing the board status");
+    expect(source).not.toContain("This will close the board");
+    expect(source).not.toContain("Это закроет таблицу");
+  });
 });

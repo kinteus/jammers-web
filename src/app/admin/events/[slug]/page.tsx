@@ -267,8 +267,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       {notice === "selection-run" ? (
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
-            en: "Selection finished. The board status is now closed and the main set/backlog were refreshed.",
-            ru: "Отбор завершён. Таблица теперь закрыта, мейн-сет и бэклог обновлены.",
+            en: "Selection finished without changing the board status. The main set/backlog were refreshed.",
+            ru: "Отбор завершён без изменения статуса таблицы. Мейн-сет и бэклог обновлены.",
           })}
         </div>
       ) : null}
@@ -477,8 +477,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Selection", ru: "Отбор" })}</Badge>
             <p className="text-sm text-white/70">
               {pick(locale, {
-                en: "Run the coverage-first selection to populate the main set and backlog. This closes the board if it is not closed yet.",
-                ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог. Если таблица ещё не закрыта, запуск её закроет.",
+                en: "Run the coverage-first selection to populate the main set and backlog without changing the board status.",
+                ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог без изменения статуса таблицы.",
               })}
             </p>
             <form action={runSelectionAction}>
@@ -486,8 +486,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               <input name="eventSlug" type="hidden" value={event.id} />
               <ConfirmSubmitButton
                 confirmMessage={pick(locale, {
-                  en: "Run the selection algorithm now? This will close the board and rebuild the main set/backlog.",
-                  ru: "Запустить алгоритм отбора сейчас? Это закроет таблицу и пересоберёт мейн-сет/бэклог.",
+                  en: "Run the selection algorithm now? This will rebuild the main set/backlog without closing the board.",
+                  ru: "Запустить алгоритм отбора сейчас? Это пересоберёт мейн-сет/бэклог без закрытия таблицы.",
                 })}
                 pendingLabel={pick(locale, { en: "Running selection...", ru: "Запускаем отбор..." })}
                 type="submit"

@@ -69,7 +69,14 @@ describe("track board table styling", () => {
 
     expect(source).not.toContain("max-h-[calc(100vh-8rem)]");
     expect(source).not.toContain("overflow-auto");
-    expect(source).toContain("overflow-x-auto");
+    expect(source).toContain("overflow-x-auto overflow-y-clip");
+  });
+
+  it("does not reserve a fixed fraction of the desktop song cell for the artist", () => {
+    const source = readFileSync("src/components/track-board-table.tsx", "utf8");
+
+    expect(source).not.toContain("max-w-[45%]");
+    expect(source).toContain("title={getTrackFullTitle(track)}");
   });
 
   it("keeps the sticky song column above scrolled ready-row cells", () => {

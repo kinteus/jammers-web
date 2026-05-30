@@ -13,6 +13,7 @@ import {
   Send,
   UserPlus,
   X,
+  Youtube,
 } from "lucide-react";
 
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
@@ -360,6 +361,58 @@ function getTelegramProfileUrl(user: {
 function getYoutubeSearchUrl(track: BoardTrack) {
   const query = `${track.song.artist.name} ${track.song.title}`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function getTrackFullTitle(track: BoardTrack) {
+  return `${track.song.artist.name} - ${track.song.title}`;
+}
+
+type SeatLabelSource = {
+  isOptional: boolean;
+  label: string;
+  status: TrackSeatStatus;
+  user?: {
+    telegramUsername: string | null;
+    fullName: string | null;
+  } | null;
+};
+
+export function getMissingRequiredSeatLabels(seats: SeatLabelSource[]) {
+  return seats
+    .filter((seat) => seat.status === TrackSeatStatus.OPEN && !seat.isOptional)
+    .map((seat) => seat.label);
+}
+
+export function getMobileSeatDisplayLabel(seat: SeatLabelSource, locale: Locale) {
+  if (seat.user) {
+    return formatPersonLabel(seat.user, locale);
+  }
+  if (seat.status === TrackSeatStatus.UNAVAILABLE) {
+    return pick(locale, {
+      en: `${seat.label} · n/a`,
+      ru: `${seat.label} · n/a`,
+    });
+  }
+  if (seat.isOptional) {
+    return pick(locale, {
+      en: `${seat.label} · optional`,
+      ru: `${seat.label} · optional`,
+    });
+  }
+
+  return seat.label;
+}
+
+function getMissingRequiredSummary(seats: SeatLabelSource[], locale: Locale) {
+  const missingLabels = getMissingRequiredSeatLabels(seats);
+  if (missingLabels.length === 0) {
+    return pick(locale, { en: "All required filled", ru: "Обязательные закрыты" });
+  }
+
+  return pick(locale, {
+    en: `Missing: ${missingLabels.join(", ")}`,
+    ru: `Не хватает: ${missingLabels.join(", ")}`,
+  });
 }
 
 function shouldShowPlaybackColumn(trackInfoFields: TrackInfoField[]) {
@@ -1662,7 +1715,7 @@ export function TrackBoardTable({
 
       <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block md:mx-[calc(50%-50vw)] md:w-screen md:rounded-none">
         <div className="h-1 w-full stage-rule" />
-        <div className="table-scroll overflow-x-auto">
+        <div className="table-scroll overflow-x-auto overflow-y-clip">
         <table
           className="table-fixed border-separate border-spacing-0"
           ref={tableRef}
@@ -1816,22 +1869,17 @@ export function TrackBoardTable({
                             {trackNumbers?.[track.id] ?? index + 1}.
                           </span>
                           <a
-                            className="flex min-w-0 items-baseline gap-1 text-[0.95rem] font-medium text-sand transition hover:text-white"
+                            aria-label={pick(locale, {
+                              en: `Search on YouTube: ${getTrackFullTitle(track)}`,
+                              ru: `Искать на YouTube: ${getTrackFullTitle(track)}`,
+                            })}
+                            className="block min-w-0 truncate text-[0.95rem] font-medium text-sand transition hover:text-white hover:underline"
                             href={getYoutubeSearchUrl(track)}
                             rel="noreferrer"
                             target="_blank"
-                            title={pick(locale, {
-                              en: `Search on YouTube: ${track.song.artist.name} - ${track.song.title}`,
-                              ru: `Искать на YouTube: ${track.song.artist.name} - ${track.song.title}`,
-                            })}
+                            title={getTrackFullTitle(track)}
                           >
-                            <span className="max-w-[45%] shrink truncate text-white/60">
-                              {track.song.artist.name}
-                            </span>
-                            <span className="shrink-0 text-white/35">—</span>
-                            <span className="min-w-0 truncate hover:underline">
-                              {track.song.title}
-                            </span>
+                            {track.song.artist.name} - {track.song.title}
                           </a>
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
@@ -2239,7 +2287,6 @@ export function TrackBoardTable({
       <div className="space-y-3 md:hidden">
           {currentTracks.map((track, index) => {
             const isHighlighted = activeHighlightTrackId === track.id;
-            const completion = getTrackCompletionSummary(track.seats);
             const readiness = getTrackReadinessState(track.seats);
           const activeTrackInfoLabels = getVisibleTrackInfoLabels({
             locale,
@@ -2254,7 +2301,7 @@ export function TrackBoardTable({
           const canEditTrack = Boolean(
             user && (user.role === "ADMIN" || (isOpen && track.proposedById === user.id)),
           );
-          const mobileOpenCount = track.seats.filter((seat) => seat.status === TrackSeatStatus.OPEN).length;
+          const missingRequiredSummary = getMissingRequiredSummary(track.seats, locale);
 
           return (
             <details
@@ -2284,6 +2331,21 @@ export function TrackBoardTable({
                         <p className="text-[11px] text-white/60">
                           {track.song.artist.name} · {formatPersonLabel(track.proposedBy, locale)}
                         </p>
+                        <a
+                          aria-label={pick(locale, {
+                            en: `Search on YouTube: ${getTrackFullTitle(track)}`,
+                            ru: `Искать на YouTube: ${getTrackFullTitle(track)}`,
+                          })}
+                          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-red/25 bg-red/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/84"
+                          data-mobile-youtube-link={track.id}
+                          href={getYoutubeSearchUrl(track)}
+                          rel="noreferrer"
+                          target="_blank"
+                          title={getTrackFullTitle(track)}
+                        >
+                          <Youtube className="h-3 w-3 text-red" />
+                          YouTube
+                        </a>
                       </div>
                     </div>
                     <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/72">
@@ -2292,18 +2354,8 @@ export function TrackBoardTable({
                   </div>
                   <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-white/62">
                     <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1">
-                      {completion.isComplete
-                        ? pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })
-                        : pick(locale, { en: `${mobileOpenCount} open`, ru: `${mobileOpenCount} открыто` })}
+                      {missingRequiredSummary}
                     </span>
-                    {showPlaybackColumn ? (
-                      <span className="rounded-full border border-gold/18 bg-gold/8 px-2.5 py-1 text-gold">
-                        {pick(locale, { en: "Playback", ru: "Плейбэк" })}:{" "}
-                        {track.playbackRequired
-                          ? pick(locale, { en: "yes", ru: "да" })
-                          : pick(locale, { en: "no", ru: "нет" })}
-                      </span>
-                    ) : null}
                     {readiness.isReady ? (
                       <span className="rounded-full border border-emerald-300/24 bg-emerald-400/12 px-2.5 py-1 text-emerald-100">
                         {readiness.optionalOpen > 0
@@ -2327,6 +2379,14 @@ export function TrackBoardTable({
               </summary>
 
               <div className="space-y-3 border-t border-white/10 px-4 py-4">
+                {showPlaybackColumn ? (
+                  <div className="inline-flex rounded-sm border border-gold/18 bg-gold/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
+                    {pick(locale, { en: "Playback", ru: "Плейбэк" })}:{" "}
+                    {track.playbackRequired
+                      ? pick(locale, { en: "yes", ru: "да" })
+                      : pick(locale, { en: "no", ru: "нет" })}
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   {track.comment ? (
                     <TrackNotesControl comment={track.comment} layout="mobile" locale={locale} />
@@ -2445,16 +2505,9 @@ export function TrackBoardTable({
                                   {formatPersonLabel(seat.user, locale)}
                                 </span>
                               )
-                            ) : seat.status === TrackSeatStatus.UNAVAILABLE ? (
-                              <span
-                                className="ui-tooltip ui-tooltip-bottom inline-flex h-5 w-5 items-center justify-center text-white/34"
-                                data-tip={pick(locale, { en: "Empty", ru: "Пусто" })}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </span>
                             ) : (
                               <span className="text-[10px] font-semibold text-sand">
-                                {seat.isOptional ? `${seat.label} · OPT` : seat.label}
+                                {getMobileSeatDisplayLabel(seat, locale)}
                               </span>
                             )}
                           </div>

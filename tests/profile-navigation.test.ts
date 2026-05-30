@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const headerSource = readFileSync("src/components/site-header.tsx", "utf8");
 const profileSource = readFileSync("src/app/profile/page.tsx", "utf8");
+const profileArchiveStatsSource = readFileSync("src/components/profile-archive-stats.tsx", "utf8");
 
 describe("profile navigation", () => {
   it("links the signed-in username to profile instead of submitting sign-out", () => {
@@ -25,5 +26,11 @@ describe("profile navigation", () => {
     expect(invitationsIndex).toBeGreaterThan(-1);
     expect(archiveIndex).toBeGreaterThan(-1);
     expect(invitationsIndex).toBeLessThan(archiveIndex);
+  });
+
+  it("does not show the unreliable songs-originated count in profile stats", () => {
+    expect(profileArchiveStatsSource).not.toContain("Songs originated");
+    expect(profileArchiveStatsSource).not.toContain("Предложенных песен");
+    expect(profileArchiveStatsSource).not.toContain("stats.songsOriginated");
   });
 });

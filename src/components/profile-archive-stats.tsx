@@ -1,4 +1,4 @@
-import { CalendarClock, Music2, Radio, Sparkles, Users2 } from "lucide-react";
+import { CalendarClock, Music2, Radio, Users2 } from "lucide-react";
 
 import type { UserArchiveStatsSummary } from "@/lib/domain/archive-stats";
 import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
@@ -14,7 +14,7 @@ export function ProfileArchiveStats({
   locale: Locale;
   stats: UserArchiveStatsSummary | null;
 }) {
-  if (!stats || (stats.gigsPlayed === 0 && stats.songsOriginated === 0)) {
+  if (!stats || (stats.gigsPlayed === 0 && stats.songsPerformed === 0)) {
     return null;
   }
 
@@ -28,11 +28,6 @@ export function ProfileArchiveStats({
       label: pick(locale, { en: "Songs on stage", ru: "Песен на сцене" }),
       value: stats.songsPerformed,
       icon: Music2,
-    },
-    {
-      label: pick(locale, { en: "Songs originated", ru: "Предложенных песен" }),
-      value: stats.songsOriginated,
-      icon: Sparkles,
     },
     {
       label: pick(locale, { en: "Role families", ru: "Классов ролей" }),
@@ -52,7 +47,7 @@ export function ProfileArchiveStats({
         </h2>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-3">
         {cards.map((item, index) => (
           <Card
             className="stats-card-animate brand-shell-soft rounded-xl px-5 py-4"

@@ -1,4 +1,4 @@
-import { EventStatus, UserRole, UserStatus } from "@prisma/client";
+import { EventStatus, SetlistSection, TrackSeatStatus, UserRole, UserStatus } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.hoisted(() =>
@@ -13,6 +13,7 @@ const requireUserMock = vi.hoisted(() => vi.fn());
 
 const txMock = vi.hoisted(() => ({
   event: {
+    update: vi.fn(),
     delete: vi.fn(),
   },
   eventEditLock: {
@@ -24,9 +25,11 @@ const txMock = vi.hoisted(() => ({
     findMany: vi.fn(),
   },
   selectionRun: {
+    create: vi.fn(),
     deleteMany: vi.fn(),
   },
   setlistItem: {
+    create: vi.fn(),
     deleteMany: vi.fn(),
     findMany: vi.fn(),
     update: vi.fn(),
@@ -56,8 +59,12 @@ const dbMock = vi.hoisted(() => ({
   event: {
     create: vi.fn(),
     delete: vi.fn(),
+    findFirst: vi.fn(),
     findUniqueOrThrow: vi.fn(),
     update: vi.fn(),
+  },
+  ensembleGroup: {
+    findMany: vi.fn(),
   },
   user: {
     findMany: vi.fn(),
@@ -115,6 +122,8 @@ vi.mock("@/server/telegram-bot", async () => {
 
   return {
     ...actual,
+    sendTelegramBoardClosedChannelMessage: vi.fn(),
+    sendTelegramBoardClosedParticipantMessage: vi.fn(),
     sendTelegramFeedbackMessage: vi.fn(),
     sendTelegramInviteMessage: vi.fn(),
     sendTelegramPublishedSetMessage: vi.fn(),
@@ -769,6 +778,65 @@ describe("event route slugs in server actions", () => {
     ).rejects.toThrow("Only fully assembled tracks can be moved into the main set.");
 
     expect(txMock.setlistItem.update).not.toHaveBeenCalled();
+  });
+
+  it("runs selection without closing an open board", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([{ userId: "admin-1" }]);
+    dbMock.event.findUniqueOrThrow.mockResolvedValue({
+      id: "event-1",
+      maxSetDurationMinutes: 15,
+      minParticipantsPerTrack: 1,
+      startsAt: new Date("2026-06-01T19:30:00.000Z"),
+      status: EventStatus.OPEN,
+      tracks: [
+        {
+          id: "track-1",
+          songId: "song-1",
+          createdAt: new Date("2026-05-01T12:00:00.000Z"),
+          song: {
+            title: "Song 1",
+            artist: { name: "Artist 1" },
+          },
+          seats: [
+            {
+              isOptional: false,
+              status: TrackSeatStatus.CLAIMED,
+              userId: "user-1",
+            },
+          ],
+        },
+      ],
+    });
+    dbMock.event.findFirst.mockResolvedValue(null);
+    dbMock.ensembleGroup.findMany.mockResolvedValue([]);
+
+    const { runSelectionAction } = await import("@/server/actions");
+
+    await expect(
+      runSelectionAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+        }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:/admin/events/spring-jam-night?notice=selection-run");
+
+    expect(txMock.selectionRun.create).toHaveBeenCalled();
+    expect(txMock.setlistItem.deleteMany).toHaveBeenCalledWith({
+      where: { eventId: "event-1" },
+    });
+    expect(txMock.setlistItem.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventId: "event-1",
+        section: SetlistSection.MAIN,
+        trackId: "track-1",
+      }),
+    });
+    expect(txMock.event.update).not.toHaveBeenCalled();
   });
 
   it("encodes legacy non-ASCII event slug redirects", async () => {

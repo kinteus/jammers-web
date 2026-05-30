@@ -3252,17 +3252,8 @@ export async function runSelectionAction(formData: FormData) {
       });
     }
 
-    await tx.event.update({
-      where: { id: eventId },
-      data: {
-        status: EventStatus.CLOSED,
-      },
-    });
   });
 
-  if (event.status !== EventStatus.CLOSED) {
-    await sendBoardClosedNotifications(eventId);
-  }
   await publishBoardUpdate({
     eventId,
     reason: "selection-run",

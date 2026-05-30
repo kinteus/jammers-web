@@ -7,7 +7,12 @@ import { fireEvent } from "@testing-library/react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sortTracksBySeatAvailability, TrackBoardTable } from "@/components/track-board-table";
+import {
+  getMissingRequiredSeatLabels,
+  getMobileSeatDisplayLabel,
+  sortTracksBySeatAvailability,
+  TrackBoardTable,
+} from "@/components/track-board-table";
 import { cancelTrackAction } from "@/server/actions";
 
 vi.mock("@/server/actions", () => ({
@@ -245,6 +250,111 @@ describe("TrackBoardTable", () => {
     expect(youtubeLinks.some((link) => link.textContent?.includes("Linked Song"))).toBe(true);
     expect(youtubeLinks.every((link) => !link.textContent?.includes("Open on YouTube"))).toBe(true);
     expect(host.textContent).not.toContain("Open on YouTube");
+  });
+
+  it("shows a compact YouTube link in the mobile song header", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            {
+              id: "slot-vocals",
+              key: "vocals",
+              label: "Vocals",
+              seatCount: 1,
+              allowOptional: false,
+              displayOrder: 1,
+            },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-mobile-youtube",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-youtube", title: "Mobile Link", artist: { name: "Linked Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [
+                {
+                  id: "seat-vocals",
+                  seatIndex: 1,
+                  label: "Vocals",
+                  status: TrackSeatStatus.OPEN,
+                  isOptional: false,
+                  userId: null,
+                  user: null,
+                  lineupSlotId: "slot-vocals",
+                  invites: [],
+                },
+              ],
+            },
+          ]}
+          user={{
+            id: "user-admin",
+            role: UserRole.ADMIN,
+            telegramUsername: "admin",
+            fullName: "Admin",
+          }}
+        />,
+      );
+    });
+
+    const mobileYoutubeLink = host.querySelector<HTMLAnchorElement>(
+      '[data-mobile-youtube-link="track-mobile-youtube"]',
+    );
+    expect(mobileYoutubeLink?.href).toContain("youtube.com/results");
+    expect(mobileYoutubeLink?.textContent).toContain("YouTube");
+  });
+
+  it("summarizes missing required instruments for collapsed mobile songs", () => {
+    expect(
+      getMissingRequiredSeatLabels([
+        {
+          label: "Vocals",
+          status: TrackSeatStatus.CLAIMED,
+          isOptional: false,
+        },
+        {
+          label: "Drums",
+          status: TrackSeatStatus.OPEN,
+          isOptional: false,
+        },
+        {
+          label: "Guitar",
+          status: TrackSeatStatus.OPEN,
+          isOptional: true,
+        },
+        {
+          label: "Keys",
+          status: TrackSeatStatus.UNAVAILABLE,
+          isOptional: false,
+        },
+      ]),
+    ).toEqual(["Drums"]);
+  });
+
+  it("labels mobile n/a positions with their instrument name", () => {
+    expect(
+      getMobileSeatDisplayLabel(
+        {
+          label: "Keys",
+          status: TrackSeatStatus.UNAVAILABLE,
+          isOptional: false,
+          user: null,
+        },
+        "en",
+      ),
+    ).toBe("Keys · n/a");
   });
 
   it("closes the track notes popover when clicking outside it", async () => {

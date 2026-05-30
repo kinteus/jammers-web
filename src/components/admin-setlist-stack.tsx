@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { GripVertical, ListOrdered } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, ListOrdered } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { moveSetlistItemAction, reorderSetlistSectionAction } from "@/server/actions";
@@ -44,6 +44,24 @@ function reorderItems(items: AdminSetlistStackItem[], fromId: string, toId: stri
 
   const [dragged] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, dragged);
+  return next;
+}
+
+export function reorderSetlistItems(
+  items: AdminSetlistStackItem[],
+  itemId: string,
+  direction: "down" | "up",
+) {
+  const index = items.findIndex((item) => item.id === itemId);
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+  if (index < 0 || targetIndex < 0 || targetIndex >= items.length) {
+    return items;
+  }
+
+  const next = [...items];
+  const [item] = next.splice(index, 1);
+  next.splice(targetIndex, 0, item);
   return next;
 }
 
@@ -96,6 +114,18 @@ export function AdminSetlistStack({
     });
   }
 
+  function handleMove(itemId: string, direction: "down" | "up") {
+    const nextItems = reorderSetlistItems(currentItems, itemId, direction);
+    if (nextItems === currentItems) {
+      return;
+    }
+
+    setCurrentItems(nextItems);
+    startTransition(() => {
+      void persistOrder(nextItems);
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -139,7 +169,30 @@ export function AdminSetlistStack({
                   </div>
                 </div>
 
-                <form action={moveSetlistItemAction} className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    aria-label={`Move ${item.artistName} - ${item.title} up`}
+                    className="ui-tooltip inline-flex h-8 w-8 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                    data-tip="Move up"
+                    disabled={isSaving || index === 0}
+                    onClick={() => handleMove(item.id, "up")}
+                    title="Move up"
+                    type="button"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label={`Move ${item.artistName} - ${item.title} down`}
+                    className="ui-tooltip inline-flex h-8 w-8 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                    data-tip="Move down"
+                    disabled={isSaving || index === currentItems.length - 1}
+                    onClick={() => handleMove(item.id, "down")}
+                    title="Move down"
+                    type="button"
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
+                  <form action={moveSetlistItemAction} className="flex flex-wrap items-center gap-2">
                   <input name="eventId" type="hidden" value={eventId} />
                   <input name="eventSlug" type="hidden" value={eventSlug} />
                   <input name="itemId" type="hidden" value={item.id} />
@@ -156,6 +209,7 @@ export function AdminSetlistStack({
                     {item.moveDisabled ? (item.moveDisabledLabel ?? moveLabel) : moveLabel}
                   </SubmitButton>
                 </form>
+                </div>
               </div>
             </div>
           ))}
