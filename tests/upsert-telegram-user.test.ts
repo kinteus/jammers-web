@@ -14,13 +14,14 @@ vi.mock("@/lib/db", () => ({
 }));
 
 afterEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe("upsertTelegramUser", () => {
   it("updates an existing user matched by telegram id", async () => {
     dbMock.user.findUnique.mockResolvedValueOnce({
       id: "user-1",
+      telegramUsername: "anna_old",
     });
     dbMock.user.update.mockResolvedValue({
       id: "user-1",
@@ -47,6 +48,40 @@ describe("upsertTelegramUser", () => {
         telegramId: "tg-1",
         telegramUsername: "anna_drums",
         fullName: "Anna",
+        avatarUrl: undefined,
+      },
+    });
+  });
+
+  it("preserves an existing username when Telegram omits it on a later sign-in", async () => {
+    dbMock.user.findUnique.mockResolvedValueOnce({
+      id: "user-1",
+      telegramUsername: "samokryl",
+    });
+    dbMock.user.update.mockResolvedValue({
+      id: "user-1",
+      telegramId: "tg-1",
+      telegramUsername: "samokryl",
+    });
+
+    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
+
+    await expect(
+      upsertTelegramUser({
+        telegramId: "tg-1",
+        fullName: "Aleksandr Krylov",
+      }),
+    ).resolves.toMatchObject({
+      id: "user-1",
+      telegramUsername: "samokryl",
+    });
+
+    expect(dbMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: {
+        telegramId: "tg-1",
+        telegramUsername: "samokryl",
+        fullName: "Aleksandr Krylov",
         avatarUrl: undefined,
       },
     });
@@ -172,6 +207,37 @@ describe("upsertTelegramUser", () => {
         telegramId: "tg-2",
         telegramUsername: "boris_bass",
         fullName: "Boris",
+        avatarUrl: undefined,
+      },
+    });
+  });
+
+  it("creates a new user without a username when Telegram did not provide one", async () => {
+    dbMock.user.findUnique.mockResolvedValueOnce(null);
+    dbMock.user.create.mockResolvedValue({
+      id: "user-no-username",
+      telegramId: "tg-no-username",
+      telegramUsername: null,
+    });
+
+    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
+
+    await expect(
+      upsertTelegramUser({
+        telegramId: "tg-no-username",
+        fullName: "Aleksandr Krylov",
+      }),
+    ).resolves.toMatchObject({
+      id: "user-no-username",
+      telegramUsername: null,
+    });
+
+    expect(dbMock.user.findFirst).not.toHaveBeenCalled();
+    expect(dbMock.user.create).toHaveBeenCalledWith({
+      data: {
+        telegramId: "tg-no-username",
+        telegramUsername: null,
+        fullName: "Aleksandr Krylov",
         avatarUrl: undefined,
       },
     });

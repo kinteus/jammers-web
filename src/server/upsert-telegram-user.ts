@@ -27,7 +27,7 @@ export async function upsertTelegramUser(identity: TelegramIdentity) {
       where: { id: existing.id },
       data: {
         telegramId: identity.telegramId,
-        telegramUsername: normalizedUsername,
+        telegramUsername: normalizedUsername ?? existing.telegramUsername,
         fullName: identity.fullName,
         avatarUrl: identity.avatarUrl,
       },
