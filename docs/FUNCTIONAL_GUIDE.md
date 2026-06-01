@@ -627,8 +627,9 @@ Admins can sort the main set by drummer. This is useful when operationally plann
 The main-set stack shows consecutive songs with the same drummer as drummer blocks, including an
 unassigned block for songs without a claimed drummer. Sorting by drummer groups matching drummer
 blocks together and preserves the previous relative order inside each drummer block. The resulting
-order can still be adjusted manually afterwards, and those manual changes remain the published
-order if the setlist is published.
+order can still be adjusted manually afterwards. Each drummer-block header has up/down controls
+that move the whole contiguous block at once, while each song keeps its own controls for detailed
+manual order changes. Those manual changes remain the published order if the setlist is published.
 
 ## 20. Manual curation of main set and backlog
 

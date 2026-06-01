@@ -6,7 +6,11 @@ import { fireEvent } from "@testing-library/react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AdminSetlistStack, reorderSetlistItems } from "@/components/admin-setlist-stack";
+import {
+  AdminSetlistStack,
+  reorderSetlistCluster,
+  reorderSetlistItems,
+} from "@/components/admin-setlist-stack";
 
 const refreshMock = vi.hoisted(() => vi.fn());
 const reorderSetlistSectionActionMock = vi.hoisted(() => vi.fn());
@@ -83,6 +87,14 @@ const drummerClusterItems = [
     orderIndex: 3,
     drummerLabel: "Drums: @mike",
   },
+  {
+    id: "item-4",
+    title: "Fourth Song",
+    artistName: "Fourth Artist",
+    lineupSummary: "D",
+    orderIndex: 4,
+    drummerLabel: "Drums: @mike",
+  },
 ];
 
 describe("AdminSetlistStack", () => {
@@ -156,7 +168,61 @@ describe("AdminSetlistStack", () => {
     });
 
     expect(host.textContent).toContain("Drums: @anna · 2 songs");
-    expect(host.textContent).toContain("Drums: @mike · 1 song");
+    expect(host.textContent).toContain("Drums: @mike · 2 songs");
     expect(host.querySelector('button[aria-label="Move Second Artist - Second Song up"]')).not.toBeNull();
+  });
+
+  it("reorders whole drummer clusters up and down", () => {
+    expect(reorderSetlistCluster(drummerClusterItems, 0, "down").map((item) => item.id)).toEqual([
+      "item-3",
+      "item-4",
+      "item-1",
+      "item-2",
+    ]);
+    expect(reorderSetlistCluster(drummerClusterItems, 2, "up").map((item) => item.id)).toEqual([
+      "item-3",
+      "item-4",
+      "item-1",
+      "item-2",
+    ]);
+    expect(reorderSetlistCluster(drummerClusterItems, 0, "up")).toBe(drummerClusterItems);
+  });
+
+  it("persists order when an admin moves a whole drummer cluster", async () => {
+    reorderSetlistSectionActionMock.mockResolvedValue(undefined);
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <AdminSetlistStack
+          emptyLabel="Empty"
+          eventId="event-1"
+          eventSlug="spring-jam-night"
+          items={drummerClusterItems}
+          moveLabel="Send to backlog"
+          movePendingLabel="Moving"
+          savingLabel="Saving"
+          section="MAIN"
+          sectionLabel="Main"
+          targetSection="BACKLOG"
+          title="Main set"
+        />,
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(host.querySelector<HTMLButtonElement>('button[aria-label="Move Drums: @anna cluster down"]')!);
+    });
+
+    const formData = reorderSetlistSectionActionMock.mock.calls[0]?.[0] as FormData;
+    expect(JSON.parse(String(formData.get("itemIds")))).toEqual([
+      "item-3",
+      "item-4",
+      "item-1",
+      "item-2",
+    ]);
+    expect(formData.get("section")).toBe("MAIN");
   });
 });

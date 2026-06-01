@@ -430,8 +430,10 @@ manual swaps, drag/drop reorders, drummer sorting, and section moves from collid
 constraint midway through a transaction.
 
 The admin main-set UI derives lightweight drummer block labels from consecutive items with the same
-claimed `drums` seat. The labels are only presentation; publishing and public setlist rendering use
-the persisted `orderIndex` order exactly.
+claimed `drums` seat. Cluster-level arrow controls reorder the whole contiguous drummer block by
+submitting the same ordered `SetlistItem` id payload as track-level reorders. The labels and
+controls are only admin presentation; publishing and public setlist rendering use the persisted
+`orderIndex` order exactly.
 
 ## Security model
 

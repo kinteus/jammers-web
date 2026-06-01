@@ -68,6 +68,72 @@ export function reorderSetlistItems(
   return next;
 }
 
+function getClusterRange(items: AdminSetlistStackItem[], index: number) {
+  const drummerLabel = items[index]?.drummerLabel;
+  if (!drummerLabel) {
+    return null;
+  }
+
+  let start = index;
+  while (start > 0 && items[start - 1]?.drummerLabel === drummerLabel) {
+    start -= 1;
+  }
+
+  let end = index + 1;
+  while (end < items.length && items[end]?.drummerLabel === drummerLabel) {
+    end += 1;
+  }
+
+  return { end, start };
+}
+
+export function reorderSetlistCluster(
+  items: AdminSetlistStackItem[],
+  clusterIndex: number,
+  direction: "down" | "up",
+) {
+  const range = getClusterRange(items, clusterIndex);
+  if (!range) {
+    return items;
+  }
+
+  const cluster = items.slice(range.start, range.end);
+
+  if (direction === "up") {
+    if (range.start === 0) {
+      return items;
+    }
+
+    const previousRange = getClusterRange(items, range.start - 1);
+    if (!previousRange) {
+      return items;
+    }
+
+    return [
+      ...items.slice(0, previousRange.start),
+      ...cluster,
+      ...items.slice(previousRange.start, range.start),
+      ...items.slice(range.end),
+    ];
+  }
+
+  if (range.end >= items.length) {
+    return items;
+  }
+
+  const nextRange = getClusterRange(items, range.end);
+  if (!nextRange) {
+    return items;
+  }
+
+  return [
+    ...items.slice(0, range.start),
+    ...items.slice(range.end, nextRange.end),
+    ...cluster,
+    ...items.slice(nextRange.end),
+  ];
+}
+
 function getDrummerClusterLabel(
   items: AdminSetlistStackItem[],
   index: number,
@@ -153,6 +219,18 @@ export function AdminSetlistStack({
     });
   }
 
+  function handleClusterMove(clusterIndex: number, direction: "down" | "up") {
+    const nextItems = reorderSetlistCluster(currentItems, clusterIndex, direction);
+    if (nextItems === currentItems) {
+      return;
+    }
+
+    setCurrentItems(nextItems);
+    startTransition(() => {
+      void persistOrder(nextItems);
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,9 +260,35 @@ export function AdminSetlistStack({
             return (
               <Fragment key={item.id}>
                 {drummerClusterLabel ? (
-                  <p className="border-l-2 border-gold/60 pl-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/58">
-                    {drummerClusterLabel}
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-gold/60 pl-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/58">
+                      {drummerClusterLabel}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        aria-label={`Move ${item.drummerLabel} cluster up`}
+                        className="ui-tooltip inline-flex h-7 w-7 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        data-tip="Move drummer block up"
+                        disabled={isSaving || index === 0}
+                        onClick={() => handleClusterMove(index, "up")}
+                        title="Move drummer block up"
+                        type="button"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        aria-label={`Move ${item.drummerLabel} cluster down`}
+                        className="ui-tooltip inline-flex h-7 w-7 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        data-tip="Move drummer block down"
+                        disabled={isSaving || getClusterRange(currentItems, index)?.end === currentItems.length}
+                        onClick={() => handleClusterMove(index, "down")}
+                        title="Move drummer block down"
+                        type="button"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
                 <div
                   className="brand-shell-soft rounded-2xl border border-white/10 px-4 py-4"
