@@ -4,7 +4,7 @@
 import React, { act } from "react";
 import { TrackSeatStatus, UserRole } from "@prisma/client";
 import { fireEvent } from "@testing-library/react";
-import { createRoot } from "react-dom/client";
+import { createRoot as createReactRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -24,12 +24,25 @@ vi.mock("@/server/actions", () => ({
   updateTrackArrangementAction: vi.fn(),
 }));
 
+const mountedRoots: Root[] = [];
+
+function createRoot(host: Element | DocumentFragment) {
+  const root = createReactRoot(host);
+  mountedRoots.push(root);
+  return root;
+}
+
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("React", React);
 });
 
 afterEach(() => {
+  for (const root of mountedRoots.splice(0)) {
+    act(() => {
+      root.unmount();
+    });
+  }
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
 });
