@@ -624,7 +624,11 @@ Admins can sort the main set by drummer. This is useful when operationally plann
 - setup minimization,
 - pacing for drum change logistics.
 
-The resulting order can still be adjusted manually afterwards.
+The main-set stack shows consecutive songs with the same drummer as drummer blocks, including an
+unassigned block for songs without a claimed drummer. Sorting by drummer groups matching drummer
+blocks together and preserves the previous relative order inside each drummer block. The resulting
+order can still be adjusted manually afterwards, and those manual changes remain the published
+order if the setlist is published.
 
 ## 20. Manual curation of main set and backlog
 
@@ -634,7 +638,9 @@ After selection, admins can manually move tracks:
 - from main to backlog,
 - to a different order index.
 
-This ensures the algorithm remains a recommendation engine, not a hard lock on the final artistic or operational decision.
+Manual order changes are persisted immediately and survive page refreshes. This ensures the
+algorithm remains a recommendation engine, not a hard lock on the final artistic or operational
+decision.
 
 ## 21. Publishing the final setlist
 

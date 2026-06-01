@@ -3400,18 +3400,31 @@ export async function reorderSetlistSectionAction(formData: FormData) {
   if (itemIds.some((id) => !knownIds.has(id))) {
     throw new Error("Setlist order contains unknown items.");
   }
+  if (new Set(itemIds).size !== itemIds.length) {
+    throw new Error("Setlist order contains duplicate items.");
+  }
 
-  await db.$transaction(
-    itemIds.map((itemId, index) =>
-      db.setlistItem.update({
+  await db.$transaction(async (tx) => {
+    for (const [index, itemId] of itemIds.entries()) {
+      await tx.setlistItem.update({
+        where: { id: itemId },
+        data: {
+          orderIndex: 1000 + index + 1,
+          editedById: admin.id,
+        },
+      });
+    }
+
+    for (const [index, itemId] of itemIds.entries()) {
+      await tx.setlistItem.update({
         where: { id: itemId },
         data: {
           orderIndex: index + 1,
           editedById: admin.id,
         },
-      }),
-    ),
-  );
+      });
+    }
+  });
 
   revalidateAll(pathBundle(eventSlug));
 }

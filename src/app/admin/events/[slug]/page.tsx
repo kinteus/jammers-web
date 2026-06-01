@@ -83,6 +83,31 @@ function buildLineupSummary(
       });
 }
 
+function buildDrummerLabel(
+  locale: Awaited<ReturnType<typeof getLocale>>,
+  seats: {
+    label: string;
+    lineupSlot: { key: string; label: string };
+    status: TrackSeatStatus;
+    user: { fullName: string | null; telegramUsername: string | null } | null;
+  }[],
+) {
+  const drummerSeat = seats.find(
+    (seat) =>
+      seat.user &&
+      seat.status === TrackSeatStatus.CLAIMED &&
+      (seat.lineupSlot.key === "drums" || seat.lineupSlot.label.toLowerCase() === "drums"),
+  );
+  const drummerName = drummerSeat?.user
+    ? `@${drummerSeat.user.telegramUsername ?? drummerSeat.user.fullName ?? pick(locale, {
+        en: "unknown",
+        ru: "неизвестно",
+      })}`
+    : pick(locale, { en: "unassigned", ru: "не назначен" });
+
+  return `${pick(locale, { en: "Drums", ru: "Барабаны" })}: ${drummerName}`;
+}
+
 function countUniqueClaimedUsers(
   seats: Array<{ status: TrackSeatStatus; userId: string | null }>,
 ) {
@@ -200,6 +225,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       title: item.track.song.title,
       artistName: item.track.song.artist.name,
       lineupSummary: buildLineupSummary(locale, item.track.seats),
+      drummerLabel: buildDrummerLabel(locale, item.track.seats),
     }));
   const backlogItems = event.setlistItems
     .filter((item) => item.section === "BACKLOG")
@@ -584,6 +610,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             savingLabel={pick(locale, { en: "Saving order...", ru: "Сохраняем порядок..." })}
             section="MAIN"
             sectionLabel={pick(locale, { en: "Main", ru: "Мейн" })}
+            clusterItemLabel={pick(locale, { en: "song", ru: "трек" })}
+            clusterItemsLabel={pick(locale, { en: "songs", ru: "треков" })}
             targetSection="BACKLOG"
             title={pick(locale, { en: "Drag to reorder the running set", ru: "Перетаскивай для перестановки текущего сета" })}
           />

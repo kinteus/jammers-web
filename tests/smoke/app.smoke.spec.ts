@@ -386,6 +386,7 @@ test.describe("Jammers smoke", () => {
     });
     await page.getByRole("button", { name: /Run selection algorithm|Запустить алгоритм отбора/i }).click();
     await expect(page.getByText(/Selection finished|Отбор завершён/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Drums: unassigned .* 1 song|Барабаны: не назначен .* 1 трек/i)).toBeVisible();
     await expect
       .poll(async () => {
         const fresh = await db.event.findUniqueOrThrow({

@@ -420,6 +420,19 @@ Publishing and algorithm execution can be protected by an event-level curation l
 
 This is a lightweight concurrency-control mechanism suitable for a staff-operated internal admin workflow.
 
+## Setlist ordering
+
+`SetlistItem.orderIndex` is the persisted source of truth for the published running order inside
+each `SetlistSection`. The database enforces unique `(eventId, section, orderIndex)` values, so
+admin reorder operations use two-phase reindexing: affected items are first moved into a temporary
+high index range, then written back to contiguous `1..n` indexes in the requested order. This keeps
+manual swaps, drag/drop reorders, drummer sorting, and section moves from colliding with the unique
+constraint midway through a transaction.
+
+The admin main-set UI derives lightweight drummer block labels from consecutive items with the same
+claimed `drums` seat. The labels are only presentation; publishing and public setlist rendering use
+the persisted `orderIndex` order exactly.
+
 ## Security model
 
 ## Server-side authorization
@@ -541,7 +554,7 @@ The test suite is currently strongest in the domain layer, especially:
 - published-set notifications,
 - board-state and slug/id routing regressions.
 
-Vitest also covers a growing set of component and server-action tests (board table, song search field/route, track proposal form, seat actions, floating-toast duration, site content/FAQ resolution).
+Vitest also covers a growing set of component and server-action tests (board table, song search field/route, track proposal form, seat actions, setlist reorder safety, drummer-block labels, floating-toast duration, site content/FAQ resolution).
 
 A Playwright smoke suite ([tests/smoke/app.smoke.spec.ts](/Users/maksimnaumov/jammers-web/tests/smoke/app.smoke.spec.ts)) runs against a production build and a real Postgres in CI (`npm run test:smoke`). It currently exercises: public page rendering, local sign-in, join/release a seat, cross-session realtime updates, add-a-proposal + edit track settings, sign-in `returnTo`, the admin cockpit, and the selection-algorithm confirm dialog.
 

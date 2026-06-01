@@ -52,8 +52,16 @@ const txMock = vi.hoisted(() => ({
 }));
 
 const dbMock = vi.hoisted(() => ({
-  $transaction: vi.fn(async (callback: (tx: typeof txMock) => Promise<unknown>) =>
-    callback(txMock),
+  $transaction: vi.fn(
+    async (
+      callbackOrQueries: ((tx: typeof txMock) => Promise<unknown>) | Array<Promise<unknown>>,
+    ) => {
+      if (Array.isArray(callbackOrQueries)) {
+        return Promise.all(callbackOrQueries);
+      }
+
+      return callbackOrQueries(txMock);
+    },
   ),
   $executeRaw: vi.fn(),
   event: {
@@ -89,6 +97,7 @@ const dbMock = vi.hoisted(() => ({
   },
   setlistItem: {
     findMany: vi.fn(),
+    update: vi.fn(),
   },
 }));
 
@@ -778,6 +787,58 @@ describe("event route slugs in server actions", () => {
     ).rejects.toThrow("Only fully assembled tracks can be moved into the main set.");
 
     expect(txMock.setlistItem.update).not.toHaveBeenCalled();
+  });
+
+  it("reorders a setlist section through temporary indexes before applying the final order", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([{ userId: "admin-1" }]);
+    dbMock.setlistItem.findMany.mockResolvedValue([
+      { id: "item-1", orderIndex: 1 },
+      { id: "item-2", orderIndex: 2 },
+      { id: "item-3", orderIndex: 3 },
+    ]);
+
+    const { reorderSetlistSectionAction } = await import("@/server/actions");
+
+    await reorderSetlistSectionAction(
+      formData({
+        eventId: "event-1",
+        eventSlug: "spring-jam-night",
+        itemIds: JSON.stringify(["item-2", "item-1", "item-3"]),
+        section: "MAIN",
+      }),
+    );
+
+    expect(txMock.setlistItem.update.mock.calls.map((call) => call[0])).toEqual([
+      {
+        where: { id: "item-2" },
+        data: { orderIndex: 1001, editedById: "admin-1" },
+      },
+      {
+        where: { id: "item-1" },
+        data: { orderIndex: 1002, editedById: "admin-1" },
+      },
+      {
+        where: { id: "item-3" },
+        data: { orderIndex: 1003, editedById: "admin-1" },
+      },
+      {
+        where: { id: "item-2" },
+        data: { orderIndex: 1, editedById: "admin-1" },
+      },
+      {
+        where: { id: "item-1" },
+        data: { orderIndex: 2, editedById: "admin-1" },
+      },
+      {
+        where: { id: "item-3" },
+        data: { orderIndex: 3, editedById: "admin-1" },
+      },
+    ]);
+    expect(dbMock.setlistItem.update).not.toHaveBeenCalled();
   });
 
   it("runs selection without closing an open board", async () => {

@@ -58,6 +58,33 @@ const items = [
   },
 ];
 
+const drummerClusterItems = [
+  {
+    id: "item-1",
+    title: "First Song",
+    artistName: "First Artist",
+    lineupSummary: "A",
+    orderIndex: 1,
+    drummerLabel: "Drums: @anna",
+  },
+  {
+    id: "item-2",
+    title: "Second Song",
+    artistName: "Second Artist",
+    lineupSummary: "B",
+    orderIndex: 2,
+    drummerLabel: "Drums: @anna",
+  },
+  {
+    id: "item-3",
+    title: "Third Song",
+    artistName: "Third Artist",
+    lineupSummary: "C",
+    orderIndex: 3,
+    drummerLabel: "Drums: @mike",
+  },
+];
+
 describe("AdminSetlistStack", () => {
   it("reorders setlist items up and down without drag and drop", () => {
     expect(reorderSetlistItems(items, "item-2", "up").map((item) => item.id)).toEqual([
@@ -103,5 +130,33 @@ describe("AdminSetlistStack", () => {
     const formData = reorderSetlistSectionActionMock.mock.calls[0]?.[0] as FormData;
     expect(JSON.parse(String(formData.get("itemIds")))).toEqual(["item-2", "item-1", "item-3"]);
     expect(formData.get("section")).toBe("MAIN");
+  });
+
+  it("labels contiguous drummer clusters without changing the track controls", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(
+        <AdminSetlistStack
+          emptyLabel="Empty"
+          eventId="event-1"
+          eventSlug="spring-jam-night"
+          items={drummerClusterItems}
+          moveLabel="Send to backlog"
+          movePendingLabel="Moving"
+          savingLabel="Saving"
+          section="MAIN"
+          sectionLabel="Main"
+          targetSection="BACKLOG"
+          title="Main set"
+        />,
+      );
+    });
+
+    expect(host.textContent).toContain("Drums: @anna · 2 songs");
+    expect(host.textContent).toContain("Drums: @mike · 1 song");
+    expect(host.querySelector('button[aria-label="Move Second Artist - Second Song up"]')).not.toBeNull();
   });
 });
