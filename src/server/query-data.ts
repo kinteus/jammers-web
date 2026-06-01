@@ -82,6 +82,9 @@ function getEventWorkspaceInclude() {
       include: {
         track: {
           include: {
+            proposedBy: {
+              select: archiveUserSelect,
+            },
             song: {
               include: { artist: true },
             },

@@ -108,6 +108,19 @@ function buildDrummerLabel(
   return `${pick(locale, { en: "Drums", ru: "Барабаны" })}: ${drummerName}`;
 }
 
+function buildUserLabel(
+  locale: Awaited<ReturnType<typeof getLocale>>,
+  user: { fullName: string | null; telegramUsername: string | null } | null,
+) {
+  if (!user) {
+    return pick(locale, { en: "unknown", ru: "неизвестно" });
+  }
+  return user.telegramUsername ? `@${user.telegramUsername}` : (user.fullName ?? pick(locale, {
+    en: "unknown",
+    ru: "неизвестно",
+  }));
+}
+
 function countUniqueClaimedUsers(
   seats: Array<{ status: TrackSeatStatus; userId: string | null }>,
 ) {
@@ -224,8 +237,17 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       orderIndex: item.orderIndex,
       title: item.track.song.title,
       artistName: item.track.song.artist.name,
+      comment: item.track.comment,
       lineupSummary: buildLineupSummary(locale, item.track.seats),
       drummerLabel: buildDrummerLabel(locale, item.track.seats),
+      originatorLabel: buildUserLabel(locale, item.track.proposedBy),
+      playbackRequired: item.track.playbackRequired,
+      seats: item.track.seats.map((seat) => ({
+        isOptional: seat.isOptional,
+        label: seat.label,
+        status: seat.status,
+        user: seat.user,
+      })),
     }));
   const backlogItems = event.setlistItems
     .filter((item) => item.section === "BACKLOG")
@@ -245,6 +267,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         orderIndex: item.orderIndex,
         title: item.track.song.title,
         artistName: item.track.song.artist.name,
+        comment: item.track.comment,
         lineupSummary: buildLineupSummary(locale, item.track.seats),
         moveDisabled,
         moveDisabledLabel: moveDisabled
@@ -253,6 +276,14 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               ru: "Нужен полный обязательный состав",
             })
           : undefined,
+        originatorLabel: buildUserLabel(locale, item.track.proposedBy),
+        playbackRequired: item.track.playbackRequired,
+        seats: item.track.seats.map((seat) => ({
+          isOptional: seat.isOptional,
+          label: seat.label,
+          status: seat.status,
+          user: seat.user,
+        })),
       };
     });
   const mainSetParticipantCount = countUniqueClaimedUsers(
@@ -594,26 +625,30 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="space-y-6">
         <Card className="space-y-4">
           <Badge>{pick(locale, { en: "Main set", ru: "Мейн-сет" })}</Badge>
           <AdminSetlistStack
+            deferOrderSave
             emptyLabel={pick(locale, {
               en: "Run the selection algorithm to generate the main set.",
               ru: "Запусти алгоритм отбора, чтобы собрать мейн-сет.",
             })}
             eventId={event.id}
             eventSlug={event.id}
+            exportCsvLabel={pick(locale, { en: "Export CSV", ru: "Выгрузить CSV" })}
             items={mainSetItems}
             moveLabel={pick(locale, { en: "Send to backlog", ru: "Отправить в бэклог" })}
             movePendingLabel={pick(locale, { en: "Moving...", ru: "Перемещаем..." })}
+            saveOrderLabel={pick(locale, { en: "Save order", ru: "Сохранить порядок" })}
             savingLabel={pick(locale, { en: "Saving order...", ru: "Сохраняем порядок..." })}
             section="MAIN"
             sectionLabel={pick(locale, { en: "Main", ru: "Мейн" })}
             clusterItemLabel={pick(locale, { en: "song", ru: "трек" })}
             clusterItemsLabel={pick(locale, { en: "songs", ru: "треков" })}
             targetSection="BACKLOG"
-            title={pick(locale, { en: "Drag to reorder the running set", ru: "Перетаскивай для перестановки текущего сета" })}
+            title={pick(locale, { en: "Main set", ru: "Мейн-сет" })}
+            unsavedOrderLabel={pick(locale, { en: "Unsaved order", ru: "Порядок не сохранён" })}
           />
         </Card>
 

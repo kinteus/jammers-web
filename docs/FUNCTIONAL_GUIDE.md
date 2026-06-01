@@ -573,7 +573,8 @@ This page is the operational control center for a specific event.
 The event admin screen also includes:
 
 - compact stack-style rendering for main-set and backlog items,
-- drag-and-drop reordering of the set,
+- arrow-based final-set reordering with an explicit save step,
+- CSV export for the current main-set order,
 - a dedicated danger zone for event deletion.
 
 ## 16. Event status transitions
@@ -629,7 +630,13 @@ unassigned block for songs without a claimed drummer. Sorting by drummer groups 
 blocks together and preserves the previous relative order inside each drummer block. The resulting
 order can still be adjusted manually afterwards. Each drummer-block header has up/down controls
 that move the whole contiguous block at once, while each song keeps its own controls for detailed
-manual order changes. Those manual changes remain the published order if the setlist is published.
+manual order changes. Main-set order changes are staged locally until the admin clicks Save order,
+which allows several drummer-block moves to be assembled quickly before one database write. The
+saved manual order remains the published order if the setlist is published.
+
+Admins can export the current visible main set to CSV at any time from this block. The export uses
+the current client-side order, including unsaved draft moves, and leaves placeholder-only fields such
+as empty, unavailable, optional, status, cover URL, and duration cells blank.
 
 ## 20. Manual curation of main set and backlog
 
@@ -639,9 +646,10 @@ After selection, admins can manually move tracks:
 - from main to backlog,
 - to a different order index.
 
-Manual order changes are persisted immediately and survive page refreshes. This ensures the
-algorithm remains a recommendation engine, not a hard lock on the final artistic or operational
-decision.
+Backlog ordering and section moves continue to persist through server actions. Main-set order
+changes are saved explicitly from the main-set block after admins finish arranging the local draft.
+This ensures the algorithm remains a recommendation engine, not a hard lock on the final artistic or
+operational decision.
 
 ## 21. Publishing the final setlist
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, GripVertical, ListOrdered } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ListOrdered, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { moveSetlistItemAction, reorderSetlistSectionAction } from "@/server/actions";
@@ -13,20 +13,27 @@ type AdminSetlistStackItem = {
   id: string;
   title: string;
   artistName: string;
+  comment?: string | null;
   lineupSummary: string;
   drummerLabel?: string;
   moveDisabled?: boolean;
   moveDisabledLabel?: string;
   orderIndex: number;
+  originatorLabel?: string | null;
+  playbackRequired?: boolean;
+  seats?: AdminSetlistStackSeat[];
 };
 
 type AdminSetlistStackProps = {
+  deferOrderSave?: boolean;
   emptyLabel: string;
   eventId: string;
   eventSlug: string;
+  exportCsvLabel?: string;
   items: AdminSetlistStackItem[];
   moveLabel: string;
   movePendingLabel: string;
+  saveOrderLabel?: string;
   savingLabel: string;
   section: "MAIN" | "BACKLOG";
   sectionLabel: string;
@@ -34,20 +41,140 @@ type AdminSetlistStackProps = {
   clusterItemsLabel?: string;
   title: string;
   targetSection: "MAIN" | "BACKLOG";
+  unsavedOrderLabel?: string;
 };
 
-function reorderItems(items: AdminSetlistStackItem[], fromId: string, toId: string) {
-  const next = [...items];
-  const fromIndex = next.findIndex((item) => item.id === fromId);
-  const toIndex = next.findIndex((item) => item.id === toId);
+type AdminSetlistStackSeat = {
+  label: string;
+  status: string;
+  isOptional: boolean;
+  user: {
+    fullName: string | null;
+    telegramUsername: string | null;
+  } | null;
+};
 
-  if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-    return items;
+const csvHeaders = [
+  "id",
+  "Band",
+  "Song",
+  "Comments from orgs",
+  "Status",
+  "Vocal 1",
+  "Vocal 2",
+  "Vocal 3",
+  "Guitar 1",
+  "Guitar 2",
+  "Bass",
+  "Drums",
+  "Keyboard",
+  "Additional Tool 1",
+  "Additional Tool 2",
+  "PB",
+  "Tone",
+  "Originator",
+  "Next Song",
+  "Cover (url)",
+  "Duration (мс)",
+];
+
+const csvSeatColumns = [
+  "Vocal 1",
+  "Vocal 2",
+  "Vocal 3",
+  "Guitar 1",
+  "Guitar 2",
+  "Bass",
+  "Drums",
+  "Keyboard",
+  "Additional Tool 1",
+  "Additional Tool 2",
+] as const;
+
+function getOrderKey(items: AdminSetlistStackItem[]) {
+  return items.map((item) => item.id).join("\u0000");
+}
+
+function getYoutubeSearchUrl(artistName: string, title: string) {
+  const query = `${artistName} ${title}`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function getFullTitle(item: AdminSetlistStackItem) {
+  return `${item.artistName} - ${item.title}`;
+}
+
+function escapeCsvCell(value: string | number | null | undefined) {
+  const text = value == null ? "" : String(value);
+  if (!/[",\n\r]/.test(text)) {
+    return text;
   }
+  return `"${text.replaceAll('"', '""')}"`;
+}
 
-  const [dragged] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, dragged);
-  return next;
+function getSeatCsvColumn(label: string) {
+  const normalized = label.trim().toLowerCase();
+  if (/^vocal\b.*\b1\b|^vox\b.*\b1\b/.test(normalized)) return "Vocal 1";
+  if (/^vocal\b.*\b2\b|^vox\b.*\b2\b/.test(normalized)) return "Vocal 2";
+  if (/^vocal\b.*\b3\b|^vox\b.*\b3\b/.test(normalized)) return "Vocal 3";
+  if (/^guitar\b.*\b1\b/.test(normalized)) return "Guitar 1";
+  if (/^guitar\b.*\b2\b/.test(normalized)) return "Guitar 2";
+  if (normalized === "bass" || normalized.startsWith("bass ")) return "Bass";
+  if (normalized === "drums" || normalized.startsWith("drums ")) return "Drums";
+  if (normalized === "keyboard" || normalized === "keys" || normalized.startsWith("keyboard ")) {
+    return "Keyboard";
+  }
+  if (/^additional tool\b.*\b1\b|^additional\b.*\b1\b|^other\b.*\b1\b/.test(normalized)) {
+    return "Additional Tool 1";
+  }
+  if (/^additional tool\b.*\b2\b|^additional\b.*\b2\b|^other\b.*\b2\b/.test(normalized)) {
+    return "Additional Tool 2";
+  }
+  return null;
+}
+
+function formatUserLabel(user: AdminSetlistStackSeat["user"]) {
+  if (!user) {
+    return "";
+  }
+  if (user.telegramUsername) {
+    return `@${user.telegramUsername}`;
+  }
+  return user.fullName ?? "";
+}
+
+function buildSetlistCsv(items: AdminSetlistStackItem[]) {
+  const rows = items.map((item, index) => {
+    const seatsByColumn = new Map<string, string>();
+    for (const seat of item.seats ?? []) {
+      if (seat.status !== "CLAIMED" || !seat.user) {
+        continue;
+      }
+      const column = getSeatCsvColumn(seat.label);
+      if (column && !seatsByColumn.has(column)) {
+        seatsByColumn.set(column, formatUserLabel(seat.user));
+      }
+    }
+
+    const values: Array<string | number | null | undefined> = [
+      index + 1,
+      item.artistName,
+      item.title,
+      item.comment,
+      "",
+      ...csvSeatColumns.map((column) => seatsByColumn.get(column) ?? ""),
+      item.playbackRequired ? "yes" : "",
+      "",
+      item.originatorLabel ?? "",
+      index < items.length - 1 ? index + 2 : "",
+      "",
+      "",
+    ];
+
+    return values.map(escapeCsvCell).join(",");
+  });
+
+  return [csvHeaders.join(","), ...rows].join("\n");
 }
 
 export function reorderSetlistItems(
@@ -157,12 +284,15 @@ function getDrummerClusterLabel(
 }
 
 export function AdminSetlistStack({
+  deferOrderSave = false,
   emptyLabel,
   eventId,
   eventSlug,
+  exportCsvLabel,
   items,
   moveLabel,
   movePendingLabel,
+  saveOrderLabel,
   savingLabel,
   section,
   sectionLabel,
@@ -170,19 +300,20 @@ export function AdminSetlistStack({
   clusterItemsLabel = "songs",
   targetSection,
   title,
+  unsavedOrderLabel = "Unsaved order",
 }: AdminSetlistStackProps) {
   const router = useRouter();
   const [currentItems, setCurrentItems] = useState(items);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [savedOrderKey, setSavedOrderKey] = useState(() => getOrderKey(items));
   const [isSaving, startTransition] = useTransition();
+  const hasUnsavedOrder = getOrderKey(currentItems) !== savedOrderKey;
 
   useEffect(() => {
-    if (!draggedId && !isSaving) {
-      setCurrentItems(items);
-    }
-  }, [draggedId, isSaving, items]);
+    setCurrentItems(items);
+    setSavedOrderKey(getOrderKey(items));
+  }, [items]);
 
-  async function persistOrder(nextItems: AdminSetlistStackItem[]) {
+  async function persistOrder(nextItems: AdminSetlistStackItem[], refreshAfterSave: boolean) {
     const formData = new FormData();
     formData.set("eventId", eventId);
     formData.set("eventSlug", eventSlug);
@@ -190,21 +321,10 @@ export function AdminSetlistStack({
     formData.set("itemIds", JSON.stringify(nextItems.map((item) => item.id)));
 
     await reorderSetlistSectionAction(formData);
-    router.refresh();
-  }
-
-  function handleDrop(targetId: string) {
-    if (!draggedId || draggedId === targetId) {
-      setDraggedId(null);
-      return;
+    setSavedOrderKey(getOrderKey(nextItems));
+    if (refreshAfterSave) {
+      router.refresh();
     }
-
-    const nextItems = reorderItems(currentItems, draggedId, targetId);
-    setCurrentItems(nextItems);
-    setDraggedId(null);
-    startTransition(() => {
-      void persistOrder(nextItems);
-    });
   }
 
   function handleMove(itemId: string, direction: "down" | "up") {
@@ -214,9 +334,11 @@ export function AdminSetlistStack({
     }
 
     setCurrentItems(nextItems);
-    startTransition(() => {
-      void persistOrder(nextItems);
-    });
+    if (!deferOrderSave) {
+      startTransition(() => {
+        void persistOrder(nextItems, true);
+      });
+    }
   }
 
   function handleClusterMove(clusterIndex: number, direction: "down" | "up") {
@@ -226,9 +348,32 @@ export function AdminSetlistStack({
     }
 
     setCurrentItems(nextItems);
+    if (!deferOrderSave) {
+      startTransition(() => {
+        void persistOrder(nextItems, true);
+      });
+    }
+  }
+
+  function handleSaveOrder() {
+    if (!hasUnsavedOrder) {
+      return;
+    }
     startTransition(() => {
-      void persistOrder(nextItems);
+      void persistOrder(currentItems, false);
     });
+  }
+
+  function handleExportCsv() {
+    const blob = new Blob([buildSetlistCsv(currentItems)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${eventSlug}-${section.toLowerCase()}-set.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -240,7 +385,42 @@ export function AdminSetlistStack({
             {title}
           </p>
         </div>
-        {isSaving ? <Loader label={savingLabel} /> : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {hasUnsavedOrder ? (
+            <span className="rounded-sm border border-gold/20 bg-gold/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold">
+              {unsavedOrderLabel}
+            </span>
+          ) : null}
+          {exportCsvLabel ? (
+            <button
+              aria-label={`Export ${title} CSV`}
+              className="ui-tooltip inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-white/12 bg-white/6 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+              data-tip={exportCsvLabel}
+              disabled={currentItems.length === 0}
+              onClick={handleExportCsv}
+              title={exportCsvLabel}
+              type="button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exportCsvLabel}
+            </button>
+          ) : null}
+          {deferOrderSave && saveOrderLabel ? (
+            <button
+              aria-label={`Save ${title} order`}
+              className="ui-tooltip inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-gold/30 bg-gold/14 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-sand transition hover:border-gold/45 hover:bg-gold/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+              data-tip={saveOrderLabel}
+              disabled={!hasUnsavedOrder || isSaving}
+              onClick={handleSaveOrder}
+              title={saveOrderLabel}
+              type="button"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {saveOrderLabel}
+            </button>
+          ) : null}
+          {isSaving ? <Loader label={savingLabel} /> : null}
+        </div>
       </div>
 
       {currentItems.length === 0 ? (
@@ -291,26 +471,24 @@ export function AdminSetlistStack({
                   </div>
                 ) : null}
                 <div
-                  className="brand-shell-soft rounded-2xl border border-white/10 px-4 py-4"
-                  draggable={!isSaving}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDragStart={() => setDraggedId(item.id)}
-                  onDrop={() => handleDrop(item.id)}
+                  className="brand-shell-soft rounded-lg border border-white/10 px-3 py-2.5"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full border border-white/10 bg-black/20 text-white/54">
-                        <GripVertical className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
-                          {sectionLabel} · {index + 1}
-                        </p>
-                        <p className="truncate text-base font-semibold text-sand">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
+                        {sectionLabel} · {index + 1}
+                      </p>
+                      <a
+                        aria-label={`Search on YouTube: ${getFullTitle(item)}`}
+                        className="block min-w-0 truncate text-base font-semibold text-sand transition hover:text-white hover:underline"
+                        href={getYoutubeSearchUrl(item.artistName, item.title)}
+                        rel="noreferrer"
+                        target="_blank"
+                        title={getFullTitle(item)}
+                      >
                           {item.artistName} - {item.title}
-                        </p>
-                        <p className="text-sm leading-6 text-white/64">{item.lineupSummary}</p>
-                      </div>
+                      </a>
+                      <p className="text-sm leading-6 text-white/64">{item.lineupSummary}</p>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2">

@@ -426,14 +426,16 @@ This is a lightweight concurrency-control mechanism suitable for a staff-operate
 each `SetlistSection`. The database enforces unique `(eventId, section, orderIndex)` values, so
 admin reorder operations use two-phase reindexing: affected items are first moved into a temporary
 high index range, then written back to contiguous `1..n` indexes in the requested order. This keeps
-manual swaps, drag/drop reorders, drummer sorting, and section moves from colliding with the unique
+manual swaps, explicit-order saves, drummer sorting, and section moves from colliding with the unique
 constraint midway through a transaction.
 
 The admin main-set UI derives lightweight drummer block labels from consecutive items with the same
-claimed `drums` seat. Cluster-level arrow controls reorder the whole contiguous drummer block by
-submitting the same ordered `SetlistItem` id payload as track-level reorders. The labels and
-controls are only admin presentation; publishing and public setlist rendering use the persisted
-`orderIndex` order exactly.
+claimed `drums` seat. Cluster-level arrow controls reorder the whole contiguous drummer block in
+client state, and track-level arrow controls do the same for individual songs. The main-set stack
+submits one ordered `SetlistItem` id payload when the admin clicks Save order, avoiding a database
+write after every local move. Backlog ordering still uses the same server action immediately. The
+labels and controls are only admin presentation; publishing and public setlist rendering use the
+persisted `orderIndex` order exactly.
 
 ## Security model
 
