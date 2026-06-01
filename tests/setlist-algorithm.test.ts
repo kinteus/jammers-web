@@ -226,4 +226,30 @@ describe("buildSetlistRecommendation", () => {
     expect(result.backlog.find((item) => item.trackId === "solo-track")).toBeUndefined();
     expect(result.coverageCount).toBe(2);
   });
+
+  it("handles production-scale candidate pools without materializing every combination", () => {
+    const candidates = Array.from({ length: 32 }, (_, index) => ({
+      id: `track-${index}`,
+      songId: `song-${index}`,
+      songTitle: `Song ${index}`,
+      artistName: "Artist",
+      hasUnfilledRequiredSeats: false,
+      participantIds: [`u${index * 3}`, `u${index * 3 + 1}`, `u${index * 3 + 2}`],
+      filledSeatRatio: 1,
+      createdAt: new Date(`2026-01-01T10:${String(index).padStart(2, "0")}:00Z`),
+      matchedKnownGroupName: null,
+    }));
+
+    const startedAt = performance.now();
+    const result = buildSetlistRecommendation({
+      maxSetTrackCount: 16,
+      minParticipantsPerTrack: 3,
+      previousConcertSongIds: new Set(),
+      candidates,
+    });
+
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+    expect(result.selected).toHaveLength(16);
+    expect(result.coverageCount).toBe(48);
+  });
 });

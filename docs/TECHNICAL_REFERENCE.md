@@ -399,14 +399,14 @@ Implementation details:
 - participant IDs are deduplicated per track before minimum-count checks and scoring,
 - tracks with unfilled required seats or too few unique participants are ignored,
 - songs from the previous published event are excluded,
-- known groups are deprioritized only as a tie-break after maximum coverage is preserved,
-- the algorithm maximizes unique participant coverage under main-set track-count constraints,
+- known groups are deprioritized only as a tie-break after unique-participant coverage is prioritized,
+- the algorithm uses exact dynamic programming for bounded candidate pools and a deterministic bounded selector for large pools,
 - results are persisted into `SetlistItem`.
 
 Why this matters technically:
 
 - deterministic outputs simplify admin trust,
-- the selection guarantee matches the product fairness goal,
+- the coverage-first ranking matches the product fairness goal without letting large candidate pools exhaust the Node.js heap,
 - runtime is fast enough for interactive admin workflows.
 
 ## Curation concurrency model

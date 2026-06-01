@@ -605,14 +605,14 @@ The UI shows the current lock owner and expiration time when a lock exists.
 
 ## 18. Running the selection algorithm
 
-Once registration is closed, admins can trigger the setlist algorithm. The algorithm selects the track combination that maximizes unique participant coverage while respecting:
+Once registration is closed, admins can trigger the setlist algorithm. The algorithm builds a coverage-first track recommendation while respecting:
 
 - main-set song-count budget,
 - prior-gig song exclusion,
 - fully assembled required seats,
 - event minimum participant count per track.
 
-Known-group de-prioritization is used as a tie-break only after maximum unique-participant coverage is preserved.
+Known-group de-prioritization is used as a tie-break only after unique-participant coverage is prioritized.
 
 The output is split into main set and backlog.
 

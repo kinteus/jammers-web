@@ -17,6 +17,8 @@ type NormalizedCandidateTrack = CandidateTrack & {
   participantMask: bigint;
 };
 
+const EXACT_DP_STATE_LIMIT = 250_000;
+
 export type SelectionInput = {
   maxSetTrackCount: number;
   minParticipantsPerTrack?: number;
@@ -168,6 +170,103 @@ function findOptimalSelection(
   return bestSelection ?? [];
 }
 
+function canUseExactDynamicProgramming(candidateCount: number, slotLimit: number) {
+  const boundedSlotLimit = Math.min(slotLimit, candidateCount);
+  let totalStates = 1;
+  let combinationsAtCount = 1;
+
+  for (let count = 1; count <= boundedSlotLimit; count += 1) {
+    combinationsAtCount = (combinationsAtCount * (candidateCount - count + 1)) / count;
+    totalStates += combinationsAtCount;
+
+    if (totalStates > EXACT_DP_STATE_LIMIT) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function findBoundedSelection(candidates: NormalizedCandidateTrack[], maxSetTrackCount: number) {
+  const slotLimit = Math.min(Math.max(0, Math.round(maxSetTrackCount)), candidates.length);
+  const selected: NormalizedCandidateTrack[] = [];
+  const selectedIds = new Set<string>();
+  let coveredMask = 0n;
+
+  while (selected.length < slotLimit) {
+    let bestCandidate: NormalizedCandidateTrack | null = null;
+    let bestCandidateGain = -1;
+
+    for (const candidate of candidates) {
+      if (selectedIds.has(candidate.id)) {
+        continue;
+      }
+
+      const coverageGain = bitCount(candidate.participantMask & ~coveredMask);
+      const candidateSelection = [...selected, candidate];
+      const bestSelection = bestCandidate ? [...selected, bestCandidate] : null;
+
+      if (
+        coverageGain > bestCandidateGain ||
+        (coverageGain === bestCandidateGain && isSelectionBetter(candidateSelection, bestSelection))
+      ) {
+        bestCandidate = candidate;
+        bestCandidateGain = coverageGain;
+      }
+    }
+
+    if (!bestCandidate) {
+      break;
+    }
+
+    selected.push(bestCandidate);
+    selectedIds.add(bestCandidate.id);
+    coveredMask |= bestCandidate.participantMask;
+  }
+
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+
+    for (let selectedIndex = 0; selectedIndex < selected.length; selectedIndex += 1) {
+      for (const candidate of candidates) {
+        if (selectedIds.has(candidate.id)) {
+          continue;
+        }
+
+        const swappedSelection = selected.map((track, index) =>
+          index === selectedIndex ? candidate : track,
+        );
+
+        if (isSelectionBetter(swappedSelection, selected)) {
+          selectedIds.delete(selected[selectedIndex]!.id);
+          selected[selectedIndex] = candidate;
+          selectedIds.add(candidate.id);
+          improved = true;
+          break;
+        }
+      }
+
+      if (improved) {
+        break;
+      }
+    }
+  }
+
+  return selected;
+}
+
+function findSelection(candidates: NormalizedCandidateTrack[], maxSetTrackCount: number) {
+  const slotLimit = Math.max(0, Math.round(maxSetTrackCount));
+
+  if (canUseExactDynamicProgramming(candidates.length, slotLimit)) {
+    return findOptimalSelection(candidates, maxSetTrackCount);
+  }
+
+  return findBoundedSelection(candidates, maxSetTrackCount);
+}
+
 function orderSelectedTracks(selection: NormalizedCandidateTrack[]) {
   const ordered: NormalizedCandidateTrack[] = [];
   const remaining = [...selection];
@@ -242,12 +341,12 @@ export function buildSetlistRecommendation({
       !candidate.hasUnfilledRequiredSeats &&
       candidate.uniqueParticipantIds.length >= requiredParticipantCount,
   );
-  const optimalSelection = findOptimalSelection(eligible, maxSetTrackCount);
-  const selectedTrackIds = new Set(optimalSelection.map((track) => track.id));
+  const selectedTracks = findSelection(eligible, maxSetTrackCount);
+  const selectedTrackIds = new Set(selectedTracks.map((track) => track.id));
   const selected: SelectionResult["selected"] = [];
   const coveredUsers = new Set<string>();
 
-  for (const next of orderSelectedTracks(optimalSelection)) {
+  for (const next of orderSelectedTracks(selectedTracks)) {
     const { newParticipants } = marginalScore(next, coveredUsers);
 
     newParticipants.forEach((id) => coveredUsers.add(id));
