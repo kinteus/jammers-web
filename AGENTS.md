@@ -7,6 +7,21 @@
 
 - After implementing new functionality or changing app behavior, always check whether the E2E/smoke tests still describe the current expected behavior. Update `tests/smoke` when the product behavior intentionally changes, and run the relevant E2E locally when it is safe to do so. If running E2E would mutate production-backed data through `npm run local:prod`, do not run it; explain that constraint and verify with narrower tests instead.
 
+## Documentation Hygiene
+
+- Treat documentation as part of every behavior, product, schema, API, configuration, deployment, or operations change. Before finishing, check the relevant docs below and update them in the same change when the implementation has changed what users, admins, maintainers, or operators should expect.
+- If no documentation change is needed, say that you checked the relevant category and why it still matches. Do not leave stale docs for a follow-up unless the user explicitly scopes documentation out.
+- Keep documentation checks targeted for context efficiency: open only the docs that match the task category first, then expand only if the change crosses categories.
+- Product behavior, user/admin workflows, public pages, board UX, profile, FAQ, archive, invitations, and curation: [docs/FUNCTIONAL_GUIDE.md](/Users/maksimnaumov/jammers-web/docs/FUNCTIONAL_GUIDE.md), then [README.md](/Users/maksimnaumov/jammers-web/README.md) for headline capabilities.
+- Requirements scope, deferred features, and product assumptions: [docs/requirements-summary.md](/Users/maksimnaumov/jammers-web/docs/requirements-summary.md) and [docs/PRODUCT_IDEAS.md](/Users/maksimnaumov/jammers-web/docs/PRODUCT_IDEAS.md).
+- Architecture, route/API maps, data model, realtime behavior, testing strategy, and technical debt: [docs/TECHNICAL_REFERENCE.md](/Users/maksimnaumov/jammers-web/docs/TECHNICAL_REFERENCE.md), [docs/architecture.md](/Users/maksimnaumov/jammers-web/docs/architecture.md), and [prisma/schema.prisma](/Users/maksimnaumov/jammers-web/prisma/schema.prisma).
+- Setlist selection, curation rules, previous-gig exclusion, known-group handling, and backlog/main-set behavior: [docs/ALGORITHM.md](/Users/maksimnaumov/jammers-web/docs/ALGORITHM.md).
+- Local development, production-backed local QA, environment setup, and safe verification commands: [docs/LOCAL_SETUP.md](/Users/maksimnaumov/jammers-web/docs/LOCAL_SETUP.md) and [tests/smoke/app.smoke.spec.ts](/Users/maksimnaumov/jammers-web/tests/smoke/app.smoke.spec.ts).
+- Telegram login, bot delivery, invites, feedback delivery, session/auth behavior, and auth-related environment variables: [docs/TELEGRAM_AUTH_SETUP.md](/Users/maksimnaumov/jammers-web/docs/TELEGRAM_AUTH_SETUP.md).
+- Kubernetes, CI/CD, release, manifests, probes, secrets, production cluster operations, and runbooks: [docs/K8S_DEPLOYMENT.md](/Users/maksimnaumov/jammers-web/docs/K8S_DEPLOYMENT.md), [docs/GITHUB_K8S_CICD_SETUP.md](/Users/maksimnaumov/jammers-web/docs/GITHUB_K8S_CICD_SETUP.md), [docs/THEJAMMERS_PROD_CLUSTER_SETUP_RU.md](/Users/maksimnaumov/jammers-web/docs/THEJAMMERS_PROD_CLUSTER_SETUP_RU.md), and [infra/k8s](/Users/maksimnaumov/jammers-web/infra/k8s).
+- Feature design records and implementation handoffs: [docs/superpowers/specs](/Users/maksimnaumov/jammers-web/docs/superpowers/specs) and [docs/superpowers/plans](/Users/maksimnaumov/jammers-web/docs/superpowers/plans). Use these for historical intent, but keep canonical current behavior in the main docs above.
+- Error logging and production investigation docs live in this `AGENTS.md` section plus [docs/TECHNICAL_REFERENCE.md](/Users/maksimnaumov/jammers-web/docs/TECHNICAL_REFERENCE.md). Update both when Error IDs, `/api/client-error`, `recordAppError`, log paths, or Kubernetes log-investigation patterns change.
+
 ## Production Investigation
 
 - Kubernetes access for The Jammers is available through kubeconfigs in `~/.kube`.

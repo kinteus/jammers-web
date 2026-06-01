@@ -10,7 +10,7 @@ For the current live MicroK8s cluster used by The Jammers, see the cluster-speci
 - CI validates lint, typecheck, tests, build, and Docker image creation.
 - Release workflow publishes images to GHCR on version tags.
 - Kubernetes consumes the published image and environment-specific secrets.
-- Application health probes are served from `/api/healthz`.
+- Application probes are split by purpose: readiness uses `/api/healthz`, while startup and liveness use `/api/livez`.
 
 ## Required secrets
 
@@ -19,6 +19,7 @@ Create a `Secret` from `infra/k8s/base/secret.example.yaml` with real values:
 - `DATABASE_URL`
 - `SESSION_SECRET`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_FEEDBACK_CHAT_ID` when FAQ feedback delivery should post to Telegram
 
 ## Apply manifests
 
@@ -47,7 +48,7 @@ kubectl rollout status deployment/jammers-web
 - Deployment starts with 2 replicas.
 - HPA scales between 2 and 6 replicas on CPU.
 - PodDisruptionBudget keeps at least one pod available.
-- Readiness and liveness probes point to `/api/healthz`.
+- Readiness probes point to `/api/healthz`; startup and liveness probes point to `/api/livez`.
 - PostgreSQL is assumed to be external, managed, and secured separately.
 
 ## Recommended rollout sequence

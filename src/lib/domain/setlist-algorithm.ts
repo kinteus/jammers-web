@@ -12,6 +12,11 @@ type CandidateTrack = {
   matchedKnownGroupName: string | null;
 };
 
+type NormalizedCandidateTrack = CandidateTrack & {
+  uniqueParticipantIds: string[];
+  participantMask: bigint;
+};
+
 export type SelectionInput = {
   maxSetTrackCount: number;
   minParticipantsPerTrack?: number;
@@ -34,8 +39,167 @@ export type SelectionResult = {
   coverageCount: number;
 };
 
-function marginalScore(track: CandidateTrack, coveredUsers: Set<string>) {
-  const newParticipants = track.participantIds.filter((id) => !coveredUsers.has(id));
+function bitCount(mask: bigint) {
+  let count = 0;
+  let remaining = mask;
+
+  while (remaining > 0n) {
+    count += Number(remaining & 1n);
+    remaining >>= 1n;
+  }
+
+  return count;
+}
+
+function getSelectionMask(selection: NormalizedCandidateTrack[]) {
+  return selection.reduce((mask, track) => mask | track.participantMask, 0n);
+}
+
+function compareTrackTieBreak(left: NormalizedCandidateTrack, right: NormalizedCandidateTrack) {
+  if (Boolean(left.matchedKnownGroupName) !== Boolean(right.matchedKnownGroupName)) {
+    return left.matchedKnownGroupName ? 1 : -1;
+  }
+
+  if (left.filledSeatRatio !== right.filledSeatRatio) {
+    return right.filledSeatRatio - left.filledSeatRatio;
+  }
+
+  const createdAtDelta = left.createdAt.getTime() - right.createdAt.getTime();
+
+  if (createdAtDelta !== 0) {
+    return createdAtDelta;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareSelectionTieBreak(
+  left: NormalizedCandidateTrack[],
+  right: NormalizedCandidateTrack[],
+) {
+  const leftOrganicCount = left.filter((track) => !track.matchedKnownGroupName).length;
+  const rightOrganicCount = right.filter((track) => !track.matchedKnownGroupName).length;
+
+  if (leftOrganicCount !== rightOrganicCount) {
+    return rightOrganicCount - leftOrganicCount;
+  }
+
+  const leftFullness = left.reduce((total, track) => total + track.filledSeatRatio, 0);
+  const rightFullness = right.reduce((total, track) => total + track.filledSeatRatio, 0);
+
+  if (leftFullness !== rightFullness) {
+    return rightFullness - leftFullness;
+  }
+
+  const leftSorted = [...left].sort(compareTrackTieBreak);
+  const rightSorted = [...right].sort(compareTrackTieBreak);
+
+  for (let index = 0; index < Math.min(leftSorted.length, rightSorted.length); index += 1) {
+    const trackComparison = compareTrackTieBreak(leftSorted[index]!, rightSorted[index]!);
+
+    if (trackComparison !== 0) {
+      return trackComparison;
+    }
+  }
+
+  return rightSorted.length - leftSorted.length;
+}
+
+function isSelectionBetter(
+  candidateSelection: NormalizedCandidateTrack[],
+  currentSelection: NormalizedCandidateTrack[] | null,
+) {
+  if (!currentSelection) {
+    return true;
+  }
+
+  const candidateCoverage = bitCount(getSelectionMask(candidateSelection));
+  const currentCoverage = bitCount(getSelectionMask(currentSelection));
+
+  if (candidateCoverage !== currentCoverage) {
+    return candidateCoverage > currentCoverage;
+  }
+
+  if (candidateSelection.length !== currentSelection.length) {
+    return candidateSelection.length > currentSelection.length;
+  }
+
+  return compareSelectionTieBreak(candidateSelection, currentSelection) < 0;
+}
+
+function findOptimalSelection(
+  candidates: NormalizedCandidateTrack[],
+  maxSetTrackCount: number,
+) {
+  const slotLimit = Math.max(0, Math.round(maxSetTrackCount));
+  const statesByCount = Array.from(
+    { length: Math.min(slotLimit, candidates.length) + 1 },
+    () => new Map<bigint, NormalizedCandidateTrack[]>(),
+  );
+
+  statesByCount[0]!.set(0n, []);
+
+  for (const candidate of candidates) {
+    for (let count = statesByCount.length - 2; count >= 0; count -= 1) {
+      const sourceStates = [...statesByCount[count]!.entries()];
+
+      for (const [mask, selection] of sourceStates) {
+        const nextMask = mask | candidate.participantMask;
+        const nextSelection = [...selection, candidate];
+        const existingSelection = statesByCount[count + 1]!.get(nextMask) ?? null;
+
+        if (isSelectionBetter(nextSelection, existingSelection)) {
+          statesByCount[count + 1]!.set(nextMask, nextSelection);
+        }
+      }
+    }
+  }
+
+  let bestSelection: NormalizedCandidateTrack[] | null = null;
+
+  for (const states of statesByCount) {
+    for (const selection of states.values()) {
+      if (isSelectionBetter(selection, bestSelection)) {
+        bestSelection = selection;
+      }
+    }
+  }
+
+  return bestSelection ?? [];
+}
+
+function orderSelectedTracks(selection: NormalizedCandidateTrack[]) {
+  const ordered: NormalizedCandidateTrack[] = [];
+  const remaining = [...selection];
+  let coveredMask = 0n;
+
+  while (remaining.length > 0) {
+    remaining.sort((left, right) => {
+      const leftNewCoverage = bitCount(left.participantMask & ~coveredMask);
+      const rightNewCoverage = bitCount(right.participantMask & ~coveredMask);
+
+      if (leftNewCoverage !== rightNewCoverage) {
+        return rightNewCoverage - leftNewCoverage;
+      }
+
+      return compareTrackTieBreak(left, right);
+    });
+
+    const next = remaining.shift();
+
+    if (!next) {
+      break;
+    }
+
+    coveredMask |= next.participantMask;
+    ordered.push(next);
+  }
+
+  return ordered;
+}
+
+function marginalScore(track: NormalizedCandidateTrack, coveredUsers: Set<string>) {
+  const newParticipants = track.uniqueParticipantIds.filter((id) => !coveredUsers.has(id));
   const coverageGain = newParticipants.length * 100;
   const fullnessBonus = Math.round(track.filledSeatRatio * 25);
   const organicBonus = track.matchedKnownGroupName ? -30 : 12;
@@ -52,22 +216,59 @@ export function buildSetlistRecommendation({
   previousConcertSongIds,
   candidates,
 }: SelectionInput): SelectionResult {
-  const selected: SelectionResult["selected"] = [];
-  const backlog: SelectionResult["backlog"] = [];
   const requiredParticipantCount = Math.max(1, Math.round(minParticipantsPerTrack));
-  const remaining = [...candidates].filter(
+  const participantIndex = new Map<string, number>();
+  const normalizedCandidates = candidates.map((candidate) => {
+    const uniqueParticipantIds = [...new Set(candidate.participantIds)];
+    let participantMask = 0n;
+
+    for (const participantId of uniqueParticipantIds) {
+      if (!participantIndex.has(participantId)) {
+        participantIndex.set(participantId, participantIndex.size);
+      }
+
+      participantMask |= 1n << BigInt(participantIndex.get(participantId)!);
+    }
+
+    return {
+      ...candidate,
+      uniqueParticipantIds,
+      participantMask,
+    };
+  });
+  const eligible = normalizedCandidates.filter(
     (candidate) =>
       !previousConcertSongIds.has(candidate.songId) &&
       !candidate.hasUnfilledRequiredSeats &&
-      candidate.participantIds.length >= requiredParticipantCount,
+      candidate.uniqueParticipantIds.length >= requiredParticipantCount,
   );
+  const optimalSelection = findOptimalSelection(eligible, maxSetTrackCount);
+  const selectedTrackIds = new Set(optimalSelection.map((track) => track.id));
+  const selected: SelectionResult["selected"] = [];
   const coveredUsers = new Set<string>();
-  while (remaining.length > 0) {
-    remaining.sort((left, right) => {
-      if (Boolean(left.matchedKnownGroupName) !== Boolean(right.matchedKnownGroupName)) {
-        return left.matchedKnownGroupName ? 1 : -1;
-      }
 
+  for (const next of orderSelectedTracks(optimalSelection)) {
+    const { newParticipants } = marginalScore(next, coveredUsers);
+
+    newParticipants.forEach((id) => coveredUsers.add(id));
+    selected.push({
+      trackId: next.id,
+      orderIndex: selected.length + 1,
+      section: SetlistSection.MAIN,
+      reasons: [
+        newParticipants.length > 0
+          ? `Adds ${newParticipants.length} participants not yet represented in the set.`
+          : "Fills an available main-set slot after maximum participant coverage is reached.",
+        next.matchedKnownGroupName
+          ? `Known band tie-break applied for ${next.matchedKnownGroupName}.`
+          : "Organic line-up preferred as a tie-break.",
+      ],
+    });
+  }
+
+  const backlog = eligible
+    .filter((candidate) => !selectedTrackIds.has(candidate.id))
+    .sort((left, right) => {
       const leftScore = marginalScore(left, coveredUsers).value;
       const rightScore = marginalScore(right, coveredUsers).value;
 
@@ -75,41 +276,17 @@ export function buildSetlistRecommendation({
         return rightScore - leftScore;
       }
 
-      return left.createdAt.getTime() - right.createdAt.getTime();
-    });
+      return compareTrackTieBreak(left, right);
+    })
+    .map((candidate) => ({
+      trackId: candidate.id,
+      section: SetlistSection.BACKLOG,
+      reasons: [
+        "Skipped because the selected combination maximizes unique participant coverage within the configured main-set song limit.",
+      ],
+    }));
 
-    const next = remaining.shift();
-    if (!next) {
-      break;
-    }
-
-    const { newParticipants } = marginalScore(next, coveredUsers);
-
-    if (selected.length < maxSetTrackCount) {
-      newParticipants.forEach((id) => coveredUsers.add(id));
-      selected.push({
-        trackId: next.id,
-        orderIndex: selected.length + 1,
-        section: SetlistSection.MAIN,
-        reasons: [
-          newParticipants.length > 0
-            ? `Adds ${newParticipants.length} participants not yet represented in the set.`
-            : "Keeps overall stage occupancy high after coverage pass.",
-          next.matchedKnownGroupName
-            ? `Known band penalty applied for ${next.matchedKnownGroupName}.`
-            : "Organic line-up bonus applied.",
-        ],
-      });
-    } else {
-      backlog.push({
-        trackId: next.id,
-        section: SetlistSection.BACKLOG,
-        reasons: ["Skipped because it would exceed the configured main-set song limit."],
-      });
-    }
-  }
-
-  const rejectedDueToPrevious = candidates
+  const rejectedDueToPrevious = normalizedCandidates
     .filter((candidate) => previousConcertSongIds.has(candidate.songId))
     .map((candidate) => ({
       trackId: candidate.id,

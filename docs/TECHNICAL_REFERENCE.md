@@ -215,10 +215,11 @@ The Prisma schema is defined in:
 ### Identity and access
 
 - `User`
+- `Instrument`
+- `UserInstrument`
 - `AuthSession`
 - `Ban`
 - `AdminUserRating`
-- `UserInstrument`
 
 ### Catalog and discovery
 
@@ -242,12 +243,31 @@ The Prisma schema is defined in:
 - `EnsembleGroup`
 - `EnsembleGroupMember`
 
+### Site content
+
+- `SitePageContent`
+- `CommunityQuote`
+
+Important content fields:
+
+- `SitePageContent.faqContentJson` stores per-locale FAQ markdown overrides.
+- `SitePageContent.lineupVideoUrlsJson` stores FAQ video links.
+- `SitePageContent.communityQuotesDesktopDisplayLimit` and `communityQuotesMobileDisplayLimit` control how many quotes appear on the home page.
+- `CommunityQuote` stores the home-page quote pool with English/Russian text, source labels, active state, display order, and creator/editor audit links.
+
 ## Important relational invariants
 
 - `Song` is unique by `artistId + title`.
 - `TrackSeat` is unique by `trackId + lineupSlotId + seatIndex`.
-- `Track` is unique by `eventId + songId + state`, preventing active duplicate proposals.
+- Active `Track` rows are unique by `eventId + songId` through the partial SQL index `Track_active_event_song_unique_idx`, preventing duplicate active proposals while still allowing canceled historical rows.
 - `EventLineupSlot` is unique by `eventId + key`.
+
+Current optional-seat and track-info storage:
+
+- `Event.trackInfoFieldsJson` defines configurable per-track info flags.
+- `Track.trackInfoKeysJson` stores the selected flags for one proposal.
+- `EventLineupSlot.allowOptional` and `defaultOptionalSeats` control optional-seat availability and defaults.
+- `TrackSeat.isOptional` marks a seat as optional; optional seats do not count toward minimum required-player completion.
 
 ## Authentication and session model
 
@@ -375,17 +395,18 @@ The algorithm is documented at a product level in:
 
 Implementation details:
 
-- current strategy is deterministic and greedy,
-- tracks with no participants are ignored,
+- current strategy is deterministic exact maximum coverage via dynamic programming,
+- participant IDs are deduplicated per track before minimum-count checks and scoring,
+- tracks with unfilled required seats or too few unique participants are ignored,
 - songs from the previous published event are excluded,
-- known groups are deprioritized,
-- the algorithm optimizes for marginal unique participant coverage under main-set track-count constraints,
+- known groups are deprioritized only as a tie-break after maximum coverage is preserved,
+- the algorithm maximizes unique participant coverage under main-set track-count constraints,
 - results are persisted into `SetlistItem`.
 
 Why this matters technically:
 
 - deterministic outputs simplify admin trust,
-- explainability is more important than theoretical optimality,
+- the selection guarantee matches the product fairness goal,
 - runtime is fast enough for interactive admin workflows.
 
 ## Curation concurrency model

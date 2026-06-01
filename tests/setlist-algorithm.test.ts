@@ -51,6 +51,87 @@ describe("buildSetlistRecommendation", () => {
     expect(result.coverageCount).toBe(4);
   });
 
+  it("chooses the globally best combination when the greedy first pick is worse", () => {
+    const result = buildSetlistRecommendation({
+      maxSetTrackCount: 2,
+      previousConcertSongIds: new Set(),
+      candidates: [
+        {
+          id: "large-overlap",
+          songId: "song-large",
+          songTitle: "Large",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u1", "u2", "u3", "u4"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+          matchedKnownGroupName: null,
+        },
+        {
+          id: "left-cover",
+          songId: "song-left",
+          songTitle: "Left",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u1", "u2", "u5"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:01:00Z"),
+          matchedKnownGroupName: null,
+        },
+        {
+          id: "right-cover",
+          songId: "song-right",
+          songTitle: "Right",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u3", "u4", "u6"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:02:00Z"),
+          matchedKnownGroupName: null,
+        },
+      ],
+    });
+
+    expect(result.selected.map((item) => item.trackId)).toEqual(["left-cover", "right-cover"]);
+    expect(result.coverageCount).toBe(6);
+  });
+
+  it("counts each participant once even when they occupy multiple seats on a track", () => {
+    const result = buildSetlistRecommendation({
+      maxSetTrackCount: 2,
+      minParticipantsPerTrack: 2,
+      previousConcertSongIds: new Set(),
+      candidates: [
+        {
+          id: "one-person-multiseat",
+          songId: "song-one-person",
+          songTitle: "One Person",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u1", "u1"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:00:00Z"),
+          matchedKnownGroupName: null,
+        },
+        {
+          id: "actual-duo",
+          songId: "song-duo",
+          songTitle: "Actual Duo",
+          artistName: "Artist",
+          hasUnfilledRequiredSeats: false,
+          participantIds: ["u2", "u3"],
+          filledSeatRatio: 1,
+          createdAt: new Date("2026-01-01T10:01:00Z"),
+          matchedKnownGroupName: null,
+        },
+      ],
+    });
+
+    expect(result.selected.map((item) => item.trackId)).toEqual(["actual-duo"]);
+    expect(result.backlog.find((item) => item.trackId === "one-person-multiseat")).toBeUndefined();
+    expect(result.coverageCount).toBe(2);
+  });
+
   it("rejects songs that were played in the previous concert", () => {
     const result = buildSetlistRecommendation({
       maxSetTrackCount: 2,

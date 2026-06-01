@@ -95,8 +95,9 @@ An event is a concert or jam session with:
 - limit on how many tracks one user may join,
 - minimum number of required players per song (a track cannot be published with fewer required seats),
 - whether playback is allowed,
+- configurable per-track info flags,
 - stage notes,
-- lineup slots that define the available stage roles.
+- lineup slots that define the available stage roles, optional-seat support, and default optional seats.
 
 ### Song
 
@@ -295,6 +296,7 @@ The proposer can also add:
 
 - notes for the band,
 - playback flag if the event allows playback usage.
+- event-configured track info flags such as short arrangement markers.
 
 ### Validation rules during proposal
 
@@ -407,6 +409,8 @@ The profile page also shows all songs where the user is currently assigned to a 
 
 This gives musicians a simple personal “what am I playing?” overview.
 
+The profile also surfaces personal archive stats once enough published setlists exist, so returning musicians can see historical participation context.
+
 ## Board experience
 
 ## 12. Stage-sheet table board
@@ -497,7 +501,10 @@ Admins can create new events with:
 - maximum tracks per user,
 - stage notes,
 - playback policy,
+- configurable track info flags,
 - lineup JSON.
+
+Lineup JSON supports optional-seat behavior per slot, including whether optional seats are allowed and which seat numbers should start as optional by default when a song is proposed.
 
 ### Song catalog maintenance
 
@@ -529,7 +536,11 @@ These groups affect setlist selection priority.
 
 ### Editable FAQ content
 
-Admins edit the public FAQ body as markdown directly from the dashboard. Both FAQ sections (participation rules and line-up details) are editable independently for each locale (EN and RU). Stored content overrides the built-in defaults; when a locale field is left empty the page falls back to the default copy for that section.
+Admins edit the public FAQ body as markdown directly from the dashboard. Both FAQ sections (participation rules and line-up details) are editable independently for each locale (EN and RU). Stored content overrides the built-in defaults; when a locale field is left empty the page falls back to the default copy for that section. The same admin panel also manages FAQ YouTube video links and the public FAQ feedback form sends messages to the configured Telegram feedback chat.
+
+### Community quotes
+
+Admins curate the community quote pool shown on the home page, including quote text, source label, active state, display order, and separate desktop/mobile display limits.
 
 ### Global queue visibility
 
@@ -594,11 +605,14 @@ The UI shows the current lock owner and expiration time when a lock exists.
 
 ## 18. Running the selection algorithm
 
-Once registration is closed, admins can trigger the setlist algorithm. The algorithm tries to maximize unique participant coverage while respecting:
+Once registration is closed, admins can trigger the setlist algorithm. The algorithm selects the track combination that maximizes unique participant coverage while respecting:
 
 - main-set song-count budget,
 - prior-gig song exclusion,
-- known-group de-prioritization.
+- fully assembled required seats,
+- event minimum participant count per track.
+
+Known-group de-prioritization is used as a tie-break only after maximum unique-participant coverage is preserved.
 
 The output is split into main set and backlog.
 
@@ -676,7 +690,7 @@ These tools are important for resolving real-world exceptions near the event dat
 - Rich messaging workflows beyond Telegram invites are not implemented.
 - Files, charts, and analytics exports are minimal in the current release.
 - There is no rehearsal scheduling or attendance confirmation module yet.
-- The public `/archive` page lists previously published setlists, but there is no full-text search over historical events yet.
+- The public `/archive` page lists previously published setlists with year filtering and simple search across event, venue, song, artist, and musician text. There is no advanced full-text search or analytics export over historical events yet.
 
 ## Functional summary
 
