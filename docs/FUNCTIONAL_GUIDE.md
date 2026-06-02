@@ -658,7 +658,8 @@ When the main set is ready, admins can publish it. Publishing:
 - marks the event as published,
 - exposes the public final setlist to all visitors,
 - turns the collaboration board into a final public event artifact,
-- sends Telegram notifications to musicians who appear in the published `MAIN` set when their Telegram delivery data is available.
+- sends Telegram notifications to musicians who appear in the published `MAIN` set when their Telegram delivery data is available,
+- sends a separate consolation Telegram message to musicians who had at least one fully assembled table track but did not appear in any published `MAIN` song.
 
 ## 22. Direct seat administration
 

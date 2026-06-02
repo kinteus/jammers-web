@@ -7,6 +7,7 @@ import {
   Prisma,
   SetlistSection,
   TrackInviteStatus,
+  TrackState,
   TrackSeatStatus,
   UserRole,
   UserStatus,
@@ -77,13 +78,17 @@ import {
   sendTelegramBoardClosedChannelMessage,
   sendTelegramBoardClosedParticipantMessage,
   sendTelegramAdminSeatAssignedMessage,
+  sendTelegramFinalSetMissedMessage,
   sendTelegramInviteMessage,
   sendTelegramPublishedSetMessage,
   sendTelegramSeatApprovalRequestMessage,
   sendTelegramSeatTakenMessage,
   sendTelegramTrackCompleteMessage,
 } from "@/server/telegram-bot";
-import { buildPublishedSetNotifications } from "@/server/published-set-notifications";
+import {
+  buildFinalSetMissedNotifications,
+  buildPublishedSetNotifications,
+} from "@/server/published-set-notifications";
 import { publishBoardUpdate } from "@/server/board-event-bus";
 import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
@@ -1210,6 +1215,18 @@ async function sendPublishedSetNotifications(eventId: string) {
           },
         },
       },
+      tracks: {
+        where: {
+          state: TrackState.ACTIVE,
+        },
+        include: {
+          seats: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
     },
   });
   const notifications = buildPublishedSetNotifications({
@@ -1217,16 +1234,29 @@ async function sendPublishedSetNotifications(eventId: string) {
     eventTitle: event.title,
     setlistItems: event.setlistItems,
   });
+  const missedNotifications = buildFinalSetMissedNotifications({
+    eventTitle: event.title,
+    finalSetlistItems: event.setlistItems,
+    tracks: event.tracks,
+  });
 
   const deliveryResults = await Promise.allSettled(
-    notifications.map((notification) =>
-      sendTelegramPublishedSetMessage({
-        recipientTelegramId: notification.recipientTelegramId,
-        eventStartsAt: notification.eventStartsAt,
-        eventTitle: notification.eventTitle,
-        songs: notification.songs,
-      }),
-    ),
+    [
+      ...notifications.map((notification) =>
+        sendTelegramPublishedSetMessage({
+          recipientTelegramId: notification.recipientTelegramId,
+          eventStartsAt: notification.eventStartsAt,
+          eventTitle: notification.eventTitle,
+          songs: notification.songs,
+        }),
+      ),
+      ...missedNotifications.map((notification) =>
+        sendTelegramFinalSetMissedMessage({
+          recipientTelegramId: notification.recipientTelegramId,
+          eventTitle: notification.eventTitle,
+        }),
+      ),
+    ],
   );
 
   return deliveryResults.filter(

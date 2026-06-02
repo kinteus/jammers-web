@@ -12,7 +12,7 @@ What is already implemented in the app:
 - automatic reuse of an existing account only by immutable Telegram ID
 - automatic creation of a brand-new user on first successful Telegram sign-in
 - Telegram bot delivery for invites and approval requests
-- final-set Telegram delivery for published participants
+- final-set Telegram delivery for published participants and for musicians whose fully assembled table tracks missed the final set
 
 What must still be configured outside the app:
 

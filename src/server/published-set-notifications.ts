@@ -1,3 +1,7 @@
+import { TrackSeatStatus } from "@prisma/client";
+
+import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
+
 type PublishedSetSeatLite = {
   label: string;
   user: {
@@ -21,6 +25,16 @@ type PublishedSetItemLite = {
   };
 };
 
+type CompletedTableTrackLite = {
+  id: string;
+  seats: Array<
+    PublishedSetSeatLite & {
+      isOptional: boolean;
+      status: TrackSeatStatus;
+    }
+  >;
+};
+
 export type PublishedSetNotification = {
   eventStartsAt: Date;
   eventTitle: string;
@@ -30,6 +44,11 @@ export type PublishedSetNotification = {
     positions: string[];
     songLabel: string;
   }>;
+};
+
+export type FinalSetMissedNotification = {
+  eventTitle: string;
+  recipientTelegramId: string | null;
 };
 
 type InternalPublishedSetSong = PublishedSetNotification["songs"][number] & {
@@ -100,4 +119,48 @@ export function buildPublishedSetNotifications({
       songLabel: song.songLabel,
     })),
   }));
+}
+
+export function buildFinalSetMissedNotifications({
+  eventTitle,
+  finalSetlistItems,
+  tracks,
+}: {
+  eventTitle: string;
+  finalSetlistItems: PublishedSetItemLite[];
+  tracks: CompletedTableTrackLite[];
+}) {
+  const finalSetUserIds = new Set<string>();
+  for (const item of finalSetlistItems) {
+    for (const seat of item.track.seats) {
+      if (seat.userId) {
+        finalSetUserIds.add(seat.userId);
+      }
+    }
+  }
+
+  const missedNotifications = new Map<string, FinalSetMissedNotification>();
+  for (const track of tracks) {
+    if (!getTrackCompletionSummary(track.seats).isComplete) {
+      continue;
+    }
+
+    for (const seat of track.seats) {
+      if (
+        seat.status !== TrackSeatStatus.CLAIMED ||
+        !seat.userId ||
+        !seat.user ||
+        finalSetUserIds.has(seat.userId)
+      ) {
+        continue;
+      }
+
+      missedNotifications.set(seat.userId, {
+        eventTitle,
+        recipientTelegramId: seat.user.telegramId,
+      });
+    }
+  }
+
+  return [...missedNotifications.values()];
 }

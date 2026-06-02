@@ -104,6 +104,14 @@ export function buildTelegramPublishedSetMessage({
   ].join("\n");
 }
 
+export function buildTelegramFinalSetMissedMessage({ eventTitle }: { eventTitle: string }) {
+  return [
+    `Нам очень жаль, что твой собранный трек для ${eventTitle} не попал в финальный сет.`,
+    "",
+    "Пожалуйста, не пропадай: в следующий раз мы постараемся сделать так, чтобы твой трек прошёл.",
+  ].join("\n");
+}
+
 export function buildTelegramBoardClosedChannelMessage({
   city,
   eventStartsAt,
@@ -375,6 +383,21 @@ export async function sendTelegramPublishedSetMessage({
       eventStartsAt,
       eventTitle,
       songs,
+    }),
+  });
+}
+
+export async function sendTelegramFinalSetMissedMessage({
+  recipientTelegramId,
+  eventTitle,
+}: {
+  recipientTelegramId: string | null | undefined;
+  eventTitle: string;
+}) {
+  return sendTelegramMessage({
+    chatId: recipientTelegramId,
+    text: buildTelegramFinalSetMissedMessage({
+      eventTitle,
     }),
   });
 }

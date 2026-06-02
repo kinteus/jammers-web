@@ -7,6 +7,7 @@ const redirectMock = vi.hoisted(() => vi.fn((url: string) => {
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const revalidateTagMock = vi.hoisted(() => vi.fn());
 const requireAdminMock = vi.hoisted(() => vi.fn());
+const sendTelegramFinalSetMissedMessageMock = vi.hoisted(() => vi.fn());
 const sendTelegramPublishedSetMessageMock = vi.hoisted(() => vi.fn());
 
 const dbMock = vi.hoisted(() => ({
@@ -49,6 +50,7 @@ vi.mock("@/server/telegram-bot", async () => {
 
   return {
     ...actual,
+    sendTelegramFinalSetMissedMessage: sendTelegramFinalSetMissedMessageMock,
     sendTelegramPublishedSetMessage: sendTelegramPublishedSetMessageMock,
     sendTelegramFeedbackMessage: vi.fn(),
     sendTelegramInviteMessage: vi.fn(),
@@ -99,6 +101,40 @@ function buildPublishedEvent() {
         },
       },
     ],
+    tracks: [
+      {
+        id: "track-1",
+        seats: [
+          {
+            id: "seat-1",
+            label: "Drums",
+            status: TrackSeatStatus.CLAIMED,
+            isOptional: false,
+            userId: "user-1",
+            user: {
+              id: "user-1",
+              telegramId: "tg-1",
+            },
+          },
+        ],
+      },
+      {
+        id: "track-2",
+        seats: [
+          {
+            id: "seat-2",
+            label: "Bass",
+            status: TrackSeatStatus.CLAIMED,
+            isOptional: false,
+            userId: "user-2",
+            user: {
+              id: "user-2",
+              telegramId: "tg-2",
+            },
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -106,29 +142,33 @@ describe("publishSetlistAction", () => {
   it(
     "publishes the set and fans out Telegram notifications",
     async () => {
-    requireAdminMock.mockResolvedValue({
-      id: "admin-1",
-      role: UserRole.ADMIN,
-    });
-    dbMock.eventEditLock.findMany.mockResolvedValue([
-      {
-        eventId: "event-1",
-        userId: "admin-1",
-        scope: "admin-curation",
-        expiresAt: new Date(Date.now() + 60_000),
-      },
-    ]);
-    dbMock.event.findUniqueOrThrow.mockResolvedValue(buildPublishedEvent());
-    dbMock.event.update.mockResolvedValue({
-      id: "event-1",
-      status: EventStatus.PUBLISHED,
-    });
-    sendTelegramPublishedSetMessageMock.mockResolvedValue({
-      status: "PENDING",
-      note: "sent",
-    });
+      requireAdminMock.mockResolvedValue({
+        id: "admin-1",
+        role: UserRole.ADMIN,
+      });
+      dbMock.eventEditLock.findMany.mockResolvedValue([
+        {
+          eventId: "event-1",
+          userId: "admin-1",
+          scope: "admin-curation",
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      dbMock.event.findUniqueOrThrow.mockResolvedValue(buildPublishedEvent());
+      dbMock.event.update.mockResolvedValue({
+        id: "event-1",
+        status: EventStatus.PUBLISHED,
+      });
+      sendTelegramPublishedSetMessageMock.mockResolvedValue({
+        status: "PENDING",
+        note: "sent",
+      });
+      sendTelegramFinalSetMissedMessageMock.mockResolvedValue({
+        status: "PENDING",
+        note: "sent",
+      });
 
-    const { publishSetlistAction } = await import("@/server/actions");
+      const { publishSetlistAction } = await import("@/server/actions");
 
       await expect(publishSetlistAction(buildFormData())).resolves.toBeUndefined();
 
@@ -137,6 +177,11 @@ describe("publishSetlistAction", () => {
         data: { status: EventStatus.PUBLISHED },
       });
       expect(sendTelegramPublishedSetMessageMock).toHaveBeenCalledTimes(1);
+      expect(sendTelegramFinalSetMissedMessageMock).toHaveBeenCalledTimes(1);
+      expect(sendTelegramFinalSetMissedMessageMock).toHaveBeenCalledWith({
+        eventTitle: "Spring Jam Night",
+        recipientTelegramId: "tg-2",
+      });
       expect(revalidatePathMock).toHaveBeenCalledWith("/");
       expect(revalidatePathMock).toHaveBeenCalledWith("/events/spring-jam-night");
       expect(revalidatePathMock).toHaveBeenCalledWith("/admin/events/spring-jam-night");
@@ -163,6 +208,44 @@ describe("publishSetlistAction", () => {
       status: EventStatus.PUBLISHED,
     });
     sendTelegramPublishedSetMessageMock.mockResolvedValue({
+      status: "DELIVERY_FAILED",
+      note: "chat missing",
+    });
+    sendTelegramFinalSetMissedMessageMock.mockResolvedValue({
+      status: "PENDING",
+      note: "sent",
+    });
+
+    const { publishSetlistAction } = await import("@/server/actions");
+
+    await expect(publishSetlistAction(buildFormData())).rejects.toThrow(
+      "NEXT_REDIRECT:/admin/events/spring-jam-night?notice=publish-partial-notify",
+    );
+  });
+
+  it("redirects admins to a warning when a missed-final-set notification fails", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([
+      {
+        eventId: "event-1",
+        userId: "admin-1",
+        scope: "admin-curation",
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    dbMock.event.findUniqueOrThrow.mockResolvedValue(buildPublishedEvent());
+    dbMock.event.update.mockResolvedValue({
+      id: "event-1",
+      status: EventStatus.PUBLISHED,
+    });
+    sendTelegramPublishedSetMessageMock.mockResolvedValue({
+      status: "PENDING",
+      note: "sent",
+    });
+    sendTelegramFinalSetMissedMessageMock.mockResolvedValue({
       status: "DELIVERY_FAILED",
       note: "chat missing",
     });

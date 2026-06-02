@@ -1,6 +1,10 @@
+import { TrackSeatStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { buildPublishedSetNotifications } from "@/server/published-set-notifications";
+import {
+  buildFinalSetMissedNotifications,
+  buildPublishedSetNotifications,
+} from "@/server/published-set-notifications";
 
 describe("published set notifications", () => {
   it("groups final set songs per musician and merges multiple positions on one track", () => {
@@ -84,6 +88,90 @@ describe("published set notifications", () => {
             songLabel: "Blur - Song 2",
           },
         ],
+      },
+    ]);
+  });
+
+  it("finds musicians with completed table songs who missed every final-set song", () => {
+    const notifications = buildFinalSetMissedNotifications({
+      eventTitle: "Spring Jam Night",
+      finalSetlistItems: [
+        {
+          orderIndex: 1,
+          track: {
+            id: "track-final",
+            song: {
+              artist: { name: "Blur" },
+              title: "Song 2",
+            },
+            seats: [
+              {
+                label: "Drums",
+                userId: "u1",
+                user: { id: "u1", telegramId: "tg-1" },
+              },
+            ],
+          },
+        },
+      ],
+      tracks: [
+        {
+          id: "track-final",
+          seats: [
+            {
+              isOptional: false,
+              label: "Drums",
+              status: TrackSeatStatus.CLAIMED,
+              userId: "u1",
+              user: { id: "u1", telegramId: "tg-1" },
+            },
+          ],
+        },
+        {
+          id: "track-complete-but-out",
+          seats: [
+            {
+              isOptional: false,
+              label: "Bass",
+              status: TrackSeatStatus.CLAIMED,
+              userId: "u2",
+              user: { id: "u2", telegramId: "tg-2" },
+            },
+            {
+              isOptional: false,
+              label: "Drums",
+              status: TrackSeatStatus.CLAIMED,
+              userId: "u1",
+              user: { id: "u1", telegramId: "tg-1" },
+            },
+          ],
+        },
+        {
+          id: "track-incomplete",
+          seats: [
+            {
+              isOptional: false,
+              label: "Guitar",
+              status: TrackSeatStatus.CLAIMED,
+              userId: "u3",
+              user: { id: "u3", telegramId: "tg-3" },
+            },
+            {
+              isOptional: false,
+              label: "Vocals",
+              status: TrackSeatStatus.OPEN,
+              userId: null,
+              user: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(notifications).toEqual([
+      {
+        eventTitle: "Spring Jam Night",
+        recipientTelegramId: "tg-2",
       },
     ]);
   });

@@ -555,7 +555,7 @@ The test suite is currently strongest in the domain layer, especially:
 - Telegram auth verification,
 - participation rules,
 - registration window logic,
-- published-set notifications,
+- published-set notifications for both published `MAIN` participants and musicians whose fully assembled table tracks missed every `MAIN` song,
 - board-state and slug/id routing regressions.
 
 Vitest also covers a growing set of component and server-action tests (board table, song search field/route, track proposal form, seat actions, setlist reorder safety, drummer-block labels, floating-toast duration, site content/FAQ resolution).

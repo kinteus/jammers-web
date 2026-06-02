@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTelegramAdminSeatAssignedMessage,
   buildTelegramBoardClosedChannelMessage,
+  buildTelegramFinalSetMissedMessage,
   buildTelegramInviteMessage,
   buildTelegramPublishedSetMessage,
   buildTelegramSeatTakenMessage,
@@ -31,6 +32,20 @@ describe("telegram published-set message", () => {
     expect(message).toContain("Spring Jam Night");
     expect(message).toContain("1. Blur - Song 2 - Drums, BV");
     expect(message).toContain("4. Muse - Starlight - Percussion");
+  });
+});
+
+describe("telegram final-set missed message", () => {
+  it("encourages a musician whose completed table songs missed the final set", () => {
+    const message = buildTelegramFinalSetMissedMessage({
+      eventTitle: "Spring Jam Night",
+    });
+
+    expect(message).toContain("Spring Jam Night");
+    expect(message).toContain("очень жаль");
+    expect(message).toContain("не пропадай");
+    expect(message).toContain("в следующий раз");
+    expect(message).toContain("трек прошёл");
   });
 });
 
