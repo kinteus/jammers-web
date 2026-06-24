@@ -50,7 +50,7 @@ const items = [
     playbackRequired: false,
     seats: [
       {
-        label: "Vocal 1",
+        label: "Vocals 1",
         status: TrackSeatStatus.CLAIMED,
         isOptional: false,
         user: { fullName: "Anna Vocal", telegramUsername: "anna_vocal" },

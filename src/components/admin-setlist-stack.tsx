@@ -114,9 +114,9 @@ function escapeCsvCell(value: string | number | null | undefined) {
 
 function getSeatCsvColumn(label: string) {
   const normalized = label.trim().toLowerCase();
-  if (/^vocal\b.*\b1\b|^vox\b.*\b1\b/.test(normalized)) return "Vocal 1";
-  if (/^vocal\b.*\b2\b|^vox\b.*\b2\b/.test(normalized)) return "Vocal 2";
-  if (/^vocal\b.*\b3\b|^vox\b.*\b3\b/.test(normalized)) return "Vocal 3";
+  if (/^vocals?\b.*\b1\b|^vox\b.*\b1\b/.test(normalized)) return "Vocal 1";
+  if (/^vocals?\b.*\b2\b|^vox\b.*\b2\b/.test(normalized)) return "Vocal 2";
+  if (/^vocals?\b.*\b3\b|^vox\b.*\b3\b/.test(normalized)) return "Vocal 3";
   if (/^guitar\b.*\b1\b/.test(normalized)) return "Guitar 1";
   if (/^guitar\b.*\b2\b/.test(normalized)) return "Guitar 2";
   if (normalized === "bass" || normalized.startsWith("bass ")) return "Bass";
