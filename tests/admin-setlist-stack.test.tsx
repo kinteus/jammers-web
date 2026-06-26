@@ -283,7 +283,7 @@ describe("AdminSetlistStack", () => {
 
     const formData = reorderSetlistSectionActionMock.mock.calls[0]?.[0] as FormData;
     expect(JSON.parse(String(formData.get("itemIds")))).toEqual(["item-2", "item-1", "item-3"]);
-    expect(refreshMock).not.toHaveBeenCalled();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
   it("labels contiguous drummer clusters without changing the track controls", async () => {
