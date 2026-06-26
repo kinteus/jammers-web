@@ -360,7 +360,7 @@ export function AdminSetlistStack({
       return;
     }
     startTransition(() => {
-      void persistOrder(currentItems, false);
+      void persistOrder(currentItems, true);
     });
   }
 
