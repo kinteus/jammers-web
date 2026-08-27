@@ -33,4 +33,11 @@ describe("admin event page", () => {
     expect(source).not.toContain("This will close the board");
     expect(source).not.toContain("Это закроет таблицу");
   });
+
+  it("shows the affected participants when selection exceeds the track limit", () => {
+    expect(source).toContain('error === "selection-track-limit"');
+    expect(source).toContain('resolvedSearchParams.participants');
+    expect(source).toContain("Selection could not run");
+    expect(source).toContain("Не удалось запустить отбор");
+  });
 });

@@ -139,10 +139,22 @@ function rankCandidates(
   const entryCounts = new Map<string, number>();
 
   while (remaining.length > 0) {
-    remaining.sort((left, right) =>
-      compareCandidates(left, right, currentWeights, entryCounts),
-    );
-    const next = remaining.shift();
+    let nextIndex = 0;
+
+    for (let index = 1; index < remaining.length; index += 1) {
+      if (
+        compareCandidates(
+          remaining[index],
+          remaining[nextIndex],
+          currentWeights,
+          entryCounts,
+        ) < 0
+      ) {
+        nextIndex = index;
+      }
+    }
+
+    const [next] = remaining.splice(nextIndex, 1);
 
     if (!next) {
       break;

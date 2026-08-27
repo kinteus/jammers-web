@@ -143,6 +143,12 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
   const locale = await getLocale();
   const notice =
     typeof resolvedSearchParams.notice === "string" ? resolvedSearchParams.notice : null;
+  const error =
+    typeof resolvedSearchParams.error === "string" ? resolvedSearchParams.error : null;
+  const selectionTrackLimitParticipants =
+    typeof resolvedSearchParams.participants === "string"
+      ? resolvedSearchParams.participants
+      : null;
 
   try {
     await requireAdmin();
@@ -297,6 +303,15 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
   return (
     <div className="space-y-8">
+      {error === "selection-track-limit" ? (
+        <div className="rounded-xl border border-red/35 bg-red/12 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "Selection could not run because these participants exceed the event track limit:",
+            ru: "Не удалось запустить отбор: эти участники превышают лимит треков для гига:",
+          })}{" "}
+          <strong>{selectionTrackLimitParticipants ?? pick(locale, { en: "unknown", ru: "неизвестно" })}</strong>
+        </div>
+      ) : null}
       {notice === "event-saved" ? (
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {

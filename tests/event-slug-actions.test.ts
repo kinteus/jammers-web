@@ -1052,7 +1052,9 @@ describe("event route slugs in server actions", () => {
           eventSlug: "spring-jam-night",
         }),
       ),
-    ).rejects.toThrow("Track limit exceeded for: @alice.");
+    ).rejects.toThrow(
+      "NEXT_REDIRECT:/admin/events/spring-jam-night?error=selection-track-limit&participants=%40alice",
+    );
 
     expect(dbMock.$transaction).not.toHaveBeenCalled();
     expect(txMock.setlistItem.deleteMany).not.toHaveBeenCalled();

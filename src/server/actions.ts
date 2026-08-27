@@ -3245,8 +3245,12 @@ export async function runSelectionAction(formData: FormData) {
     const labels = exceededParticipantIds.map(
       (participantId) => participantLabelById.get(participantId) ?? participantId,
     );
+    const search = new URLSearchParams({
+      error: "selection-track-limit",
+      participants: labels.join(", "),
+    });
 
-    throw new Error(`Track limit exceeded for: ${labels.join(", ")}.`);
+    redirect(`/admin/events/${encodeRouteSegment(eventSlug)}?${search.toString()}`);
   }
 
   const historicalEvents = await db.event.findMany({
