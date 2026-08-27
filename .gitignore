@@ -16,5 +16,6 @@ materials/
 # Local Codex/Playwright artifacts
 .playwright-mcp/
 .superpowers/
+.worktrees/
 docs/superpowers/plans/
 output/playwright/*.png
