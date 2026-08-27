@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import {
   EventStatus,
   Prisma,
+  SelectionStrategy,
   SetlistSection,
   TrackInviteStatus,
   TrackState,
@@ -48,7 +49,11 @@ import {
   parseClosedOptionalSeatRequestMeta,
   serializeClosedOptionalSeatRequestMeta,
 } from "@/lib/track-invite-meta";
-import { buildSetlistRecommendation } from "@/lib/domain/setlist-algorithm";
+import {
+  buildSetlistRecommendation,
+  findParticipantsExceedingTrackLimit,
+} from "@/lib/domain/setlist-algorithm";
+import { buildParticipantHistorySnapshot } from "@/lib/domain/setlist-history";
 import { env } from "@/lib/env";
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
 import {
@@ -3183,20 +3188,6 @@ export async function runSelectionAction(formData: FormData) {
     },
   });
 
-  const previousEvent = await db.event.findFirst({
-    where: {
-      startsAt: { lt: event.startsAt },
-      status: EventStatus.PUBLISHED,
-    },
-    include: {
-      setlistItems: {
-        where: { section: SetlistSection.MAIN },
-        include: { track: true },
-      },
-    },
-    orderBy: { startsAt: "desc" },
-  });
-
   const groups = await db.ensembleGroup.findMany({
     include: {
       members: true,
@@ -3219,10 +3210,6 @@ export async function runSelectionAction(formData: FormData) {
       }) ?? null;
 
     const completion = getTrackCompletionSummary(track.seats);
-    const requiredSeatCount = track.seats.filter(
-      (seat) => seat.status !== TrackSeatStatus.UNAVAILABLE && !seat.isOptional,
-    ).length;
-    const requiredClaimed = requiredSeatCount - completion.requiredOpen;
     return {
       id: track.id,
       songId: track.songId,
@@ -3230,18 +3217,88 @@ export async function runSelectionAction(formData: FormData) {
       artistName: track.song.artist.name,
       hasUnfilledRequiredSeats: completion.requiredOpen > 0,
       participantIds,
-      filledSeatRatio: requiredSeatCount > 0 ? requiredClaimed / requiredSeatCount : 1,
       createdAt: track.createdAt,
       matchedKnownGroupName: matchedGroup?.name ?? null,
     };
   });
 
+  const exceededParticipantIds = findParticipantsExceedingTrackLimit(
+    candidates,
+    event.maxTracksPerUser,
+  );
+
+  if (exceededParticipantIds.length > 0) {
+    const participantLabelById = new Map(
+      event.tracks.flatMap((track) =>
+        track.seats.flatMap((seat) => {
+          if (!seat.userId || !seat.user) {
+            return [];
+          }
+
+          const label = seat.user.telegramUsername
+            ? `@${seat.user.telegramUsername}`
+            : seat.user.fullName ?? seat.userId;
+          return [[seat.userId, label] as const];
+        }),
+      ),
+    );
+    const labels = exceededParticipantIds.map(
+      (participantId) => participantLabelById.get(participantId) ?? participantId,
+    );
+
+    throw new Error(`Track limit exceeded for: ${labels.join(", ")}.`);
+  }
+
+  const historicalEvents = await db.event.findMany({
+    where: {
+      startsAt: { lt: event.startsAt },
+      status: EventStatus.PUBLISHED,
+      setlistItems: {
+        some: { section: SetlistSection.MAIN },
+      },
+    },
+    select: {
+      id: true,
+      startsAt: true,
+      setlistItems: {
+        where: { section: SetlistSection.MAIN },
+        select: {
+          track: {
+            select: {
+              songId: true,
+              seats: {
+                where: {
+                  status: TrackSeatStatus.CLAIMED,
+                  userId: { not: null },
+                },
+                select: { userId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ startsAt: "desc" }, { id: "asc" }],
+  });
+  const historySnapshot = buildParticipantHistorySnapshot({
+    currentParticipantIds: candidates.flatMap((candidate) => candidate.participantIds),
+    events: historicalEvents.map((historicalEvent) => ({
+      id: historicalEvent.id,
+      startsAt: historicalEvent.startsAt,
+      mainTrackCount: historicalEvent.setlistItems.length,
+      participantIds: historicalEvent.setlistItems.flatMap((item) =>
+        item.track.seats.flatMap((seat) => (seat.userId ? [seat.userId] : [])),
+      ),
+      songIds: historicalEvent.setlistItems.map((item) => item.track.songId),
+    })),
+  });
+
   const recommendation = buildSetlistRecommendation({
     maxSetTrackCount: getEffectiveMaxSetTrackCount(event.maxSetDurationMinutes),
     minParticipantsPerTrack: event.minParticipantsPerTrack,
-    previousConcertSongIds: new Set(
-      previousEvent?.setlistItems.map((item) => item.track.songId) ?? [],
-    ),
+    historyEventCount: historySnapshot.eventCount,
+    initialParticipantWeights: historySnapshot.initialWeightsByParticipant,
+    previousConcertSongIds: historySnapshot.previousConcertSongIds,
     candidates,
   });
 
@@ -3250,6 +3307,7 @@ export async function runSelectionAction(formData: FormData) {
       data: {
         eventId,
         startedById: admin.id,
+        strategy: SelectionStrategy.HISTORY_WEIGHTED,
         resultSummaryJson: recommendation,
       },
     });

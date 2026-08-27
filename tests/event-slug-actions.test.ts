@@ -1,4 +1,11 @@
-import { EventStatus, SetlistSection, TrackSeatStatus, UserRole, UserStatus } from "@prisma/client";
+import {
+  EventStatus,
+  SelectionStrategy,
+  SetlistSection,
+  TrackSeatStatus,
+  UserRole,
+  UserStatus,
+} from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.hoisted(() =>
@@ -68,6 +75,7 @@ const dbMock = vi.hoisted(() => ({
     create: vi.fn(),
     delete: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     findUniqueOrThrow: vi.fn(),
     update: vi.fn(),
   },
@@ -850,6 +858,7 @@ describe("event route slugs in server actions", () => {
     dbMock.event.findUniqueOrThrow.mockResolvedValue({
       id: "event-1",
       maxSetDurationMinutes: 15,
+      maxTracksPerUser: 3,
       minParticipantsPerTrack: 1,
       startsAt: new Date("2026-06-01T19:30:00.000Z"),
       status: EventStatus.OPEN,
@@ -867,12 +876,56 @@ describe("event route slugs in server actions", () => {
               isOptional: false,
               status: TrackSeatStatus.CLAIMED,
               userId: "user-1",
+              user: {
+                id: "user-1",
+                fullName: "Alice",
+                telegramUsername: "alice",
+              },
+            },
+          ],
+        },
+        {
+          id: "track-repeat",
+          songId: "song-repeat",
+          createdAt: new Date("2026-05-01T12:01:00.000Z"),
+          song: {
+            title: "Repeated Song",
+            artist: { name: "Artist 2" },
+          },
+          seats: [
+            {
+              isOptional: true,
+              status: TrackSeatStatus.CLAIMED,
+              userId: "user-2",
+              user: {
+                id: "user-2",
+                fullName: "Bob",
+                telegramUsername: "bob",
+              },
             },
           ],
         },
       ],
     });
-    dbMock.event.findFirst.mockResolvedValue(null);
+    dbMock.event.findMany.mockResolvedValue([
+      {
+        id: "history-1",
+        startsAt: new Date("2026-05-01T19:30:00.000Z"),
+        setlistItems: [
+          {
+            track: {
+              songId: "song-repeat",
+              seats: [
+                {
+                  status: TrackSeatStatus.CLAIMED,
+                  userId: "user-1",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ]);
     dbMock.ensembleGroup.findMany.mockResolvedValue([]);
 
     const { runSelectionAction } = await import("@/server/actions");
@@ -886,7 +939,35 @@ describe("event route slugs in server actions", () => {
       ),
     ).rejects.toThrow("NEXT_REDIRECT:/admin/events/spring-jam-night?notice=selection-run");
 
-    expect(txMock.selectionRun.create).toHaveBeenCalled();
+    expect(dbMock.event.findMany).toHaveBeenCalledWith({
+      where: {
+        startsAt: { lt: new Date("2026-06-01T19:30:00.000Z") },
+        status: EventStatus.PUBLISHED,
+        setlistItems: {
+          some: { section: SetlistSection.MAIN },
+        },
+      },
+      select: expect.objectContaining({
+        id: true,
+        startsAt: true,
+        setlistItems: expect.any(Object),
+      }),
+      orderBy: [{ startsAt: "desc" }, { id: "asc" }],
+    });
+    expect(txMock.selectionRun.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventId: "event-1",
+        startedById: "admin-1",
+        strategy: SelectionStrategy.HISTORY_WEIGHTED,
+        resultSummaryJson: expect.objectContaining({
+          historyEventCount: 1,
+          initialParticipantWeights: {
+            "user-1": "2",
+            "user-2": "5",
+          },
+        }),
+      }),
+    });
     expect(txMock.setlistItem.deleteMany).toHaveBeenCalledWith({
       where: { eventId: "event-1" },
     });
@@ -897,7 +978,84 @@ describe("event route slugs in server actions", () => {
         trackId: "track-1",
       }),
     });
+    expect(txMock.setlistItem.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventId: "event-1",
+        section: SetlistSection.BACKLOG,
+        trackId: "track-repeat",
+      }),
+    });
     expect(txMock.event.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects selection before persistence when a participant exceeds the track limit", async () => {
+    requireAdminMock.mockResolvedValue({
+      id: "admin-1",
+      role: UserRole.ADMIN,
+    });
+    dbMock.eventEditLock.findMany.mockResolvedValue([{ userId: "admin-1" }]);
+    dbMock.event.findUniqueOrThrow.mockResolvedValue({
+      id: "event-1",
+      maxSetDurationMinutes: 15,
+      maxTracksPerUser: 1,
+      minParticipantsPerTrack: 1,
+      startsAt: new Date("2026-06-01T19:30:00.000Z"),
+      status: EventStatus.OPEN,
+      tracks: [
+        {
+          id: "track-1",
+          songId: "song-1",
+          createdAt: new Date("2026-05-01T12:00:00.000Z"),
+          song: { title: "Song 1", artist: { name: "Artist" } },
+          seats: [
+            {
+              isOptional: false,
+              status: TrackSeatStatus.CLAIMED,
+              userId: "user-1",
+              user: {
+                id: "user-1",
+                fullName: "Alice",
+                telegramUsername: "alice",
+              },
+            },
+          ],
+        },
+        {
+          id: "track-2",
+          songId: "song-2",
+          createdAt: new Date("2026-05-01T12:01:00.000Z"),
+          song: { title: "Song 2", artist: { name: "Artist" } },
+          seats: [
+            {
+              isOptional: true,
+              status: TrackSeatStatus.CLAIMED,
+              userId: "user-1",
+              user: {
+                id: "user-1",
+                fullName: "Alice",
+                telegramUsername: "alice",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    dbMock.event.findMany.mockResolvedValue([]);
+    dbMock.ensembleGroup.findMany.mockResolvedValue([]);
+
+    const { runSelectionAction } = await import("@/server/actions");
+
+    await expect(
+      runSelectionAction(
+        formData({
+          eventId: "event-1",
+          eventSlug: "spring-jam-night",
+        }),
+      ),
+    ).rejects.toThrow("Track limit exceeded for: @alice.");
+
+    expect(dbMock.$transaction).not.toHaveBeenCalled();
+    expect(txMock.setlistItem.deleteMany).not.toHaveBeenCalled();
   });
 
   it("encodes legacy non-ASCII event slug redirects", async () => {
