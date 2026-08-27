@@ -534,8 +534,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Selection", ru: "Отбор" })}</Badge>
             <p className="text-sm text-white/70">
               {pick(locale, {
-                en: "Run the coverage-first selection to populate the main set and backlog without changing the board status.",
-                ru: "Запусти coverage-first отбор, чтобы заполнить мейн-сет и бэклог без изменения статуса таблицы.",
+                en: "Rank tracks by participant history to populate the main set and backlog without changing the board status.",
+                ru: "Ранжируй треки по истории участия, чтобы заполнить мейн-сет и бэклог без изменения статуса таблицы.",
               })}
             </p>
             <form action={runSelectionAction}>

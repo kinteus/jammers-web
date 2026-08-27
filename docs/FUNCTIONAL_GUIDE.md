@@ -157,7 +157,7 @@ Invitation statuses:
 
 ### Main set and backlog
 
-After registration closes, admins run the selection algorithm. The result is split into:
+During curation, admins run the selection algorithm. Running it does not change the board status. The result is split into:
 
 - `MAIN`
   Tracks selected for the candidate final show.
@@ -606,16 +606,19 @@ The UI shows the current lock owner and expiration time when a lock exists.
 
 ## 18. Running the selection algorithm
 
-Once registration is closed, admins can trigger the setlist algorithm. The algorithm builds a coverage-first track recommendation while respecting:
+Admins holding the curation lock can trigger the setlist algorithm without closing the board. The algorithm builds a sequential recommendation from participant history while respecting:
 
 - main-set song-count budget,
-- prior-gig song exclusion,
+- song exclusion from the latest published event with a non-empty main set,
 - fully assembled required seats,
-- event minimum participant count per track.
+- event minimum participant count per track,
+- event maximum track count per participant.
 
-Known-group de-prioritization is used as a tie-break only after unique-participant coverage is prioritized.
+Historical participation means occupying a claimed seat in a published `MAIN` set. Published events without a `MAIN` set are ignored. Participants who have waited longer since their last appearance receive exponentially larger initial weights, with an additional recent-miss bonus. After a track is ranked, the weights of all its participants are zeroed before the next position is calculated.
 
-The output is split into main set and backlog.
+Known groups receive the algorithm's reduced positive track score. Claimed optional seats carry full participant weight; optionality only determines whether an empty seat blocks track completion.
+
+The entire eligible list is ranked. The event's configured number of top tracks becomes the main set, and the rest becomes backlog. Tracks repeated from the previous qualifying concert are appended to backlog.
 
 ## 19. Drummer-based sort
 
@@ -694,11 +697,11 @@ These tools are important for resolving real-world exceptions near the event dat
 
 ## Known groups and fairness
 
-- Known groups are deprioritized during selection so organically assembled lineups are favored.
+- Known groups receive a reduced positive score during sequential history-weighted selection so organically assembled lineups are favored.
 
 ## Previous-gig repetition control
 
-- Songs from the immediately previous published concert are excluded from selection.
+- Songs from the latest previous published concert with a non-empty `MAIN` set are kept out of the new main set and appended to backlog.
 
 ## Current implementation boundaries
 

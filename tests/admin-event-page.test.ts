@@ -25,8 +25,11 @@ describe("admin event page", () => {
     expect(source).not.toContain("text-ink\">");
   });
 
-  it("describes selection as independent from closing the board", () => {
+  it("describes history-weighted selection as independent from closing the board", () => {
+    expect(source).toContain("participant history");
+    expect(source).toContain("истории участия");
     expect(source).toContain("without changing the board status");
+    expect(source).not.toContain("coverage-first");
     expect(source).not.toContain("This will close the board");
     expect(source).not.toContain("Это закроет таблицу");
   });

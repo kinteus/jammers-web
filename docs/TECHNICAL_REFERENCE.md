@@ -395,19 +395,25 @@ The algorithm is documented at a product level in:
 
 Implementation details:
 
-- current strategy is deterministic exact maximum coverage via dynamic programming,
+- current strategy is deterministic sequential history-weighted ranking,
+- history includes only earlier `PUBLISHED` events with at least one `MAIN` item; participants are deduplicated per event,
+- each current participant starts with exact weight `2^r + m`, where `r` is their most-recent participation position (or history length plus one) and `m` is their miss count over the newest ten qualifying events,
 - participant IDs are deduplicated per track before minimum-count checks and scoring,
 - tracks with unfilled required seats or too few unique participants are ignored,
-- songs from the previous published event are excluded,
-- known groups are deprioritized only as a tie-break after unique-participant coverage is prioritized,
-- the algorithm uses exact dynamic programming for bounded candidate pools and a deterministic bounded selector for large pools,
-- results are persisted into `SetlistItem`.
+- a claimed optional seat contributes full participant weight; `isOptional` affects track completeness only,
+- songs from the newest qualifying historical event are appended as repeat backlog items,
+- ordinary scores are ten times the sum of current participant weights, while a positive exact known-group score is reduced to one,
+- after each ranked track, its participants' weights are zeroed and their entry counters incremented before all remaining scores are recalculated,
+- score ties prefer lower maximum participant entry count, then more unique participants, then stable creation/ID order,
+- the complete eligible list is ranked before being split into `MAIN` and `BACKLOG`,
+- results are persisted into `SetlistItem`, while the run is audited as `SelectionStrategy.HISTORY_WEIGHTED` with JSON-safe initial weights.
 
 Why this matters technically:
 
 - deterministic outputs simplify admin trust,
-- the coverage-first ranking matches the product fairness goal without letting large candidate pools exhaust the Node.js heap,
-- runtime is fast enough for interactive admin workflows.
+- exact integer weights preserve ordering even with long event histories,
+- deriving weights from published setlists avoids mutable per-user algorithm state,
+- the sequential scan has predictable memory use and remains fast enough for interactive admin workflows.
 
 ## Curation concurrency model
 

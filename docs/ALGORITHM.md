@@ -2,35 +2,77 @@
 
 ## Goal
 
-Maximize the number of unique musicians represented in the final set while respecting the event main-set song limit. Known pre-formed bands are de-prioritized only as a tie-break after unique-participant coverage has been prioritized.
+Build a deterministic main set that favors musicians who have not appeared in a published main set recently. The algorithm derives participant weights from event history and then ranks tracks sequentially, recalculating scores after every selected position.
 
-## Inputs
+## Historical participation
 
-- Candidate tracks for the event
-- Unique filled participant set per track
-- Previous published event songs
-- Known-group registry
-- Event max main-set song count
-- Event minimum participants per track
-- Legacy minute-based limits normalized into a safe track-count fallback for older events
+A historical event is included only when it:
 
-## Rules
+- starts before the current event;
+- has status `PUBLISHED`; and
+- contains at least one `MAIN` setlist item.
 
-1. Songs from the previous concert are excluded from selection.
-2. Tracks with unfilled required seats are excluded from the final-set candidate pool.
-3. Tracks whose unique participant count is below the event minimum are excluded from the final-set candidate pool.
-4. The optimizer evaluates candidate combinations within the main-set song-count budget and chooses a coverage-first recommendation.
-5. If multiple combinations cover the same number of unique participants, ties prefer filling more main-set slots, then organic lineups over known groups, then higher seat fullness, then stable creation order.
-6. Eligible tracks not selected become backlog items with reasons. Previous-concert repeats also become backlog items with repeat-specific reasons.
+Events are ordered from newest to oldest by start time, then by ID. A musician participated in an event when they occupied at least one claimed seat on one of its published `MAIN` tracks. Multiple tracks or seats in the same event still count as one participation.
 
-## Output
+Published events without a `MAIN` set are ignored completely. The newest qualifying event is also the previous concert used for song-repeat exclusion.
 
-- Ordered main set recommendation
-- Ordered backlog recommendation
-- Coverage count and human-readable reasons for admin review
+## Initial participant weights
 
-## Scalability model
+For each musician on a current active track:
 
-The underlying problem is a variation of maximum coverage with constraints. Small and moderate candidate pools use deterministic dynamic programming over track combinations, which preserves the exact maximum unique-participant coverage guarantee when the estimated state space is bounded.
+- `H` is the number of qualifying historical events;
+- `r` is the one-based position of their most recent appearance in that history, or `H + 1` if they never appeared; and
+- `m` is the number of events they missed among the newest `min(10, H)` events.
 
-Large candidate pools switch to a bounded deterministic selector that greedily maximizes new participant coverage, then applies local swaps using the same coverage-first comparator. This avoids materializing every coverage-mask combination, which can grow combinatorially on real gig data and exhaust the Node.js heap. Secondary ranking still keeps the result explainable and predictable for admin workflows.
+Their initial weight is:
+
+```text
+weight = 2^r + m
+```
+
+With no qualifying history, every current participant starts with weight `2`. Weights are calculated with exact integers and stored in the selection audit JSON as decimal strings.
+
+## Validation and eligibility
+
+Before replacing any saved recommendation, the server checks that no participant occupies more distinct active tracks than the event's `maxTracksPerUser` limit.
+
+Current tracks are then classified as follows:
+
+1. A song from the previous qualifying concert becomes a repeat backlog item.
+2. A non-repeat track with any unfilled required seat is excluded.
+3. A non-repeat track with fewer unique claimed participants than `minParticipantsPerTrack` is excluded.
+4. Every remaining track enters sequential ranking.
+
+`TrackSeat.isOptional` affects completion only: an empty optional seat does not make a track incomplete. A musician who claims an optional seat contributes their full participant weight. This product has no legacy `opt` scoring positions.
+
+Known groups are matched by exact claimed-member set, as before.
+
+## Sequential ranking
+
+For one selection run, the algorithm maintains each participant's current weight and the number of already ranked tracks they occupy.
+
+For every remaining ordinary track:
+
+```text
+scaledScore = 10 * sum(current participant weights)
+```
+
+For an exact known-group track, a positive score is reduced to `1` (the exact-integer equivalent of the legacy `0.1` track score). A zero score remains zero.
+
+At each position, candidates are compared by:
+
+1. higher current scaled score;
+2. lower maximum ranked-entry count among their participants;
+3. more unique participants;
+4. earlier track creation time; and
+5. lexicographically smaller track ID.
+
+After a track is ranked, every participant on it has their current weight set to zero and their ranked-entry count incremented. Scores are recalculated before choosing the next track. Ranking continues through the entire eligible list, including positions that will become backlog.
+
+## Output and persistence
+
+The first `N` ranked tracks, where `N` is the normalized event main-set track limit, become `MAIN`. Remaining ranked tracks become `BACKLOG`; previous-concert repeats are appended afterward in deterministic creation order.
+
+Each new `SelectionRun` is saved with strategy `HISTORY_WEIGHTED`. Its audit JSON includes the history-event count, initial weights, complete ranked track IDs, main-set and backlog results, reasons, and an informational count of unique participants represented in `MAIN`.
+
+The recommendation is replaced atomically and running selection does not close or otherwise change the board status. Admins may still curate and reorder the resulting main set and backlog manually before publication.

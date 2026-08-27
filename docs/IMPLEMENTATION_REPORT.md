@@ -9,7 +9,7 @@
 - Live song search via external provider plus missing-song request flow
 - Track proposal composer, seat claim, seat release, seat skip marking, and invite response flow
 - Admin moderation for ratings, bans, known groups, seat overrides, and event curation
-- Coverage-first setlist algorithm with previous-concert song exclusion
+- History-weighted sequential setlist algorithm with previous-concert song exclusion
 - Manual setlist backlog management, publishing, and drummer-based sorting
 - Stage-sheet board redesign aligned with The Jammers brand system
 - Prisma schema, migrations, seed data, tests, Docker packaging, CI, and Kubernetes manifests
@@ -18,7 +18,7 @@
 
 - Kept the system as a single deployable full-stack monolith to minimize delivery risk.
 - Stored sessions server-side in PostgreSQL-backed session records instead of client-side JWTs.
-- Used a deterministic coverage-first algorithm because it is explainable to admins and fast in runtime.
+- Derived exact participant weights from published main-set history and used deterministic sequential ranking so fairness decisions remain explainable to admins.
 - Treated Telegram as the canonical identity provider and collaboration channel.
 
 ## Validation status
