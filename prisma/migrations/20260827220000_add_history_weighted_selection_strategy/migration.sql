@@ -1,0 +1,1 @@
+ALTER TYPE "SelectionStrategy" ADD VALUE 'HISTORY_WEIGHTED';

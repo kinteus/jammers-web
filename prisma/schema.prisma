@@ -46,6 +46,7 @@ enum TrackInviteStatus {
 
 enum SelectionStrategy {
   COVERAGE_FIRST
+  HISTORY_WEIGHTED
 }
 
 enum SetlistSection {
