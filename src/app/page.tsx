@@ -368,43 +368,31 @@ export default async function HomePage() {
                     </Link>
                   </Button>
                 </div>
+                {featuredEvent ? (
+                  // Date, time and venue of the next gig stay on the first screen, even on phones.
+                  <p className="text-center text-sm font-semibold text-sand/80" data-hero-next-gig>
+                    {pick(locale, { en: "Next gig", ru: "Ближайший гиг" })}:{" "}
+                    <span className="text-gold">
+                      {[
+                        formatEventDateLong(featuredEvent.startsAt, locale),
+                        formatEventTime(featuredEvent.startsAt, locale),
+                        featuredEvent.venueName,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <CommunityQuotesCloud
-        desktopDisplayLimit={communityQuotesDesktopDisplayLimit}
-        locale={locale}
-        mobileDisplayLimit={communityQuotesMobileDisplayLimit}
-        quotes={communityQuotes}
-      />
 
+
+      {/* Next gig first: it is the most useful thing on the page, especially on mobile. */}
       <section className={`${HERO_FRAME_CLASS} space-y-4`}>
-        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1.5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
-            </p>
-            <p className="text-sm leading-6 text-white/74">
-              {pick(locale, {
-                en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
-                ru: "Новичок? В FAQ объяснены логика сетлиста, правила вписки и то, что стоит сделать до предложения песен.",
-              })}
-            </p>
-          </div>
-          <div className="shrink-0">
-            <Button asChild variant="secondary">
-              <Link href="/faq">
-                {pick(locale, {
-                  en: "Read the FAQ",
-                  ru: "Открыть FAQ",
-                })}
-              </Link>
-            </Button>
-          </div>
-        </Card>
 
         <Card className="brand-stage relative overflow-hidden space-y-5 border border-gold/18 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.44)] sm:px-6 sm:py-6">
           <div
@@ -546,7 +534,38 @@ export default async function HomePage() {
             </p>
           )}
         </Card>
+
+        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+              {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
+            </p>
+            <p className="text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
+                ru: "Новичок? В FAQ объяснены логика сетлиста, правила вписки и то, что стоит сделать до предложения песен.",
+              })}
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button asChild variant="secondary">
+              <Link href="/faq">
+                {pick(locale, {
+                  en: "Read the FAQ",
+                  ru: "Открыть FAQ",
+                })}
+              </Link>
+            </Button>
+          </div>
+        </Card>
       </section>
+
+      <CommunityQuotesCloud
+        desktopDisplayLimit={communityQuotesDesktopDisplayLimit}
+        locale={locale}
+        mobileDisplayLimit={communityQuotesMobileDisplayLimit}
+        quotes={communityQuotes}
+      />
 
       <ArchiveStatsSection locale={locale} stats={archiveStats} />
 
