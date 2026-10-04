@@ -28,7 +28,8 @@ import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/rol
 import { getEventTrackInfoFields } from "@/lib/track-info-flags";
 import { serializeJsonForHtmlScript } from "@/lib/html-script";
 import { env } from "@/lib/env";
-import { formatDateTime, formatEventDateShort, formatEventTime } from "@/lib/utils";
+import { cn, formatDateTime, formatEventDateShort, formatEventTime } from "@/lib/utils";
+import { countJoinedTracks } from "@/lib/domain/rules";
 import {
   createTrackAction,
   updateEventStatusAction,
@@ -591,6 +592,9 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           .filter((track): track is (typeof event.tracks)[number] => Boolean(track))
       : event.tracks;
 
+  const joinedTrackCount = user ? countJoinedTracks(event.tracks, user.id) : 0;
+  const atTrackLimit = Boolean(user) && joinedTrackCount >= event.maxTracksPerUser;
+
   const visibleTracks = boardTracks.filter((track) => {
     const matchesSearch =
       searchNeedle.length === 0 ||
@@ -879,6 +883,31 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 ru: "Начинай отсюда: смотри песни и занимай ту партию, которую реально можешь закрыть.",
               })}
             </span>
+            {user && effectiveStatus === "OPEN" ? (
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold",
+                  atTrackLimit
+                    ? "border-gold/40 bg-gold/12 text-gold"
+                    : "border-white/14 bg-white/6 text-white/80",
+                )}
+                data-board-track-limit
+                title={pick(locale, {
+                  en: `Each player can be in up to ${event.maxTracksPerUser} songs per gig.`,
+                  ru: `На одном гиге можно участвовать максимум в ${event.maxTracksPerUser} песнях.`,
+                })}
+              >
+                {atTrackLimit
+                  ? pick(locale, {
+                      en: `Limit reached: ${joinedTrackCount} of ${event.maxTracksPerUser} songs. Leave one to join another.`,
+                      ru: `Лимит: ${joinedTrackCount} из ${event.maxTracksPerUser} песен. Выйди из одной, чтобы вписаться в другую.`,
+                    })
+                  : pick(locale, {
+                      en: `You're in ${joinedTrackCount} of ${event.maxTracksPerUser} songs`,
+                      ru: `Ты в ${joinedTrackCount} из ${event.maxTracksPerUser} песен`,
+                    })}
+              </span>
+            ) : null}
             <Link className="font-semibold text-gold transition hover:text-gold/80 hover:underline" href="/faq">
               {pick(locale, {
                 en: "Need the board rules? FAQ has the short version.",

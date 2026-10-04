@@ -52,3 +52,17 @@ describe("domain rules", () => {
     expect(() => assertWithinTrackLimit(1, 3)).not.toThrow();
   });
 });
+
+describe("countJoinedTracks", () => {
+  it("counts distinct songs where the user holds a claimed seat", async () => {
+    const { countJoinedTracks } = await import("@/lib/domain/rules");
+    const { TrackSeatStatus } = await import("@prisma/client");
+    const tracks = [
+      { id: "a", seats: [{ userId: "u1", status: TrackSeatStatus.CLAIMED }, { userId: "u1", status: TrackSeatStatus.CLAIMED }] },
+      { id: "b", seats: [{ userId: "u2", status: TrackSeatStatus.CLAIMED }] },
+      { id: "c", seats: [{ userId: "u1", status: TrackSeatStatus.OPEN }] },
+    ];
+    expect(countJoinedTracks(tracks, "u1")).toBe(1);
+    expect(countJoinedTracks(tracks, "u3")).toBe(0);
+  });
+});

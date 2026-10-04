@@ -93,6 +93,16 @@ export function canRequestClosedOptionalSeat(
   );
 }
 
+// Mirrors countUniqueJoinedTracks in server actions: distinct tracks with a CLAIMED seat for the user.
+export function countJoinedTracks(
+  tracks: Array<{ id: string; seats: Array<Pick<TrackSeat, "status" | "userId">> }>,
+  userId: string,
+) {
+  return tracks.filter((track) =>
+    track.seats.some((seat) => seat.userId === userId && seat.status === TrackSeatStatus.CLAIMED),
+  ).length;
+}
+
 export function assertWithinTrackLimit(
   uniqueJoinedTracksCount: number,
   maxTracksPerUser: number,
