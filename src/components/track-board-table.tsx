@@ -1907,7 +1907,7 @@ export function TrackBoardTable({
                               ? completion.optionalOpen > 0
                                 ? pick(locale, {
                                     en: `${completion.optionalOpen} optional left`,
-                                    ru: `${completion.optionalOpen} optional осталось`,
+                                    ru: `Опциональных мест: ${completion.optionalOpen}`,
                                   })
                                 : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })
                               : pick(locale, {
@@ -2353,17 +2353,26 @@ export function TrackBoardTable({
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-white/62">
-                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1",
+                        readiness.isReady
+                          ? "border-emerald-300/24 bg-emerald-400/12 text-emerald-100"
+                          : "border-white/10 bg-white/6",
+                      )}
+                      data-mobile-required-status={readiness.isReady ? "ready" : "missing"}
+                    >
                       {missingRequiredSummary}
                     </span>
-                    {readiness.isReady ? (
-                      <span className="rounded-full border border-emerald-300/24 bg-emerald-400/12 px-2.5 py-1 text-emerald-100">
-                        {readiness.optionalOpen > 0
-                          ? pick(locale, {
-                              en: `${readiness.optionalOpen} optional left`,
-                              ru: `${readiness.optionalOpen} optional осталось`,
-                            })
-                          : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })}
+                    {readiness.isReady && readiness.optionalOpen > 0 ? (
+                      <span
+                        className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1"
+                        data-mobile-optional-status
+                      >
+                        {pick(locale, {
+                          en: `${readiness.optionalOpen} optional left`,
+                          ru: `Опциональных мест: ${readiness.optionalOpen}`,
+                        })}
                       </span>
                     ) : null}
                     {activeTrackInfoLabels.map((label) => (

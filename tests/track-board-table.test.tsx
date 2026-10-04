@@ -329,6 +329,59 @@ describe("TrackBoardTable", () => {
     expect(mobileYoutubeLink?.textContent).toContain("YouTube");
   });
 
+  it("shows each mobile readiness pill once for fully staffed songs", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    const filledSeat = (id: string, isOptional: boolean) => ({
+      id,
+      seatIndex: 1,
+      label: isOptional ? "Guitar" : "Vocals",
+      status: TrackSeatStatus.CLAIMED,
+      isOptional,
+      userId: `user-${id}`,
+      user: { id: `user-${id}`, telegramUsername: id, fullName: id },
+      lineupSlotId: isOptional ? "slot-guitar" : "slot-vocals",
+      invites: [],
+    });
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            { id: "slot-vocals", key: "vocals", label: "Vocals", seatCount: 1, allowOptional: false, displayOrder: 1 },
+            { id: "slot-guitar", key: "guitar", label: "Guitar", seatCount: 1, allowOptional: true, displayOrder: 2 },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-all-filled",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-full", title: "Full House", artist: { name: "Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [filledSeat("vox", false), filledSeat("gtr", true)],
+            },
+          ]}
+          user={null}
+        />,
+      );
+    });
+
+    const requiredPills = host.querySelectorAll('[data-mobile-required-status="ready"]');
+    expect(requiredPills).toHaveLength(1);
+    expect(requiredPills[0]?.textContent).toBe("All required filled");
+    expect(host.querySelector("[data-mobile-optional-status]")).toBeNull();
+    expect(host.textContent?.match(/All required filled/g)?.length ?? 0).toBeLessThanOrEqual(2);
+  });
+
   it("summarizes missing required instruments for collapsed mobile songs", () => {
     expect(
       getMissingRequiredSeatLabels([
