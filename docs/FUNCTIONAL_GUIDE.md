@@ -81,6 +81,8 @@ The current application exposes the following main surfaces:
   Admin dashboard for global operations.
 - `/admin/events/[id]`
   Event-level curation and publishing console.
+- Any unknown URL
+  Branded, translated 404 page ("This page went off-stage") with links to the home page (next gig) and setlists. It does not query the database, so it renders even when data is unavailable.
 
 ## Core product concepts
 
