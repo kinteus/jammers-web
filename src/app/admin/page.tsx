@@ -3,7 +3,10 @@ import Link from "next/link";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
+import { EventStatus } from "@prisma/client";
+
 import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import { formatEventDateShort } from "@/lib/utils";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
 import { DEFAULT_MAX_SET_TRACK_COUNT } from "@/lib/domain/setlist-limit";
 import {
@@ -54,6 +57,8 @@ export const metadata: Metadata = {
     follow: false,
   },
 };
+
+type AdminGig = Awaited<ReturnType<typeof getAdminDashboardData>>["events"][number];
 
 type AdminPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -146,6 +151,101 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     });
   const primaryAdminTelegramId = env.PRIMARY_ADMIN_TELEGRAM_ID;
   const primaryAdminUsername = normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME);
+
+  const gigQuery = typeof params.gigQuery === "string" ? params.gigQuery.trim() : "";
+  const normalizedGigQuery = gigQuery.toLocaleLowerCase();
+  const matchingGigs = data.events.filter((event) => {
+    if (!normalizedGigQuery) {
+      return true;
+    }
+    const haystack = [
+      event.title,
+      formatEventDateShort(event.startsAt, "en"),
+      formatEventDateShort(event.startsAt, "ru"),
+    ]
+      .join(" ")
+      .toLocaleLowerCase();
+    return haystack.includes(normalizedGigQuery);
+  });
+  const activeGigs = matchingGigs.filter(
+    (event) => getEffectiveEventStatus(event) !== EventStatus.ARCHIVED,
+  );
+  const archivedGigs = matchingGigs.filter(
+    (event) => getEffectiveEventStatus(event) === EventStatus.ARCHIVED,
+  );
+
+  function renderGigRow(event: AdminGig) {
+            const effectiveStatus = getEffectiveEventStatus(event);
+            const quickAction = getQuickAction({
+              status: event.status,
+              effectiveStatus,
+            }, locale);
+
+
+    return (
+              <Card className="brand-shell rounded-[1.35rem] border-white/10 p-4" key={event.id}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="border-blue/24 bg-blue/16 text-white">{effectiveStatus}</Badge>
+              <span className="text-sm text-white/58">
+                {event.tracks.length} {pick(locale, { en: "active tracks", ru: "активных треков" })}
+              </span>
+            </div>
+            <div>
+              <p className="font-semibold text-sand">{event.title}</p>
+              {effectiveStatus !== event.status ? (
+                <p className="mt-1 text-xs text-white/45">
+                  {pick(locale, { en: "Stored status", ru: "Сохранённый статус" })}: {event.status}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/admin/events/${event.id}`}>
+              <Button size="sm" variant="secondary">
+                {pick(locale, { en: "Open event admin", ru: "Открыть админку гига" })}
+              </Button>
+            </Link>
+
+            {quickAction ? (
+              <form action={updateEventStatusAction}>
+                <input name="eventId" type="hidden" value={event.id} />
+                <input name="eventSlug" type="hidden" value={event.id} />
+                <input name="status" type="hidden" value={quickAction.status} />
+                {quickAction.status === "CLOSED" ? (
+                  <ConfirmSubmitButton
+                    confirmMessage={pick(locale, {
+                      en: `Close registration for "${event.title}"? Players won't be able to join required seats.`,
+                      ru: `Закрыть регистрацию на «${event.title}»? Игроки не смогут записываться на обязательные места.`,
+                    })}
+                    pendingLabel={quickAction.pendingLabel}
+                    size="sm"
+                    type="submit"
+                  >
+                    {quickAction.label}
+                  </ConfirmSubmitButton>
+                ) : (
+                  <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
+                    {quickAction.label}
+                  </SubmitButton>
+                )}
+              </form>
+            ) : null}
+
+            <DeleteGigForm
+              action={deleteEventAction}
+              collapsed
+              eventId={event.id}
+              eventTitle={event.title}
+              locale={locale}
+            />
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-8 text-sand">
@@ -914,79 +1014,50 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </p>
         </div>
 
-        <div className="grid gap-3">
-          {data.events.map((event) => {
-            const effectiveStatus = getEffectiveEventStatus(event);
-            const quickAction = getQuickAction({
-              status: event.status,
-              effectiveStatus,
-            }, locale);
+        <form className="flex flex-wrap items-center gap-2" method="get">
+          <input
+            aria-label={pick(locale, { en: "Search gigs", ru: "Поиск гигов" })}
+            className="min-w-[16rem] flex-1 px-4 py-2 text-sm md:max-w-md"
+            defaultValue={gigQuery}
+            name="gigQuery"
+            placeholder={pick(locale, {
+              en: "Search by gig title or date (e.g. 2025, Oct)",
+              ru: "Поиск по названию или дате (например, 2025, окт)",
+            })}
+            type="search"
+          />
+          <Button size="sm" type="submit" variant="secondary">
+            {pick(locale, { en: "Search", ru: "Найти" })}
+          </Button>
+          {gigQuery ? (
+            <Link className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60 hover:text-white" href="/admin">
+              {pick(locale, { en: "Clear", ru: "Сбросить" })}
+            </Link>
+          ) : null}
+        </form>
 
-            return (
-              <Card className="brand-shell rounded-[1.35rem] border-white/10 p-4" key={event.id}>
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="border-blue/24 bg-blue/16 text-white">{effectiveStatus}</Badge>
-                      <span className="text-sm text-white/58">
-                        {event.tracks.length} {pick(locale, { en: "active tracks", ru: "активных треков" })}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sand">{event.title}</p>
-                      {effectiveStatus !== event.status ? (
-                        <p className="mt-1 text-xs text-white/45">
-                          {pick(locale, { en: "Stored status", ru: "Сохранённый статус" })}: {event.status}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
+        {gigQuery && activeGigs.length === 0 && archivedGigs.length === 0 ? (
+          <p className="text-sm text-white/60">
+            {pick(locale, { en: "No gigs match this search.", ru: "Ничего не найдено." })}
+          </p>
+        ) : null}
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/admin/events/${event.id}`}>
-                      <Button size="sm" variant="secondary">
-                        {pick(locale, { en: "Open event admin", ru: "Открыть админку гига" })}
-                      </Button>
-                    </Link>
-
-                    {quickAction ? (
-                      <form action={updateEventStatusAction}>
-                        <input name="eventId" type="hidden" value={event.id} />
-                        <input name="eventSlug" type="hidden" value={event.id} />
-                        <input name="status" type="hidden" value={quickAction.status} />
-                        {quickAction.status === "CLOSED" ? (
-                          <ConfirmSubmitButton
-                            confirmMessage={pick(locale, {
-                              en: `Close registration for "${event.title}"? Players won't be able to join required seats.`,
-                              ru: `Закрыть регистрацию на «${event.title}»? Игроки не смогут записываться на обязательные места.`,
-                            })}
-                            pendingLabel={quickAction.pendingLabel}
-                            size="sm"
-                            type="submit"
-                          >
-                            {quickAction.label}
-                          </ConfirmSubmitButton>
-                        ) : (
-                          <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
-                            {quickAction.label}
-                          </SubmitButton>
-                        )}
-                      </form>
-                    ) : null}
-
-                    <DeleteGigForm
-                      action={deleteEventAction}
-                      collapsed
-                      eventId={event.id}
-                      eventTitle={event.title}
-                      locale={locale}
-                    />
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+        <div className="grid gap-3" data-admin-active-gigs>
+          {activeGigs.map(renderGigRow)}
         </div>
+
+        {archivedGigs.length > 0 ? (
+          <details className="group space-y-3" data-admin-archived-gigs open={Boolean(gigQuery)}>
+            <summary className="cursor-pointer list-none text-sm font-semibold uppercase tracking-[0.16em] text-white/66 hover:text-white">
+              <span className="mr-2 inline-block transition group-open:rotate-90">▸</span>
+              {pick(locale, {
+                en: `Archived gigs (${archivedGigs.length})`,
+                ru: `Архивные гиги (${archivedGigs.length})`,
+              })}
+            </summary>
+            <div className="mt-3 grid gap-3">{archivedGigs.map(renderGigRow)}</div>
+          </details>
+        ) : null}
       </section>
     </div>
   );

@@ -560,6 +560,7 @@ The admin home is now intentionally compact:
 
 - most heavy global tools open inside focused dialog panels,
 - the event list stays visible on the main page,
+- the gig list shows active gigs first; archived gigs are collapsed under "Archived gigs (N)". A search box filters by gig title or date (EN or RU month names) and opens the archived section when searching,
 - each event row exposes quick actions such as open, close, publish, and delete.
 - "Close gig" asks for confirmation first. "Delete gig" sits behind a "More" toggle and only becomes available after the admin types the exact gig title; the server repeats this check, so a mismatched title never deletes anything. The event admin "Danger zone" uses the same typed confirmation.
 
