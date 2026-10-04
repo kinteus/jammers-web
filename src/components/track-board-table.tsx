@@ -228,6 +228,8 @@ function measureStickyHeaderOffset() {
   return Math.max(0, Math.round(rect.bottom));
 }
 
+const SEAT_COLUMN_WIDTH_REM = 7;
+
 function useStickyTableHeader() {
   const tableRef = useRef<HTMLTableElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement | null>(null);
@@ -274,6 +276,44 @@ function useStickyTableHeader() {
   }, []);
 
   return { tableRef, theadRef };
+}
+
+// Tracks whether the board scroller hides columns to the right, to show a fade + hint.
+function useHorizontalOverflowHint() {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [hasMoreRight, setHasMoreRight] = useState(false);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+
+    function update() {
+      const element = scrollerRef.current;
+      if (!element) {
+        return;
+      }
+      // Measure the table itself: tooltip pseudo-elements inflate scrollWidth.
+      const contentWidth =
+        element.querySelector("table")?.getBoundingClientRect().width ?? element.scrollWidth;
+      setHasMoreRight(element.scrollLeft + element.clientWidth < contentWidth - 4);
+    }
+
+    update();
+    scroller.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => update());
+    observer?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return { hasMoreRight, scrollerRef };
 }
 
 function useCloseOnOutsidePointerDown({
@@ -1390,11 +1430,13 @@ export function TrackBoardTable({
   const [flashingSeatIds, setFlashingSeatIds] = useState<Set<string>>(new Set());
   const previousTracksRef = useRef(tracks);
   const { tableRef, theadRef } = useStickyTableHeader();
+  const { hasMoreRight, scrollerRef } = useHorizontalOverflowHint();
   const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
   const displayTracks = sortTracksBySeatAvailability(currentTracks, seatSort);
-  const tableMinWidthRem = 22 + columns.length * 7.5;
+  // Song column min 20rem + 7rem per seat: a 9-seat lineup (~83rem) fits a 1440px screen.
+  const tableMinWidthRem = 20 + columns.length * SEAT_COLUMN_WIDTH_REM;
 
   useEffect(() => {
     const changedSeatIds = getChangedSeatIds(previousTracksRef.current, tracks);
@@ -1710,7 +1752,8 @@ export function TrackBoardTable({
 
       <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block md:mx-[calc(50%-50vw)] md:w-screen md:rounded-none">
         <div className="h-1 w-full stage-rule" />
-        <div className="table-scroll overflow-x-auto overflow-y-clip">
+        <div className="relative">
+        <div className="table-scroll overflow-x-auto overflow-y-clip" ref={scrollerRef}>
         <table
           className="table-fixed border-separate border-spacing-0"
           ref={tableRef}
@@ -1719,10 +1762,10 @@ export function TrackBoardTable({
           <colgroup>
             {/* Song column is flexible: it absorbs leftover width so the
                 Artist — Track line gets as much room as possible. The table
-                min-width keeps it at ~22rem before horizontal scrolling. */}
+                min-width keeps it at ~20rem before horizontal scrolling. */}
             <col />
             {columns.map((column) => (
-              <col key={column.seatKey} style={{ width: "7.5rem" }} />
+              <col key={column.seatKey} style={{ width: `${SEAT_COLUMN_WIDTH_REM}rem` }} />
             ))}
           </colgroup>
           <thead className="relative z-30" ref={theadRef}>
@@ -2218,6 +2261,29 @@ export function TrackBoardTable({
             })}
           </tbody>
         </table>
+        </div>
+        {hasMoreRight ? (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 z-40 w-16 bg-gradient-to-l from-black/80 to-transparent"
+              data-board-overflow-fade
+            />
+            <button
+              className="absolute right-3 top-2 z-50 inline-flex items-center gap-1 rounded-full border border-white/16 bg-black/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/86 shadow-card transition hover:bg-black/90 hover:text-white"
+              data-board-overflow-hint
+              onClick={() =>
+                scrollerRef.current?.scrollBy({
+                  left: scrollerRef.current.clientWidth * 0.6,
+                  behavior: "smooth",
+                })
+              }
+              type="button"
+            >
+              {pick(locale, { en: "More columns →", ru: "Ещё колонки →" })}
+            </button>
+          </>
+        ) : null}
         </div>
       </div>
 

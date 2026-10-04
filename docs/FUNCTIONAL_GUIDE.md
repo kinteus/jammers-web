@@ -428,6 +428,8 @@ The page is also intentionally "songs first". Users are pushed to review what al
 - grouped headers by role family,
 - one compact seat cell per stage position,
 - mobile fallback cards when a desktop table would be too dense.
+- the song column stays pinned while scrolling sideways; seat columns are 7rem wide so a typical 9-seat lineup fits a 1440px screen without scrolling,
+- when columns are hidden to the right, a fade and a "More columns →" button (scrolls the board) appear at the right edge.
 
 ### Track metadata shown in the sticky column
 
