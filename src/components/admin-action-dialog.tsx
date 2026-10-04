@@ -25,9 +25,9 @@ export function AdminActionDialog({
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <Button className="w-full justify-between gap-3" variant={triggerVariant}>
+        {/* The badge repeats the label on the dashboard, so it's only shown inside the dialog. */}
+        <Button className="w-full justify-start gap-3 text-left" variant={triggerVariant}>
           <span>{triggerLabel}</span>
-          <span className="text-[10px] tracking-[0.18em] text-white/42">{badge}</span>
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
