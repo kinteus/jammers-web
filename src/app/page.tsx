@@ -26,20 +26,32 @@ import { DatabaseUnavailableState } from "@/components/database-unavailable-stat
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Live Gig Boards",
-  description:
-    "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: "The Jammers",
-    description:
-      "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
-    url: "/",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  // The root page is in the same segment as the layout, so the "%s | The Jammers" template
+  // does not apply here: give it a complete, branded title.
+  const title = pick(locale, {
+    en: "The Jammers: Live gig boards in Cyprus",
+    ru: "The Jammers: живые гиги на Кипре",
+  });
+  const description = pick(locale, {
+    en: "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
+    ru: "Следи за ближайшими гигами, смотри, какие песни уже собираются, и присоединяйся к составу сообщества The Jammers.",
+  });
+
+  return {
+    title: { absolute: title },
+    description,
+    alternates: {
+      canonical: "/",
+    },
+    openGraph: {
+      title,
+      description,
+      url: "/",
+    },
+  };
+}
 
 const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
 
