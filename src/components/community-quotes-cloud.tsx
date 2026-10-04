@@ -210,8 +210,10 @@ function DesktopQuotesPerimeter({
   );
   const layoutOffset = randomInt(QUOTE_SLOTS.length);
 
+  // Floating bubbles only when the side gutters can hold them without covering content
+  // (1360px content column + ~240px bubble per side). Narrower screens get the in-flow section.
   return (
-    <div className="community-quotes-perimeter hidden lg:block">
+    <div className="community-quotes-perimeter hidden min-[1840px]:block">
       {desktopQuotes.map((quote, index) => {
         const slot = QUOTE_SLOTS[(index + layoutOffset) % QUOTE_SLOTS.length];
         const peekWidth = "14rem";
@@ -297,7 +299,7 @@ export function CommunityQuotesCloud({
           ru: "Фразы, которые сцена уже знает наизусть",
         })}
       </h2>
-      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 lg:hidden">
+      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 min-[1840px]:hidden">
         <div className="space-y-2 px-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/52">
             {pick(locale, {

@@ -544,6 +544,8 @@ Admins edit the public FAQ body as markdown directly from the dashboard. Both FA
 
 Admins curate the community quote pool shown on the home page, including quote text, source label, active state, display order, and separate desktop/mobile display limits.
 
+On screens 1840px and wider, quotes float in the side margins, which are wide enough there that they never cover page content. Below 1840px (including most laptops and all phones), they appear as an in-flow "Quotes the scene already knows by heart" section under the hero: one column on phones, two on tablets, three from 1280px. The "desktop" display limit applies to the floating layout; the "mobile" limit applies to the in-flow section.
+
 ### Global queue visibility
 
 The dashboard also shows:
