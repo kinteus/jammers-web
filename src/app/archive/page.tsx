@@ -7,8 +7,8 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { formatEventDateShort, formatEventTime, formatEventYear } from "@/lib/utils";
 import { getArchivePageData } from "@/server/query-data";
 
+import { ArchiveFilters } from "@/components/archive-filters";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
-import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -122,32 +122,12 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
         ) : null}
       </section>
 
-      <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto]">
-        <input
-          className="min-h-12 w-full rounded-md border-white/12 bg-transparent px-4 text-sm"
-          defaultValue={typeof params.q === "string" ? params.q : ""}
-          name="q"
-          placeholder={pick(locale, {
-            en: "Search song, artist or musician...",
-            ru: "Поиск по песне, артисту или музыканту...",
-          })}
-        />
-        <select
-          className="min-h-12 rounded-md border-white/12 bg-transparent px-4 text-sm"
-          defaultValue={selectedYear}
-          name="year"
-        >
-          <option value="">{pick(locale, { en: "All years", ru: "Все годы" })}</option>
-          {years.map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
-        <Button className="min-h-12 px-5" type="submit" variant="secondary">
-          {pick(locale, { en: "Apply", ru: "Применить" })}
-        </Button>
-      </form>
+      <ArchiveFilters
+        initialQuery={typeof params.q === "string" ? params.q : ""}
+        initialYear={selectedYear}
+        locale={locale}
+        years={years}
+      />
 
       <section className="reference-section overflow-clip">
         {events.length > 0 ? (
