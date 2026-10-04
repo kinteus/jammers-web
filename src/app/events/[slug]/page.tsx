@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { TrackSeatStatus } from "@prisma/client";
 import { ArrowRight, Clock3, LogIn } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -11,7 +10,7 @@ import {
   getAllowedNextEventStatuses,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
-import { countLineupParticipants } from "@/lib/event-board";
+import { countLineupParticipants, matchesRoleFilters } from "@/lib/event-board";
 import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
@@ -613,15 +612,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       return false;
     }
 
-    const matchesRoles =
-      roleFilters.length === 0 ||
-      roleFilters.every((role) =>
-        track.seats.some(
-          (seat) =>
-            seat.status === TrackSeatStatus.OPEN &&
-            getRoleFamilyKey(seat.label, seat.lineupSlot?.key ?? "") === role,
-        ),
-      );
+    const matchesRoles = matchesRoleFilters({
+      getRoleKey: (seat) => getRoleFamilyKey(seat.label, seat.lineupSlot?.key ?? ""),
+      onlyRequiredSeats: activeView === "open",
+      roles: roleFilters,
+      seats: track.seats,
+    });
 
     if (!matchesRoles) {
       return false;

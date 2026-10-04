@@ -5,6 +5,7 @@ import {
   countLineupParticipants,
   expandSeatColumns,
   getTrackReadinessState,
+  matchesRoleFilters,
 } from "@/lib/event-board";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
 
@@ -164,5 +165,32 @@ describe("event board helpers", () => {
       "Extra",
     ]);
     expect(defaultLineup.every((slot) => slot.allowOptional)).toBe(true);
+  });
+});
+
+describe("matchesRoleFilters", () => {
+  const seat = (label: string, isOptional: boolean, status: TrackSeatStatus = TrackSeatStatus.OPEN) => ({
+    label,
+    isOptional,
+    status,
+    lineupSlot: { key: label.toLowerCase() },
+  });
+  const getRoleKey = (s: { label: string }) => s.label.toLowerCase();
+  // Missing a drummer; bass is only an optional extra.
+  const seats = [seat("Drums", false), seat("Bass", true)];
+
+  it("counts optional seats when browsing all songs", () => {
+    expect(matchesRoleFilters({ getRoleKey, onlyRequiredSeats: false, roles: ["bass"], seats })).toBe(true);
+  });
+
+  it("only counts required seats under Need players", () => {
+    expect(matchesRoleFilters({ getRoleKey, onlyRequiredSeats: true, roles: ["bass"], seats })).toBe(false);
+    expect(matchesRoleFilters({ getRoleKey, onlyRequiredSeats: true, roles: ["drums"], seats })).toBe(true);
+  });
+
+  it("ignores filled seats and passes everything when no role is selected", () => {
+    const filled = [seat("Bass", false, TrackSeatStatus.CLAIMED)];
+    expect(matchesRoleFilters({ getRoleKey, onlyRequiredSeats: false, roles: ["bass"], seats: filled })).toBe(false);
+    expect(matchesRoleFilters({ getRoleKey, onlyRequiredSeats: true, roles: [], seats: filled })).toBe(true);
   });
 });

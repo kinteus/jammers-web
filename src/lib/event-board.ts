@@ -96,3 +96,39 @@ export function countLineupParticipants(tracks: ParticipantCountTrack[]) {
     inReadyTracks: inReadyTracks.size,
   };
 }
+
+type RoleFilterSeat = {
+  status: TrackSeatStatus;
+  isOptional: boolean;
+  label: string;
+  lineupSlot?: { key: string } | null;
+};
+
+/**
+ * Role filter for the board. Under "Need players" only *required* open seats count, so
+ * "Need players + Bass" lists songs that are actually waiting for a bassist, not songs
+ * that miss a drummer but happen to have an optional bass seat.
+ */
+export function matchesRoleFilters<Role extends string>({
+  getRoleKey,
+  onlyRequiredSeats,
+  roles,
+  seats,
+}: {
+  getRoleKey: (seat: RoleFilterSeat) => Role;
+  onlyRequiredSeats: boolean;
+  roles: Role[];
+  seats: RoleFilterSeat[];
+}) {
+  return (
+    roles.length === 0 ||
+    roles.every((role) =>
+      seats.some(
+        (seat) =>
+          seat.status === TrackSeatStatus.OPEN &&
+          (!onlyRequiredSeats || !seat.isOptional) &&
+          getRoleKey(seat) === role,
+      ),
+    )
+  );
+}

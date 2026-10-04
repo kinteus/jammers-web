@@ -197,10 +197,15 @@ export function TrackBoardFilters({
 
       {selectedRoles.length > 0 ? (
         <p className="text-xs leading-5 text-white/58">
-          {pick(locale, {
-            en: "Showing songs that still have open seats in every selected role family.",
-            ru: "Показываются песни, где ещё открыты места во всех выбранных классах ролей.",
-          })}
+          {activeView === "open"
+            ? pick(locale, {
+                en: "Showing songs that still need a player (required seat) in every selected role.",
+                ru: "Показываются песни, где в каждой выбранной роли ещё не хватает игрока (обязательное место).",
+              })
+            : pick(locale, {
+                en: "Showing songs that still have open seats in every selected role family.",
+                ru: "Показываются песни, где ещё открыты места во всех выбранных классах ролей.",
+              })}
         </p>
       ) : null}
     </div>
