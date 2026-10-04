@@ -559,6 +559,7 @@ The admin home is now intentionally compact:
 - most heavy global tools open inside focused dialog panels,
 - the event list stays visible on the main page,
 - each event row exposes quick actions such as open, close, publish, and delete.
+- "Close gig" asks for confirmation first. "Delete gig" sits behind a "More" toggle and only becomes available after the admin types the exact gig title; the server repeats this check, so a mismatched title never deletes anything. The event admin "Danger zone" uses the same typed confirmation.
 
 ## 15. Event settings administration
 

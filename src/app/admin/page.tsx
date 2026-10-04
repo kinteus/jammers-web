@@ -37,10 +37,12 @@ import { getAdminDashboardData, getFaqPageData } from "@/server/query-data";
 
 import { AdminActionDialog } from "@/components/admin-action-dialog";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { DeleteGigForm } from "@/components/delete-gig-form";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -161,6 +163,15 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           {pick(locale, {
             en: "Community quotes saved. The home page has already picked up the latest set.",
             ru: "Цитаты сообщества сохранены. Главная страница уже подтянула актуальный набор.",
+          })}
+        </div>
+      ) : null}
+
+      {notice === "event-delete-not-confirmed" ? (
+        <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "Gig not deleted: the typed title didn't match.",
+            ru: "Гиг не удалён: введённое название не совпало.",
           })}
         </div>
       ) : null}
@@ -943,25 +954,33 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                         <input name="eventId" type="hidden" value={event.id} />
                         <input name="eventSlug" type="hidden" value={event.id} />
                         <input name="status" type="hidden" value={quickAction.status} />
-                        <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
-                          {quickAction.label}
-                        </SubmitButton>
+                        {quickAction.status === "CLOSED" ? (
+                          <ConfirmSubmitButton
+                            confirmMessage={pick(locale, {
+                              en: `Close registration for "${event.title}"? Players won't be able to join required seats.`,
+                              ru: `Закрыть регистрацию на «${event.title}»? Игроки не смогут записываться на обязательные места.`,
+                            })}
+                            pendingLabel={quickAction.pendingLabel}
+                            size="sm"
+                            type="submit"
+                          >
+                            {quickAction.label}
+                          </ConfirmSubmitButton>
+                        ) : (
+                          <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
+                            {quickAction.label}
+                          </SubmitButton>
+                        )}
                       </form>
                     ) : null}
 
-                    <form action={deleteEventAction}>
-                      <input name="eventId" type="hidden" value={event.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <SubmitButton
-                        className="border-red/45 bg-red/12 text-white hover:border-red/65 hover:bg-red/18"
-                        pendingLabel={pick(locale, { en: "Deleting...", ru: "Удаляем..." })}
-                        size="sm"
-                        type="submit"
-                        variant="secondary"
-                      >
-                        {pick(locale, { en: "Delete gig", ru: "Удалить гиг" })}
-                      </SubmitButton>
-                    </form>
+                    <DeleteGigForm
+                      action={deleteEventAction}
+                      collapsed
+                      eventId={event.id}
+                      eventTitle={event.title}
+                      locale={locale}
+                    />
                   </div>
                 </div>
               </Card>

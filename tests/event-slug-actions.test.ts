@@ -76,6 +76,7 @@ const dbMock = vi.hoisted(() => ({
     delete: vi.fn(),
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
     findUniqueOrThrow: vi.fn(),
     update: vi.fn(),
   },
@@ -176,6 +177,24 @@ function futureOpenEvent(overrides: Record<string, unknown> = {}) {
 }
 
 describe("event route slugs in server actions", () => {
+  it("refuses to delete an event unless the typed title matches", async () => {
+    requireAdminMock.mockResolvedValue({ id: "admin-1", role: UserRole.ADMIN });
+    dbMock.event.findUnique.mockResolvedValue({ title: "Spring Jam Night" });
+    dbMock.event.delete.mockClear();
+    dbMock.trackSeat.deleteMany.mockClear();
+
+    const { deleteEventAction } = await import("@/server/actions");
+
+    await expect(
+      deleteEventAction(
+        formData({ confirmTitle: "spring jam", eventId: "event-1", eventSlug: "event-1" }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT:/admin?notice=event-delete-not-confirmed");
+
+    expect(dbMock.trackSeat.deleteMany).not.toHaveBeenCalled();
+    expect(dbMock.event.delete).not.toHaveBeenCalled();
+  });
+
   it(
     "deletes an event with a short cascade path instead of a long interactive transaction",
     async () => {
@@ -184,12 +203,14 @@ describe("event route slugs in server actions", () => {
         role: UserRole.ADMIN,
       });
       dbMock.event.delete.mockResolvedValue({ id: "event-1" });
+      dbMock.event.findUnique.mockResolvedValue({ title: "Spring Jam Night" });
 
       const { deleteEventAction } = await import("@/server/actions");
 
       await expect(
         deleteEventAction(
           formData({
+            confirmTitle: "Spring Jam Night",
             eventId: "event-1",
             eventSlug: "spring-jam-night",
           }),

@@ -29,6 +29,7 @@ import {
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
+import { isDeleteGigConfirmationValid } from "@/lib/delete-gig-confirmation";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
 import { assertEventRegistrationWindow } from "@/lib/domain/event-registration";
 import { getNextSetlistOrderIndex } from "@/lib/domain/setlist-order";
@@ -2569,6 +2570,19 @@ export async function deleteEventAction(formData: FormData) {
   await requireAdmin();
   const eventId = getString(formData, "eventId");
   const eventSlug = getString(formData, "eventSlug");
+  const confirmTitle = getString(formData, "confirmTitle");
+
+  // Deletion is irreversible: require the admin to have typed the exact gig title.
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    select: { title: true },
+  });
+  if (!event) {
+    redirect("/admin?notice=event-not-found");
+  }
+  if (!isDeleteGigConfirmationValid(confirmTitle, event.title)) {
+    redirect("/admin?notice=event-delete-not-confirmed");
+  }
 
   await db.trackSeat.deleteMany({
     where: {

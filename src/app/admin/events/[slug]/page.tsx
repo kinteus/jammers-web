@@ -38,6 +38,7 @@ import { AdminSetlistStack } from "@/components/admin-setlist-stack";
 import { AdminSeatAssignControl } from "@/components/admin-seat-assign-control";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { DeleteGigForm } from "@/components/delete-gig-form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
@@ -625,18 +626,12 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 })}
               </p>
             </div>
-            <form action={deleteEventAction}>
-              <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.id} />
-              <SubmitButton
-                className="border-red/45 bg-red/12 text-white hover:border-red/65 hover:bg-red/18"
-                pendingLabel={pick(locale, { en: "Deleting gig...", ru: "Удаляем гиг..." })}
-                type="submit"
-                variant="secondary"
-              >
-                {pick(locale, { en: "Delete gig", ru: "Удалить гиг" })}
-              </SubmitButton>
-            </form>
+            <DeleteGigForm
+              action={deleteEventAction}
+              eventId={event.id}
+              eventTitle={event.title}
+              locale={locale}
+            />
           </Card>
         </div>
       </section>
