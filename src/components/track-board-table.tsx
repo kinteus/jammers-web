@@ -415,10 +415,6 @@ function getMissingRequiredSummary(seats: SeatLabelSource[], locale: Locale) {
   });
 }
 
-function shouldShowPlaybackColumn(trackInfoFields: TrackInfoField[]) {
-  return trackInfoFields.some((field) => field.key === "playback");
-}
-
 function getVisibleTrackInfoLabels({
   locale,
   track,
@@ -430,7 +426,7 @@ function getVisibleTrackInfoLabels({
 }) {
   const activeKeys = getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired);
   return trackInfoFields
-    .filter((field) => field.key !== "playback" && activeKeys.includes(field.key))
+    .filter((field) => activeKeys.includes(field.key))
     .map((field) => getTrackInfoLabel(field, locale));
 }
 
@@ -1397,9 +1393,8 @@ export function TrackBoardTable({
   const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
-  const showPlaybackColumn = shouldShowPlaybackColumn(trackInfoFields);
   const displayTracks = sortTracksBySeatAvailability(currentTracks, seatSort);
-  const tableMinWidthRem = 22 + (showPlaybackColumn ? 5.75 : 0) + columns.length * 7.5;
+  const tableMinWidthRem = 22 + columns.length * 7.5;
 
   useEffect(() => {
     const changedSeatIds = getChangedSeatIds(previousTracksRef.current, tracks);
@@ -1726,7 +1721,6 @@ export function TrackBoardTable({
                 Artist — Track line gets as much room as possible. The table
                 min-width keeps it at ~22rem before horizontal scrolling. */}
             <col />
-            {showPlaybackColumn ? <col style={{ width: "5.75rem" }} /> : null}
             {columns.map((column) => (
               <col key={column.seatKey} style={{ width: "7.5rem" }} />
             ))}
@@ -1739,14 +1733,6 @@ export function TrackBoardTable({
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
               </th>
-              {showPlaybackColumn ? (
-                <th
-                  className="z-30 border-b border-r border-white/16 bg-[#1b1b1b] px-2 py-2 text-center text-[11px] uppercase tracking-[0.2em] text-white/92"
-                  rowSpan={2}
-                >
-                  {pick(locale, { en: "Playback", ru: "Плейбэк" })}
-                </th>
-              ) : null}
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
@@ -1953,28 +1939,6 @@ export function TrackBoardTable({
                     </div>
                   </td>
 
-                  {showPlaybackColumn ? (
-                    <td
-                      className={cn(
-                        "border-b border-r border-white/14 px-2 py-1.5 text-center align-middle text-[10px] font-semibold uppercase tracking-[0.14em]",
-                        rowBackground,
-                      )}
-                      data-playback-cell={track.id}
-                    >
-                      <span
-                        className={cn(
-                          "inline-flex min-w-12 justify-center rounded-full border px-2 py-1",
-                          track.playbackRequired
-                            ? "border-gold/28 bg-gold/12 text-gold"
-                            : "border-white/10 bg-white/5 text-white/42",
-                        )}
-                      >
-                        {track.playbackRequired
-                          ? pick(locale, { en: "Yes", ru: "Да" })
-                          : pick(locale, { en: "No", ru: "Нет" })}
-                      </span>
-                    </td>
-                  ) : null}
 
                   {columns.map((column, columnIndex) => {
                     const seat = seatIndex.get(`${column.slotId}:${column.seatIndex}`);
@@ -2361,14 +2325,6 @@ export function TrackBoardTable({
               </summary>
 
               <div className="space-y-3 border-t border-white/10 px-4 py-4">
-                {showPlaybackColumn ? (
-                  <div className="inline-flex rounded-sm border border-gold/18 bg-gold/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
-                    {pick(locale, { en: "Playback", ru: "Плейбэк" })}:{" "}
-                    {track.playbackRequired
-                      ? pick(locale, { en: "yes", ru: "да" })
-                      : pick(locale, { en: "no", ru: "нет" })}
-                  </div>
-                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   {track.comment ? (
                     <TrackNotesControl comment={track.comment} layout="mobile" locale={locale} />

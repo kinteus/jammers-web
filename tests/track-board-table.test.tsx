@@ -745,7 +745,7 @@ describe("TrackBoardTable", () => {
     expect(cancelTrackAction).toHaveBeenCalledTimes(1);
   });
 
-  it("renders playback as a readonly table column outside the claimable seats", async () => {
+  it("shows playback as a badge next to the song title instead of a table column", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -809,10 +809,10 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const playbackCell = host.querySelector('[data-playback-cell="track-playback"]');
-    expect(playbackCell?.textContent).toContain("Да");
-    expect(playbackCell?.querySelector("button, form")).toBeNull();
-    expect(host.querySelectorAll("thead th")).toHaveLength(4);
+    expect(host.querySelector("[data-playback-cell]")).toBeNull();
+    expect(host.querySelector("table")?.textContent).toContain("Плейбэк");
+    // Song column + one role group + one seat column; no dedicated Playback column.
+    expect(host.querySelectorAll("thead th")).toHaveLength(3);
   });
 
   it("sorts tracks by a selected desktop seat column availability", () => {
