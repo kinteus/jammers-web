@@ -211,7 +211,7 @@ export default async function AboutPage() {
                 <Icon className="h-6 w-6 text-sand/45" />
                 <h3 className="font-display text-2xl uppercase text-sand">{partner.name}</h3>
                 <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Partner slot", ru: "Партнёр" })}
+                  {pick(locale, { en: "Partner", ru: "Партнёр" })}
                 </p>
               </Card>
             );

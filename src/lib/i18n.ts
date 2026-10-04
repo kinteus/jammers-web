@@ -34,9 +34,21 @@ export const COUNT_FORMS = {
   gigs: { en: { one: "gig", other: "gigs" }, ru: { one: "гиг", few: "гига", many: "гигов" } },
   plays: { en: { one: "play", other: "plays" }, ru: { one: "раз", few: "раза", many: "раз" } },
   times: { en: { one: "time", other: "times" }, ru: { one: "раз", few: "раза", many: "раз" } },
-  sharedTracks: {
-    en: { one: "shared track", other: "shared tracks" },
-    ru: { one: "общий трек", few: "общих трека", many: "общих треков" },
+  // Glossary (Notion task "Define a glossary"): gig · board/таблица · song · seat/место ·
+  // participant/участник · proposer/автор заявки · performed song/песня из сетлиста.
+  songs: { en: { one: "song", other: "songs" }, ru: { one: "песня", few: "песни", many: "песен" } },
+  performedSongs: {
+    en: { one: "performed song", other: "performed songs" },
+    ru: { one: "песня из сетлиста", few: "песни из сетлиста", many: "песен из сетлиста" },
+  },
+  seats: { en: { one: "seat", other: "seats" }, ru: { one: "место", few: "места", many: "мест" } },
+  participants: {
+    en: { one: "participant", other: "participants" },
+    ru: { one: "участник", few: "участника", many: "участников" },
+  },
+  sharedSongs: {
+    en: { one: "shared song", other: "shared songs" },
+    ru: { one: "общая песня", few: "общие песни", many: "общих песен" },
   },
 } satisfies Record<string, PluralForms>;
 
@@ -71,12 +83,12 @@ export function getEventStatusActionLabel(target: string, current: string, local
 export function getEventStatusActionConfirm(target: string, locale: Locale) {
   const messages: Record<string, Record<Locale, string>> = {
     CLOSED: {
-      en: "Close registration? Players won't be able to join required seats.",
-      ru: "Закрыть регистрацию? Игроки не смогут записываться на обязательные места.",
+      en: "Close registration? Participants won't be able to join required seats.",
+      ru: "Закрыть регистрацию? Участники не смогут записываться на обязательные места.",
     },
     PUBLISHED: {
-      en: "Publish the setlist? Confirmed players will be notified.",
-      ru: "Опубликовать сетлист? Подтверждённые игроки получат уведомление.",
+      en: "Publish the setlist? Confirmed participants will be notified.",
+      ru: "Опубликовать сетлист? Подтверждённые участники получат уведомление.",
     },
     ARCHIVED: {
       en: "Move this gig to the archive?",

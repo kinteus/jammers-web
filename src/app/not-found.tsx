@@ -31,7 +31,7 @@ export default async function NotFound() {
             <p className="text-base leading-7 text-white/76">
               {pick(locale, {
                 en: "The link may be old or mistyped. The next gig board and past setlists are still here.",
-                ru: "Ссылка могла устареть или в ней опечатка. Доска ближайшего гига и прошлые сетлисты на месте.",
+                ru: "Ссылка могла устареть или в ней опечатка. Таблица ближайшего гига и прошлые сетлисты на месте.",
               })}
             </p>
           </div>

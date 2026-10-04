@@ -96,7 +96,7 @@ export function TrackBoardFilters({
     },
     {
       id: "open" as const,
-      label: pick(locale, { en: "Need players", ru: "Нужны люди" }),
+      label: pick(locale, { en: "Need participants", ru: "Нужны участники" }),
     },
     ...(showMineView
       ? [{ id: "mine" as const, label: pick(locale, { en: "My songs", ru: "Мои песни" }) }]
@@ -139,14 +139,14 @@ export function TrackBoardFilters({
               <input
                 aria-label={pick(locale, {
                   en: "Search songs, artists, or proposers",
-                  ru: "Искать песни, артистов или авторов",
+                  ru: "Искать песни, артистов или авторов заявок",
                 })}
                 className="w-full border-white/12 bg-stage py-2.5 pl-10 pr-4"
                 name="q"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={pick(locale, {
                   en: "Search by song, artist or proposer",
-                  ru: "Поиск по песне, артисту или автору",
+                  ru: "Поиск по песне, артисту или автору заявки",
                 })}
                 value={query}
               />
@@ -177,7 +177,7 @@ export function TrackBoardFilters({
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/52">
           <SlidersHorizontal className="h-3.5 w-3.5 text-gold" />
-          {pick(locale, { en: "Open role filters", ru: "Фильтр по открытым ролям" })}
+          {pick(locale, { en: "Filter by instrument", ru: "Фильтр по инструменту" })}
         </span>
         {roleOptions.map((role) => (
           <button
@@ -199,12 +199,12 @@ export function TrackBoardFilters({
         <p className="text-xs leading-5 text-white/58">
           {activeView === "open"
             ? pick(locale, {
-                en: "Showing songs that still need a player (required seat) in every selected role.",
-                ru: "Показываются песни, где в каждой выбранной роли ещё не хватает игрока (обязательное место).",
+                en: "Showing songs that still need a participant (required seat) for every selected instrument.",
+                ru: "Показываются песни, где для каждого выбранного инструмента ещё не хватает участника (обязательное место).",
               })
             : pick(locale, {
-                en: "Showing songs that still have open seats in every selected role family.",
-                ru: "Показываются песни, где ещё открыты места во всех выбранных классах ролей.",
+                en: "Showing songs that still have open seats for every selected instrument.",
+                ru: "Показываются песни, где ещё открыты места для каждого выбранного инструмента.",
               })}
         </p>
       ) : null}

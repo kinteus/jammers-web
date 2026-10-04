@@ -813,7 +813,7 @@ describe("event route slugs in server actions", () => {
           section: "MAIN",
         }),
       ),
-    ).rejects.toThrow("Only fully assembled tracks can be moved into the main set.");
+    ).rejects.toThrow("Only fully assembled songs can be moved into the main set.");
 
     expect(txMock.setlistItem.update).not.toHaveBeenCalled();
   });

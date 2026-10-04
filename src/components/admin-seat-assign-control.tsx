@@ -83,8 +83,8 @@ export function AdminSeatAssignControl({
           <Search className="h-3.5 w-3.5 shrink-0 text-white/42" />
           <input
             aria-label={pick(locale, {
-              en: "Search registered musicians",
-              ru: "Поиск зарегистрированных музыкантов",
+              en: "Search registered participants",
+              ru: "Поиск зарегистрированных участников",
             })}
             className="min-w-0 flex-1 border-0 bg-transparent px-0 py-2 text-sm focus:ring-0"
             onBlur={() => {
@@ -137,8 +137,8 @@ export function AdminSeatAssignControl({
             ) : (
               <p className="px-3 py-2 text-[11px] text-white/54">
                 {pick(locale, {
-                  en: "No registered musicians found.",
-                  ru: "Зарегистрированные музыканты не найдены.",
+                  en: "No registered participants found.",
+                  ru: "Зарегистрированные участники не найдены.",
                 })}
               </p>
             )}
@@ -155,7 +155,7 @@ export function AdminSeatAssignControl({
             {feedback === "assigned"
               ? pick(locale, { en: "Assigned.", ru: "Назначено." })
               : feedback === "missing"
-                ? pick(locale, { en: "Choose a musician first.", ru: "Сначала выбери музыканта." })
+                ? pick(locale, { en: "Choose a participant first.", ru: "Сначала выбери участника." })
                 : pick(locale, { en: "Could not assign.", ru: "Не получилось назначить." })}
           </p>
         ) : null}

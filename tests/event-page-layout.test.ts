@@ -17,8 +17,8 @@ describe("event page layout", () => {
 
     expect(source).toContain("lineupParticipantCounts.total");
     expect(source).toContain("lineupParticipantCounts.inReadyTracks");
-    expect(source).toContain("Всего музыкантов в таблице");
-    expect(source).toContain("Музыкантов в набранных треках");
+    expect(source).toContain("Участников в таблице");
+    expect(source).toContain("Участников в собранных песнях");
     expect(source).toContain('effectiveStatus === "PUBLISHED" ? null');
   });
 

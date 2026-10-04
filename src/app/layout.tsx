@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     default: "The Jammers",
     template: "%s | The Jammers",
   },
-  description: "Live gig boards for The Jammers: propose songs, build line-ups, publish setlists, and coordinate musicians through Telegram.",
+  description: "Live gig boards for The Jammers: propose songs, fill seats, publish setlists, and coordinate participants through Telegram.",
   icons: {
     icon: "/logo-mark.svg",
     shortcut: "/logo-mark.svg",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     url: "/",
     title: "The Jammers",
     description:
-      "Live gig boards for The Jammers: propose songs, build line-ups, publish setlists, and coordinate musicians through Telegram.",
+      "Live gig boards for The Jammers: propose songs, fill seats, publish setlists, and coordinate participants through Telegram.",
     images: [
       {
         url: "/brand/the-jammers-logo.png",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "The Jammers",
     description:
-      "Live gig boards for The Jammers: propose songs, build line-ups, publish setlists, and coordinate musicians through Telegram.",
+      "Live gig boards for The Jammers: propose songs, fill seats, publish setlists, and coordinate participants through Telegram.",
     images: ["/brand/the-jammers-logo.png"],
   },
 };

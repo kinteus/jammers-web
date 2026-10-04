@@ -108,9 +108,9 @@ export function ArchiveStatsSection({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile icon={Mic2} label={pick(locale, { en: "Gigs played", ru: "Сыгранных гигов" })} value={stats.totalGigs} />
-        <StatTile icon={Music2} label={pick(locale, { en: "Tracks", ru: "Треков" })} value={stats.totalTracks} />
+        <StatTile icon={Music2} label={pick(locale, { en: "Performed songs", ru: "Песен из сетлиста" })} value={stats.totalTracks} />
         <StatTile icon={Radio} label={pick(locale, { en: "Unique songs", ru: "Уникальных песен" })} value={stats.uniqueSongs} />
-        <StatTile icon={Users2} label={pick(locale, { en: "Musicians", ru: "Музыкантов" })} value={stats.totalMusicians} />
+        <StatTile icon={Users2} label={pick(locale, { en: "Participants", ru: "Участников" })} value={stats.totalMusicians} />
         <StatTile
           hint={stats.busiestGig?.title ?? undefined}
           icon={Trophy}
@@ -118,7 +118,7 @@ export function ArchiveStatsSection({
           value={stats.busiestGig?.tracks ?? 0}
         />
         <StatTile
-          hint={peakYear ? pick(locale, { en: `${peakYear.tracks} tracks released`, ru: `${peakYear.tracks} треков` }) : undefined}
+          hint={peakYear ? formatCount(locale, peakYear.tracks, COUNT_FORMS.performedSongs) : undefined}
           icon={Star}
           label={pick(locale, { en: "Peak year", ru: "Пиковый год" })}
           value={peakYear?.year ?? "—"}
@@ -134,7 +134,7 @@ export function ArchiveStatsSection({
             ))}
           </div>
           <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-sand/52">
-            {pick(locale, { en: "Tracks by year", ru: "Треки по годам" })}
+            {pick(locale, { en: "Performed songs by year", ru: "Песни из сетлиста по годам" })}
           </p>
         </div>
       </div>
@@ -144,9 +144,9 @@ export function ArchiveStatsSection({
           icon={Mic2}
           items={stats.topMusicians}
           locale={locale}
-          title={pick(locale, { en: "Top musicians", ru: "Топ музыкантов" })}
-          // value = main-set tracks played, hint = number of gigs they played in
-          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.tracks)}
+          title={pick(locale, { en: "Top participants", ru: "Топ участников" })}
+          // value = performed songs (main set), hint = number of gigs they played in
+          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.performedSongs)}
           formatHint={(hint) => formatCount(locale, Number(hint), COUNT_FORMS.gigs)}
         />
         <RankingList

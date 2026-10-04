@@ -16,3 +16,12 @@ describe("formatCount", () => {
     expect(formatCount("ru", 21, COUNT_FORMS.gigs)).toBe("21 гиг");
   });
 });
+
+describe("glossary count forms", () => {
+  it("formats songs, performed songs and participants", () => {
+    expect(formatCount("en", 1, COUNT_FORMS.performedSongs)).toBe("1 performed song");
+    expect(formatCount("ru", 23, COUNT_FORMS.performedSongs)).toBe("23 песни из сетлиста");
+    expect(formatCount("ru", 5, COUNT_FORMS.participants)).toBe("5 участников");
+    expect(formatCount("ru", 2, COUNT_FORMS.sharedSongs)).toBe("2 общие песни");
+  });
+});

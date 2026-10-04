@@ -480,7 +480,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const notesTrigger = host.querySelector<HTMLElement>('[title="Track notes"]');
+    const notesTrigger = host.querySelector<HTMLElement>('[title="Song notes"]');
     expect(notesTrigger).not.toBeNull();
 
     await act(async () => {
@@ -740,7 +740,7 @@ describe("TrackBoardTable", () => {
     });
 
     expect(window.confirm).toHaveBeenCalledWith(
-      'Delete "My Song" from the board? 1 player loses their seat.',
+      'Delete "My Song" from the board? 1 participant loses their seat.',
     );
     expect(cancelTrackAction).toHaveBeenCalledTimes(1);
   });
@@ -929,7 +929,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    expect(host.querySelector('button[title="Редактировать трек"]')).not.toBeNull();
+    expect(host.querySelector('button[title="Редактировать песню"]')).not.toBeNull();
     // The old inline "track settings" popover is gone.
     expect(host.textContent).not.toContain("Сохранить настройки трека");
   });
@@ -998,7 +998,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    expect(host.querySelector('button[title="Edit track"]')).not.toBeNull();
+    expect(host.querySelector('button[title="Edit song"]')).not.toBeNull();
   });
 
   it("closes the invite popover when clicking outside it", async () => {
@@ -1069,15 +1069,15 @@ describe("TrackBoardTable", () => {
     });
 
     await act(async () => {
-      fireEvent.click(host.querySelector('button[title="Invite player to Bass"]')!);
+      fireEvent.click(host.querySelector('button[title="Invite a participant to Bass"]')!);
     });
 
-    expect(host.querySelector('input[aria-label="Search registered musicians"]')).not.toBeNull();
+    expect(host.querySelector('input[aria-label="Search registered participants"]')).not.toBeNull();
 
     await act(async () => {
       fireEvent.pointerDown(document.body);
     });
 
-    expect(host.querySelector('input[aria-label="Search registered musicians"]')).toBeNull();
+    expect(host.querySelector('input[aria-label="Search registered participants"]')).toBeNull();
   });
 });

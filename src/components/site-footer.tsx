@@ -23,7 +23,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             <p className="max-w-sm text-sm">
               {pick(locale, {
                 en: "Live gig boards for the Cyprus music community.",
-                ru: "Живые сетлисты для музыкального коммьюнити Кипра.",
+                ru: "Живые таблицы гигов для музыкального коммьюнити Кипра.",
               })}
             </p>
           </div>

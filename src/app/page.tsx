@@ -35,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ru: "The Jammers: живые гиги на Кипре",
   });
   const description = pick(locale, {
-    en: "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
+    en: "Follow upcoming gigs, see which songs are already moving, and join the live board for The Jammers community.",
     ru: "Следи за ближайшими гигами, смотри, какие песни уже собираются, и присоединяйся к составу сообщества The Jammers.",
   });
 
@@ -147,7 +147,7 @@ function getRightNowContent({
       }),
       intro: pick(locale, {
         en: "The gig is already visible on the board, but sign-up and song proposals unlock only after registration opens. Use the waiting time to review the rules and board logic.",
-        ru: "Гиг уже появился в сетлисте, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике сетлиста.",
+        ru: "Гиг уже появился в таблице, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике таблицы.",
       }),
       stats: [
         {
@@ -165,7 +165,7 @@ function getRightNowContent({
       eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим сетлистом" }),
+        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этой таблицей" }),
       },
       secondaryCta: {
         href: "/faq",
@@ -181,12 +181,12 @@ function getRightNowContent({
         ru: "Набор уже закрыт",
       }),
       intro: pick(locale, {
-        en: "The board is now in curation mode. The final setlist will be published soon, and everyone who made the final line-up will be notified.",
-        ru: "Сетлист перешёл в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все, кто попал в итоговый лайнап, получат уведомление.",
+        en: "The board is now in curation mode. The final setlist will be published soon, and every participant who made the final setlist will be notified.",
+        ru: "Таблица перешла в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все участники, попавшие в него, получат уведомление.",
       }),
       stats: [
         {
-          label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+          label: pick(locale, { en: "Participants already in", ru: "Участников уже в деле" }),
           value: String(event.participantCount),
         },
         {
@@ -197,7 +197,7 @@ function getRightNowContent({
       eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый сетлист" }),
+        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытую таблицу" }),
       },
       secondaryCta: null,
     };
@@ -206,7 +206,7 @@ function getRightNowContent({
   return {
     title: pick(locale, {
       en: "Open seats on the board",
-      ru: "Открытые места в сетлисте",
+      ru: "Открытые места в таблице",
     }),
     intro: pick(locale, {
       en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
@@ -218,18 +218,18 @@ function getRightNowContent({
         value: String(featuredRequiredOpenSeats),
       },
       {
-        label: pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" }),
+        label: pick(locale, { en: "Songs needing participants", ru: "Песен ждут участников" }),
         value: String(featuredTracksNeedingPlayers),
       },
       {
-        label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+        label: pick(locale, { en: "Participants already in", ru: "Участников уже в деле" }),
         value: String(event.participantCount),
       },
     ],
     eventDetails,
     primaryCta: {
       href: `/events/${event.id}`,
-      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть сетлист и закрыть нехватку" }),
+      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть таблицу и закрыть нехватку" }),
     },
     secondaryCta: {
       href: "/faq",
@@ -271,7 +271,7 @@ export default async function HomePage() {
         locale={locale}
         title={pick(locale, {
           en: "The live board is temporarily unavailable",
-          ru: "Живой сетлист временно недоступен",
+          ru: "Живая таблица временно недоступна",
         })}
       />
     );
@@ -355,7 +355,7 @@ export default async function HomePage() {
                   {featuredEvent ? (
                     <Button asChild variant="primary">
                       <Link href={`/events/${featuredEvent.id}`}>
-                        {pick(locale, { en: "Open next gig board", ru: "Открыть сетлист ближайшего гига" })}
+                        {pick(locale, { en: "Open next gig board", ru: "Открыть таблицу ближайшего гига" })}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
@@ -421,7 +421,7 @@ export default async function HomePage() {
               ) : (
                 pick(locale, {
                   en: "Why the board matters",
-                  ru: "Зачем вообще нужен этот сетлист",
+                  ru: "Зачем вообще нужна эта таблица",
                 })
               )}
             </h2>
@@ -513,7 +513,7 @@ export default async function HomePage() {
                 <Button asChild variant="primary">
                   <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
                     {rightNowContent?.primaryCta.label ??
-                      pick(locale, { en: "Review the board", ru: "Посмотреть сетлист" })}
+                      pick(locale, { en: "Review the board", ru: "Посмотреть таблицу" })}
                   </Link>
                 </Button>
                 {rightNowContent?.secondaryCta ? (
@@ -529,7 +529,7 @@ export default async function HomePage() {
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
                 en: "The board gives the community one shared source of truth: what songs exist, who is still missing, and which setlists already made it to the stage.",
-                ru: "Сетлист даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
+                ru: "Таблица даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
               })}
             </p>
           )}
@@ -543,7 +543,7 @@ export default async function HomePage() {
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
                 en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
-                ru: "Новичок? В FAQ объяснены логика сетлиста, правила вписки и то, что стоит сделать до предложения песен.",
+                ru: "Новичок? В FAQ объяснены логика таблицы, правила вписки и то, что стоит сделать до предложения песен.",
               })}
             </p>
           </div>

@@ -60,8 +60,8 @@ export function SongCatalogRequestForm({
                 })
               : error === "invalid-request"
                 ? pick(locale, {
-                    en: "Fill in both artist and track title before sending.",
-                    ru: "Перед отправкой заполни и артиста, и название трека.",
+                    en: "Fill in both artist and song title before sending.",
+                    ru: "Перед отправкой заполни и артиста, и название песни.",
                   })
                 : error === "database-unavailable"
                   ? pick(locale, {
@@ -113,7 +113,7 @@ export function SongCatalogRequestForm({
         <input className="w-full px-4 py-3" name="artistName" required />
       </label>
       <label className="block space-y-2 text-sm text-sand">
-        <span>{pick(locale, { en: "Track title", ru: "Название трека" })}</span>
+        <span>{pick(locale, { en: "Song title", ru: "Название песни" })}</span>
         <input className="w-full px-4 py-3" name="trackTitle" required />
       </label>
       <label className="block space-y-2 text-sm text-sand lg:col-span-2">

@@ -61,8 +61,8 @@ export function ArchiveFilters({
         name="q"
         onChange={(event) => setQuery(event.target.value)}
         placeholder={pick(locale, {
-          en: "Search song, artist or musician...",
-          ru: "Поиск по песне, артисту или музыканту...",
+          en: "Search song, artist or participant...",
+          ru: "Поиск по песне, артисту или участнику...",
         })}
         type="search"
         value={query}

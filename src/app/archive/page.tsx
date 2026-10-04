@@ -98,8 +98,8 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
             </h1>
             <p className="max-w-3xl text-base leading-7 text-sand/62">
               {pick(locale, {
-                en: "Every published line-up. Filter, search and re-open the energy.",
-                ru: "Каждый опубликованный лайнап. Ищи, фильтруй и открывай энергию заново.",
+                en: "Every published setlist. Filter, search and re-open the energy.",
+                ru: "Каждый опубликованный сетлист. Ищи, фильтруй и открывай энергию заново.",
               })}
             </p>
           </div>
@@ -109,9 +109,9 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
           <div className="reference-section grid gap-5 px-6 py-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               [pick(locale, { en: "Gigs in archive", ru: "Гигов в архиве" }), stats.totalGigs],
-              [pick(locale, { en: "Tracks performed", ru: "Сыграно треков" }), stats.totalTracks],
+              [pick(locale, { en: "Performed songs", ru: "Песен из сетлиста" }), stats.totalTracks],
               [pick(locale, { en: "Unique songs", ru: "Уникальных песен" }), stats.uniqueSongs],
-              [pick(locale, { en: "Musicians on stage", ru: "Музыкантов на сцене" }), stats.totalMusicians],
+              [pick(locale, { en: "Participants on stage", ru: "Участников на сцене" }), stats.totalMusicians],
             ].map(([label, value]) => (
               <div key={label}>
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/48">{label}</p>
@@ -170,7 +170,7 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
                         </p>
                       </div>
                       <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
-                        <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.tracks)}</span>
+                        <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.performedSongs)}</span>
                         <span aria-hidden="true" className="text-xl text-sand/42">›</span>
                       </div>
                     </Link>

@@ -84,6 +84,23 @@ The current application exposes the following main surfaces:
 - Any unknown URL
   Branded, translated 404 page ("This page went off-stage") with links to the home page (next gig) and setlists. It does not query the database, so it renders even when data is unavailable.
 
+## Glossary
+
+User-facing wording (EN / RU) used everywhere in the UI, Telegram messages and the default FAQ. Code identifiers (`Track`, `TrackSeat`, `lineupSlot`…) keep their names.
+
+| Concept | EN | RU | Replaces in UI |
+| --- | --- | --- | --- |
+| One event (date + venue) | gig | гиг | event, concert |
+| List of songs proposed for a gig | board | таблица | table, line-up (as the list), доска, борд |
+| One entry on the board | song | песня | track, трек |
+| A song that was actually played | performed song | песня из сетлиста | track (in statistics) |
+| One instrument place in a song | seat (required / optional) | место (обязательное / опциональное) | slot, position, part, role |
+| Instrument category for filters | instrument | инструмент | role family |
+| A person in a seat | participant | участник | jammer, musician, player |
+| The person who added the song | proposer | автор заявки | track proposer, initiator, track author |
+
+"Setlist / сетлист" is kept for the final, published running order of a gig.
+
 ## Core product concepts
 
 ### Event

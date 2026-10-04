@@ -17,7 +17,7 @@ import { env } from "@/lib/env";
 import { formatVideoUrlsForTextarea, resolveFaqSectionMarkdown } from "@/lib/site-content";
 import { isSuperAdminUser } from "@/lib/auth/admin-access";
 import { getLocale } from "@/lib/i18n-server";
-import { pick } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   createCommunityQuoteAction,
@@ -189,7 +189,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="border-blue/24 bg-blue/16 text-white">{effectiveStatus}</Badge>
               <span className="text-sm text-white/58">
-                {event.tracks.length} {pick(locale, { en: "active tracks", ru: "активных треков" })}
+                {formatCount(locale, event.tracks.length, COUNT_FORMS.songs)} {pick(locale, { en: "on the board", ru: "в таблице" })}
               </span>
             </div>
             <div>
@@ -205,7 +205,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <div className="flex flex-wrap items-center gap-2">
             <Link href={`/admin/events/${event.id}`}>
               <Button size="sm" variant="secondary">
-                {pick(locale, { en: "Open event admin", ru: "Открыть админку гига" })}
+                {pick(locale, { en: "Open gig admin", ru: "Открыть админку гига" })}
               </Button>
             </Link>
 
@@ -217,8 +217,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 {quickAction.status === "CLOSED" ? (
                   <ConfirmSubmitButton
                     confirmMessage={pick(locale, {
-                      en: `Close registration for "${event.title}"? Players won't be able to join required seats.`,
-                      ru: `Закрыть регистрацию на «${event.title}»? Игроки не смогут записываться на обязательные места.`,
+                      en: `Close registration for "${event.title}"? Participants won't be able to join required seats.`,
+                      ru: `Закрыть регистрацию на «${event.title}»? Участники не смогут записываться на обязательные места.`,
                     })}
                     pendingLabel={quickAction.pendingLabel}
                     size="sm"
@@ -280,7 +280,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         <div className="rounded-xl border border-red/30 bg-red/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "Gig deleted. The public board and admin workspace have been removed.",
-            ru: "Гиг удалён. Публичный борд и админское рабочее пространство убраны.",
+            ru: "Гиг удалён. Публичная таблица и админское рабочее пространство убраны.",
           })}
         </div>
       ) : null}
@@ -305,7 +305,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         <div className="grid gap-3 md:grid-cols-3">
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-              {pick(locale, { en: "Events", ru: "Гиги" })}
+              {pick(locale, { en: "Gigs", ru: "Гиги" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{data.events.length}</p>
           </div>
@@ -325,13 +325,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <AdminActionDialog
-            badge={pick(locale, { en: "Create event", ru: "Создать гиг" })}
+            badge={pick(locale, { en: "Create gig", ru: "Создать гиг" })}
             closeLabel={pick(locale, { en: "Close admin dialog", ru: "Закрыть админское окно" })}
             description={pick(locale, {
               en: "Launch a new gig board without keeping the full form open on the page.",
-              ru: "Запусти новый борд гига, не держа большую форму постоянно открытой на странице.",
+              ru: "Запусти новую таблицу гига, не держа большую форму постоянно открытой на странице.",
             })}
-            title={pick(locale, { en: "Launch a new gig board", ru: "Запустить новый борд гига" })}
+            title={pick(locale, { en: "Launch a new gig board", ru: "Запустить новую таблицу гига" })}
             triggerLabel={pick(locale, { en: "Create gig", ru: "Создать гиг" })}
           >
             <form action={createEventAction} className="grid gap-4 md:grid-cols-2">
@@ -375,11 +375,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Max tracks per user", ru: "Макс. треков на человека" })}</span>
+                <span>{pick(locale, { en: "Max songs per participant", ru: "Макс. песен на участника" })}</span>
                 <input className="w-full px-4 py-3" defaultValue={3} name="maxTracksPerUser" type="number" />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Min players per song", ru: "Мин. людей на песню" })}</span>
+                <span>{pick(locale, { en: "Min participants per song", ru: "Мин. участников на песню" })}</span>
                 <input
                   className="w-full px-4 py-3"
                   defaultValue={1}
@@ -400,7 +400,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 })}
               </label>
               <label className="space-y-2 text-sm md:col-span-2">
-                <span>{pick(locale, { en: "Track info flags", ru: "Флаги трека" })}</span>
+                <span>{pick(locale, { en: "Song info flags", ru: "Флаги песни" })}</span>
                 <textarea
                   className="min-h-24 w-full px-4 py-3"
                   defaultValue={defaultTrackInfoFields}
@@ -408,13 +408,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
                 <p className="text-xs leading-5 text-white/55">
                   {pick(locale, {
-                    en: "One label per line. These flags appear on track proposals and inside the board as extra context only.",
-                    ru: "По одной подписи на строку. Эти флаги появляются в заявках и внутри борда только как дополнительный контекст.",
+                    en: "One label per line. These flags appear on song proposals and inside the board as extra context only.",
+                    ru: "По одной подписи на строку. Эти флаги появляются в заявках и внутри таблицы только как дополнительный контекст.",
                   })}
                 </p>
               </label>
               <label className="space-y-2 text-sm md:col-span-2">
-                <span>{pick(locale, { en: "Lineup JSON", ru: "JSON лайнапа" })}</span>
+                <span>{pick(locale, { en: "Seat layout JSON", ru: "JSON схемы мест" })}</span>
                 <textarea
                   className="min-h-48 w-full px-4 py-3 font-mono text-xs"
                   defaultValue={defaultLineup}
@@ -422,8 +422,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
                 <p className="text-xs leading-5 text-white/55">
                   {pick(locale, {
-                    en: '"defaultOptionalSeats" lists the seat numbers within a slot (1-based) that start as optional when a song is proposed. Proposers can still change each seat.',
-                    ru: '"defaultOptionalSeats" — номера позиций внутри слота (с 1), которые при создании песни по умолчанию помечаются как optional. Автор заявки может изменить любую позицию.',
+                    en: '"defaultOptionalSeats" lists the seat numbers within an instrument (1-based) that start as optional when a song is proposed. Proposers can still change each seat.',
+                    ru: '"defaultOptionalSeats" — номера мест внутри инструмента (с 1), которые при создании песни по умолчанию помечаются как опциональные. Автор заявки может изменить любое место.',
                   })}
                 </p>
               </label>
@@ -432,7 +432,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 pendingLabel={pick(locale, { en: "Creating gig...", ru: "Создаём гиг..." })}
                 type="submit"
               >
-                {pick(locale, { en: "Create event", ru: "Создать гиг" })}
+                {pick(locale, { en: "Create gig", ru: "Создать гиг" })}
               </SubmitButton>
             </form>
           </AdminActionDialog>
@@ -453,7 +453,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <input className="w-full px-4 py-3" name="artistName" required />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Track", ru: "Трек" })}</span>
+                <span>{pick(locale, { en: "Song title", ru: "Название песни" })}</span>
                 <input className="w-full px-4 py-3" name="trackTitle" required />
               </label>
               <label className="space-y-2 text-sm">
@@ -478,8 +478,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             badge={pick(locale, { en: "Moderation", ru: "Модерация" })}
             closeLabel={pick(locale, { en: "Close admin dialog", ru: "Закрыть админское окно" })}
             description={pick(locale, {
-              en: "Ban and rate musicians only when you need those controls.",
-              ru: "Используй блокировку и рейтинг музыкантов только тогда, когда действительно нужен модераторский контекст.",
+              en: "Ban and rate participants only when you need those controls.",
+              ru: "Используй блокировку и рейтинг участников только тогда, когда действительно нужен модераторский контекст.",
             })}
             title={pick(locale, { en: "Moderation", ru: "Модерация" })}
             triggerLabel={pick(locale, { en: "Moderation", ru: "Модерация" })}
@@ -516,7 +516,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
               <form action={setRatingAction} className="space-y-3">
                 <h3 className="font-display text-2xl font-semibold text-sand">
-                  {pick(locale, { en: "Rate musician", ru: "Оценить музыканта" })}
+                  {pick(locale, { en: "Rate participant", ru: "Оценить участника" })}
                 </h3>
                 <input
                   className="w-full px-4 py-3"
@@ -638,7 +638,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 text-sm">
-                    <span>{pick(locale, { en: "Line-up details · EN (Markdown)", ru: "Технические детали лайнапа · EN (Markdown)" })}</span>
+                    <span>{pick(locale, { en: "Seats & glossary · EN (Markdown)", ru: "Места и словарь · EN (Markdown)" })}</span>
                     <textarea
                       className="min-h-56 w-full px-4 py-3"
                       defaultValue={resolveFaqSectionMarkdown({
@@ -651,7 +651,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     />
                   </label>
                   <label className="space-y-2 text-sm">
-                    <span>{pick(locale, { en: "Line-up details · RU (Markdown)", ru: "Технические детали лайнапа · RU (Markdown)" })}</span>
+                    <span>{pick(locale, { en: "Seats & glossary · RU (Markdown)", ru: "Места и словарь · RU (Markdown)" })}</span>
                     <textarea
                       className="min-h-56 w-full px-4 py-3"
                       defaultValue={resolveFaqSectionMarkdown({
@@ -1008,7 +1008,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-white/70">
             {pick(locale, {
-              en: "Keep the full list visible for quick operations. Each row gives you the next likely product action without forcing a trip into the event screen first.",
+              en: "Keep the full list visible for quick operations. Each row gives you the next likely product action without forcing a trip into the gig screen first.",
               ru: "Держи полный список на виду для быстрых операций. Каждая строка даёт вероятное следующее действие без обязательного перехода внутрь экрана гига.",
             })}
           </p>

@@ -23,7 +23,7 @@ function getModeLabel(mode: SeatMode, locale: Locale) {
     return pick(locale, { en: "You", ru: "Ты" });
   }
   if (mode === "optional") {
-    return pick(locale, { en: "Optional", ru: "Optional" });
+    return pick(locale, { en: "Optional", ru: "Опциональное" });
   }
   if (mode === "skip") {
     return pick(locale, { en: "Off", ru: "Выкл" });
@@ -31,7 +31,7 @@ function getModeLabel(mode: SeatMode, locale: Locale) {
   if (mode === "taken") {
     return pick(locale, { en: "Taken", ru: "Занято" });
   }
-  return pick(locale, { en: "Required", ru: "Обязательная" });
+  return pick(locale, { en: "Required", ru: "Обязательное" });
 }
 
 export function SeatPlannerField({
@@ -83,12 +83,12 @@ export function SeatPlannerField({
     },
     {
       mode: "open" as const,
-      label: pick(locale, { en: "Required seat", ru: "Обязательная позиция" }),
+      label: pick(locale, { en: "Required seat", ru: "Обязательное место" }),
       icon: CircleDot,
     },
     {
       mode: "optional" as const,
-      label: pick(locale, { en: "Optional seat", ru: "Optional позиция" }),
+      label: pick(locale, { en: "Optional seat", ru: "Опциональное место" }),
       icon: CircleDashed,
     },
     {
@@ -106,8 +106,8 @@ export function SeatPlannerField({
         </p>
         <p className="text-xs text-white/55">
           {pick(locale, {
-            en: "Each role is one row: claim it yourself, keep it required, make it optional, switch it off, or invite someone right away.",
-            ru: "Каждая роль в одну строку: впишись сам, оставь обязательной, сделай optional, выключи или сразу пригласи человека.",
+            en: "Each seat is one row: claim it yourself, keep it required, make it optional, switch it off, or invite someone right away.",
+            ru: "Каждое место в одну строку: впишись сам, оставь обязательным, сделай опциональным, выключи или сразу пригласи человека.",
           })}
         </p>
       </div>
@@ -144,7 +144,7 @@ export function SeatPlannerField({
                 </div>
                 <p className="text-xs text-white/60">
                   {pick(locale, {
-                    en: `Held by ${existing?.occupantLabel ?? "another player"}`,
+                    en: `Held by ${existing?.occupantLabel ?? "another participant"}`,
                     ru: `Занято: ${existing?.occupantLabel ?? "другой участник"}`,
                   })}
                 </p>

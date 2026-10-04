@@ -36,7 +36,7 @@ describe("telegram published-set message", () => {
 });
 
 describe("telegram final-set missed message", () => {
-  it("encourages a musician whose completed table songs missed the final set", () => {
+  it("encourages a participant whose completed songs missed the final setlist", () => {
     const message = buildTelegramFinalSetMissedMessage({
       eventTitle: "Spring Jam Night",
     });
@@ -45,7 +45,7 @@ describe("telegram final-set missed message", () => {
     expect(message).toContain("очень жаль");
     expect(message).toContain("не пропадай");
     expect(message).toContain("в следующий раз");
-    expect(message).toContain("трек прошёл");
+    expect(message).toContain("песня прошла");
   });
 });
 
@@ -65,14 +65,14 @@ describe("telegram invite message", () => {
 });
 
 describe("telegram admin seat assignment message", () => {
-  it("names the assigned song, position, and gig", () => {
+  it("names the assigned song, seat, and gig", () => {
     const message = buildTelegramAdminSeatAssignedMessage({
       eventTitle: "Spring Jam Night",
       seatLabel: "Bass",
       songLabel: "Blur - Song 2",
     });
 
-    expect(message).toContain("Ты добавлен(а) админом в сетлист");
+    expect(message).toContain("Админ добавил(а) тебя в таблицу");
     expect(message).toContain("Blur - Song 2");
     expect(message).toContain("Bass");
     expect(message).toContain("Spring Jam Night");

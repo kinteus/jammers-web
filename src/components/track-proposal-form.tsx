@@ -72,10 +72,10 @@ export function TrackProposalForm({
         <SubmitButton
           className="min-w-[220px]"
           disabled={!selectedSong}
-          pendingLabel={pick(locale, { en: "Adding track...", ru: "Добавляем трек..." })}
+          pendingLabel={pick(locale, { en: "Adding song...", ru: "Добавляем песню..." })}
           type="submit"
         >
-          {pick(locale, { en: "Publish proposal to board", ru: "Опубликовать трек в сетлист" })}
+          {pick(locale, { en: "Publish proposal to board", ru: "Опубликовать заявку в таблицу" })}
         </SubmitButton>
       </div>
     </form>

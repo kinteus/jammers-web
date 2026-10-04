@@ -59,23 +59,23 @@ export function TrackArrangementEditLauncher({
     <TrackProposalDialog
       description={pick(locale, {
         en: isAdmin
-          ? "Adjust the song, the arrangement and every position. Releasing a claimed seat removes that player."
-          : "Adjust the arrangement and your own positions. Seats other players hold stay locked.",
+          ? "Adjust the song, the arrangement and every seat. Releasing a claimed seat removes that participant."
+          : "Adjust the arrangement and your own seats. Seats other participants hold stay locked.",
         ru: isAdmin
-          ? "Меняй песню, аранжировку и любые позиции. Освобождение занятой позиции снимает с неё участника."
-          : "Меняй аранжировку и свои позиции. Места, занятые другими участниками, остаются заблокированными.",
+          ? "Меняй песню, аранжировку и любые места. Освобождение занятого места снимает с него участника."
+          : "Меняй аранжировку и свои места. Места, занятые другими участниками, остаются заблокированными.",
       })}
-      eyebrow={pick(locale, { en: "Edit track", ru: "Редактировать трек" })}
+      eyebrow={pick(locale, { en: "Edit song", ru: "Редактировать песню" })}
       locale={locale}
       onOpenChange={setOpen}
       open={open}
       title={`${track.song.artist.name} — ${track.song.title}`}
       trigger={
         <button
-          aria-label={pick(locale, { en: "Edit track", ru: "Редактировать трек" })}
+          aria-label={pick(locale, { en: "Edit song", ru: "Редактировать песню" })}
           className={className}
-          data-tip={pick(locale, { en: "Edit track", ru: "Редактировать трек" })}
-          title={pick(locale, { en: "Edit track", ru: "Редактировать трек" })}
+          data-tip={pick(locale, { en: "Edit song", ru: "Редактировать песню" })}
+          title={pick(locale, { en: "Edit song", ru: "Редактировать песню" })}
           type="button"
         >
           <Settings2 className="h-3.5 w-3.5" />

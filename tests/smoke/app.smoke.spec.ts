@@ -291,14 +291,14 @@ test.describe("Jammers smoke", () => {
       .fill(songTitle);
     await page.getByRole("button", { name: new RegExp(songTitle) }).click();
     await page.getByRole("button", { name: /I’m in|I'm in|Я играю/i }).click();
-    await page.getByRole("button", { name: /Publish proposal to board|Опубликовать трек/i }).click();
+    await page.getByRole("button", { name: /Publish proposal to board|Опубликовать заявку/i }).click();
 
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });
     await expect(
       page.locator("main a[href*='youtube.com/results']").filter({ hasText: songTitle }).first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: /Edit track|Редактировать трек/i }).first().click();
+    await page.getByRole("button", { name: /Edit song|Редактировать песню/i }).first().click();
     const editDialog = page.getByRole("dialog").filter({ hasText: songTitle });
     await expect(editDialog).toBeVisible();
     const updatedComment = `Smoke updated comment ${smokeRunId}`;

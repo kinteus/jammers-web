@@ -24,24 +24,24 @@ export function EventBoardGuide({
       dotClass: "bg-gold",
       label: pick(locale, { en: "Open seat", ru: "Открытое место" }),
       text: pick(locale, {
-        en: "This part still needs a player.",
-        ru: "Этой партии всё ещё нужен музыкант.",
+        en: "This seat still needs a participant.",
+        ru: "На это место всё ещё нужен участник.",
       }),
     },
     {
       dotClass: "bg-blue",
       label: pick(locale, { en: "Claimed seat", ru: "Занятое место" }),
       text: pick(locale, {
-        en: "Someone is already in the line-up.",
-        ru: "Кто-то уже в этом лайнапе.",
+        en: "A participant has already taken this seat.",
+        ru: "Это место уже занял участник.",
       }),
     },
     {
       dotClass: "bg-white/38",
       label: pick(locale, { en: "Skipped in arrangement", ru: "Пропущено в аранжировке" }),
       text: pick(locale, {
-        en: "The slot exists in the event, but this track is not using it.",
-        ru: "Слот есть в событии, но конкретный трек его не использует.",
+        en: "The seat exists for this gig, but this song doesn't use it.",
+        ru: "Такое место есть на гиге, но эта песня его не использует.",
       }),
     },
   ];
@@ -51,18 +51,18 @@ export function EventBoardGuide({
       <Card className="brand-shell space-y-4 border-white/10">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-            {pick(locale, { en: "Board guide", ru: "Как читать сетлист" })}
+            {pick(locale, { en: "Board guide", ru: "Как читать таблицу" })}
           </p>
           <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
             {pick(locale, {
               en: "Read this board in 30 seconds",
-              ru: "Разобраться в сетлисте за 30 секунд",
+              ru: "Разобраться в таблице за 30 секунд",
             })}
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-white/72">
             {pick(locale, {
-              en: "Gold means the part is still needed, blue means someone is already in, and pale cells mean this arrangement skips that slot.",
-              ru: "Золото означает, что партия ещё нужна, синий — что человек уже в составе, а светлые ячейки показывают, что эта аранжировка слот не использует.",
+              en: "Gold means the seat is still open, blue means a participant has taken it, and pale cells mean this song's arrangement skips that seat.",
+              ru: "Золотой — место ещё свободно, синий — его уже занял участник, а светлые ячейки показывают, что в аранжировке этой песни такого места нет.",
             })}
           </p>
         </div>
@@ -104,13 +104,13 @@ export function EventBoardGuide({
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-              {pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" })}
+              {pick(locale, { en: "Songs needing participants", ru: "Песен ждут участников" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{tracksNeedingPlayers}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-              {pick(locale, { en: "Optional seats open", ru: "Открыто optional-мест" })}
+              {pick(locale, { en: "Optional seats open", ru: "Открыто опциональных мест" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{optionalOpenSeatCount}</p>
           </div>
@@ -120,12 +120,12 @@ export function EventBoardGuide({
           <p className="text-sm leading-6 text-white/74">
             {allowClosedOptionalRequests
               ? pick(locale, {
-                  en: "Core sign-ups are already closed, but optional seats can still be requested through the track author.",
-                  ru: "Основная запись уже закрыта, но optional-места всё ещё можно запросить через автора трека.",
+                  en: "Sign-ups for required seats are closed, but optional seats can still be requested from the song's proposer.",
+                  ru: "Запись на обязательные места уже закрыта, но опциональные места всё ещё можно запросить у автора заявки.",
                 })
               : pick(locale, {
                   en: "Close the real gaps first. A stronger board makes every new proposal easier to support.",
-                  ru: "Сначала закрой реальные дыры. Чем крепче текущий сетлист, тем легче поддержать каждую новую песню.",
+                  ru: "Сначала закрой реальные дыры. Чем крепче текущая таблица, тем легче поддержать каждую новую песню.",
                 })}
           </p>
           {roleShortages.length > 0 ? (

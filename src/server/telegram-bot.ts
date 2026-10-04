@@ -84,10 +84,10 @@ export function buildTelegramPublishedSetMessage({
   const dateLabel = formatDateTime(eventStartsAt);
 
   return [
-    `You're in the final set for ${eventTitle}.`,
+    `You're in the final setlist for ${eventTitle}.`,
     `Gig start: ${dateLabel}`,
     "",
-    "Your songs and parts:",
+    "Your songs and seats:",
     ...songs.map(
       (song) => `${song.orderIndex}. ${song.songLabel} - ${song.positions.join(", ")}`,
     ),
@@ -98,9 +98,9 @@ export function buildTelegramPublishedSetMessage({
 
 export function buildTelegramFinalSetMissedMessage({ eventTitle }: { eventTitle: string }) {
   return [
-    `Нам очень жаль, что твой собранный трек для ${eventTitle} не попал в финальный сет.`,
+    `Нам очень жаль, что твоя собранная песня для ${eventTitle} не попала в финальный сетлист.`,
     "",
-    "Пожалуйста, не пропадай: в следующий раз мы постараемся сделать так, чтобы твой трек прошёл.",
+    "Пожалуйста, не пропадай: в следующий раз мы постараемся сделать так, чтобы твоя песня прошла.",
   ].join("\n");
 }
 
@@ -187,7 +187,7 @@ export function buildTelegramAdminSeatAssignedMessage({
   seatLabel: string;
   songLabel: string;
 }) {
-  return `Ты добавлен(а) админом в сетлист: ${songLabel} — ${seatLabel} для ${eventTitle}.`;
+  return `Админ добавил(а) тебя в таблицу: ${songLabel} — ${seatLabel} для ${eventTitle}.`;
 }
 
 export async function sendTelegramInviteMessage({
@@ -228,7 +228,7 @@ export function buildTelegramSeatTakenMessage({
   seatLabel: string;
   songLabel: string;
 }) {
-  return `Unfortunately, the ${seatLabel} spot on ${songLabel} for ${eventTitle} was just filled by someone else, so your invitation is no longer active.`;
+  return `Unfortunately, the ${seatLabel} seat on ${songLabel} for ${eventTitle} was just filled by someone else, so your invitation is no longer active.`;
 }
 
 export async function sendTelegramSeatTakenMessage({
@@ -260,7 +260,7 @@ export function buildTelegramTrackCompleteMessage({
   eventTitle: string;
   songLabel: string;
 }) {
-  return `Your track ${songLabel} is fully staffed for ${eventTitle} — every required position is now filled.`;
+  return `Your song ${songLabel} is fully staffed for ${eventTitle}: every required seat is now filled.`;
 }
 
 export async function sendTelegramTrackCompleteMessage({
@@ -325,8 +325,8 @@ export async function sendTelegramSeatApprovalRequestMessage({
     chatId: recipientTelegramId,
     text:
       mode === "self"
-        ? `${requesterLabel} wants to join the optional ${seatLabel} part on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`
-        : `${requesterLabel} suggested ${targetLabel} for the optional ${seatLabel} part on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`,
+        ? `${requesterLabel} wants to join the optional ${seatLabel} seat on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`
+        : `${requesterLabel} suggested ${targetLabel} for the optional ${seatLabel} seat on ${songLabel} for ${eventTitle}. Open the app to approve or decline.`,
   });
 }
 

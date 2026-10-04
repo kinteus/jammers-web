@@ -130,8 +130,8 @@ export function UserInvitePicker({
           ) : (
             <p className="px-3 py-2 text-[11px] text-white/54">
               {pick(locale, {
-                en: "No registered musicians found.",
-                ru: "Зарегистрированные музыканты не найдены.",
+                en: "No registered participants found.",
+                ru: "Зарегистрированные участники не найдены.",
               })}
             </p>
           )}

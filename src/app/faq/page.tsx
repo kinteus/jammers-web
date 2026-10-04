@@ -21,21 +21,21 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "FAQ",
   description:
-    "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+    "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
   alternates: {
     canonical: "/faq",
   },
   openGraph: {
     title: "The Jammers FAQ",
     description:
-      "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+      "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
     url: "/faq",
   },
   twitter: {
     card: "summary_large_image",
     title: "The Jammers FAQ",
     description:
-      "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+      "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
   },
 };
 
@@ -92,8 +92,8 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
           </h1>
           <p className="max-w-3xl text-sm leading-6 text-white/72">
             {pick(locale, {
-              en: "The essentials in one place: how to join, what the line-up means and how to send feedback to the team.",
-              ru: "Всё важное в одном месте: как участвовать, что значат детали лайнапа и как отправить обратную связь команде.",
+              en: "The essentials in one place: how to join, what the seats on the board mean and how to send feedback to the team.",
+              ru: "Всё важное в одном месте: как участвовать, что значат места в таблице и как отправить обратную связь команде.",
             })}
           </p>
         </div>
@@ -105,7 +105,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
             <a href="#rules">{pick(locale, { en: "Rules", ru: "Правила" })}</a>
           </Button>
           <Button asChild size="sm" variant="secondary">
-            <a href="#lineup">{pick(locale, { en: "Line-up details", ru: "Детали лайнапа" })}</a>
+            <a href="#lineup">{pick(locale, { en: "Seats & glossary", ru: "Места и словарь" })}</a>
           </Button>
           <Button asChild size="sm">
             <a data-faq-feedback-jump href="#feedback">
@@ -157,7 +157,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
           <div className="flex items-center gap-2">
             <Video className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Line-up technical details", ru: "Технические детали лайнапа" })}
+              {pick(locale, { en: "Seats & glossary", ru: "Места и словарь" })}
             </p>
           </div>
           <MarkdownContent headingIds value={lineupDetailsMarkdown} />

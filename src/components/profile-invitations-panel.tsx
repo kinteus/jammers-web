@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { pick, type Locale } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick, type Locale } from "@/lib/i18n";
 import { respondToInviteInlineAction } from "@/server/actions";
 
 import { Button } from "@/components/ui/button";
@@ -55,15 +55,15 @@ function getInviteErrorMessage(error: InviteError, item: InvitationItem, locale:
 
   if (error === "track-limit") {
     return pick(locale, {
-      en: `Could not accept this invite: the limit for ${item.eventTitle} is ${item.maxTracksPerUser} tracks per musician, and that limit is already reached. Leave one current song from this gig before accepting another invite.`,
-      ru: `Не получилось принять приглашение: лимит на ${item.eventTitle} — ${item.maxTracksPerUser} трека на участника, и он уже достигнут. Чтобы принять инвайт, сначала нужно выписаться из одного из текущих треков этого гига.`,
+      en: `Could not accept this invite: the limit for ${item.eventTitle} is ${item.maxTracksPerUser} songs per participant, and that limit is already reached. Leave one current song from this gig before accepting another invite.`,
+      ru: `Не получилось принять приглашение: лимит на ${item.eventTitle} — ${formatCount("ru", item.maxTracksPerUser, COUNT_FORMS.songs)} на участника, и он уже достигнут. Чтобы принять инвайт, сначала нужно выписаться из одной из текущих песен этого гига.`,
     });
   }
 
   if (error === "duplicate-role-family") {
     return pick(locale, {
-      en: "Could not accept this invite: you already have this instrument family on that song.",
-      ru: "Не получилось принять приглашение: у тебя уже есть эта группа инструментов в этой песне.",
+      en: "Could not accept this invite: you already have a seat for this instrument in that song.",
+      ru: "Не получилось принять приглашение: у тебя уже есть место на этом инструменте в этой песне.",
     });
   }
 
@@ -174,7 +174,7 @@ export function ProfileInvitationsPanel({
               })}
             </p>
             <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
-              {pick(locale, { en: "Open the gig board", ru: "Открыть доску гига" })} →
+              {pick(locale, { en: "Open the gig board", ru: "Открыть таблицу гига" })} →
             </Link>
           </div>
         ) : (
@@ -266,7 +266,7 @@ export function ProfileInvitationsPanel({
                   </Button>
                   <Link href={`/events/${invite.eventId}`}>
                     <Button size="sm" type="button" variant="ghost">
-                      {pick(locale, { en: "Open board", ru: "Открыть сетлист" })}
+                      {pick(locale, { en: "Open board", ru: "Открыть таблицу" })}
                     </Button>
                   </Link>
                 </div>

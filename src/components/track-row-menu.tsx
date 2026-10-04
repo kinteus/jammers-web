@@ -17,17 +17,17 @@ export function getDeleteTrackConfirmMessage(
   if (claimedSeatCount === 0) {
     return pick(locale, {
       en: `Delete "${songTitle}" from the board?`,
-      ru: `Удалить "${songTitle}" с доски?`,
+      ru: `Удалить "${songTitle}" из таблицы?`,
     });
   }
 
   return pick(locale, {
     en: `Delete "${songTitle}" from the board? ${claimedSeatCount} ${
       claimedSeatCount === 1
-        ? "player loses their seat"
-        : "players lose their seats"
+        ? "participant loses their seat"
+        : "participants lose their seats"
     }.`,
-    ru: `Удалить "${songTitle}" с доски? Игроков, которые потеряют место: ${claimedSeatCount}.`,
+    ru: `Удалить "${songTitle}" из таблицы? Участников, которые потеряют место: ${claimedSeatCount}.`,
   });
 }
 

@@ -109,7 +109,7 @@ export function assertWithinTrackLimit(
 ) {
   if (uniqueJoinedTracksCount >= maxTracksPerUser) {
     throw new Error(
-      `You have already reached the event limit of ${maxTracksPerUser} tracks.`,
+      `You have already reached the gig limit of ${maxTracksPerUser} songs.`,
     );
   }
 }

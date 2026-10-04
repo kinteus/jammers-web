@@ -81,7 +81,7 @@ export function ProfileArchiveStats({
               </div>
               <ul className="space-y-2 text-sm leading-6 text-white/72">
                 <li>
-                  • {pick(locale, { en: "Signature role", ru: "Фирменная роль" })}:{" "}
+                  • {pick(locale, { en: "Main instrument", ru: "Основной инструмент" })}:{" "}
                   <strong className="text-sand">
                     {stats.signatureRole
                       ? `${getRoleFamilyLabel(stats.signatureRole, locale)} · ${formatCount(locale, stats.signatureRoleAppearances, COUNT_FORMS.times)}`
@@ -92,7 +92,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "Favourite artist", ru: "Любимый артист" })}:{" "}
                   <strong className="text-sand">
                     {stats.favoriteArtist
-                      ? `${stats.favoriteArtist} · ${formatCount(locale, stats.favoriteArtistAppearances, COUNT_FORMS.tracks)}`
+                      ? `${stats.favoriteArtist} · ${formatCount(locale, stats.favoriteArtistAppearances, COUNT_FORMS.performedSongs)}`
                       : pick(locale, { en: "Still ahead", ru: "Ещё впереди" })}
                   </strong>
                 </li>
@@ -132,7 +132,7 @@ export function ProfileArchiveStats({
                     <div className="flex items-end justify-between gap-3 text-sm">
                       <span className="font-semibold text-sand">{item.label}</span>
                       <span className="text-white/60">
-                        {formatCount(locale, item.value, COUNT_FORMS.sharedTracks)}
+                        {formatCount(locale, item.value, COUNT_FORMS.sharedSongs)}
                       </span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-white/8">
@@ -161,7 +161,7 @@ export function ProfileArchiveStats({
                 <div className="flex items-end justify-between gap-3 text-sm">
                   <span className="font-semibold text-sand">{item.year}</span>
                   <span className="text-white/60">
-                    {formatCount(locale, item.tracks, COUNT_FORMS.tracks)}
+                    {formatCount(locale, item.tracks, COUNT_FORMS.performedSongs)}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/8">
