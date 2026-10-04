@@ -718,7 +718,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                       value={instrument.id}
                     />
                     <InstrumentToken
-                      className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08]"
+                      className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08] peer-focus-visible:ring-2 peer-focus-visible:ring-gold/60"
                       compact
                       label={getInstrumentDisplayLabel(instrument.name, locale)}
                       locale={locale}
@@ -727,7 +727,12 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                         ru: "Отметь, если это часть твоего основного набора",
                       })}
                     />
-                    <span className="pointer-events-none absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/16 bg-black/18 text-[10px] font-semibold text-white/82 transition peer-checked:border-gold/40 peer-checked:bg-gold peer-checked:text-ink">
+                    {/* Empty circle when unselected; the check mark only appears once selected. */}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/24 bg-transparent text-[11px] font-semibold text-transparent transition peer-checked:border-gold/40 peer-checked:bg-gold peer-checked:text-ink"
+                      data-instrument-check
+                    >
                       ✓
                     </span>
                   </label>
