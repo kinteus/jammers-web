@@ -719,7 +719,18 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const deleteButton = host.querySelector<HTMLButtonElement>(
+    // Delete is hidden behind the row's "more" menu, not shown directly in the row.
+    expect(host.querySelector('button[aria-label="Delete My Song"]')).toBeNull();
+
+    const menuTrigger = host.querySelector<HTMLButtonElement>('[data-track-row-menu="track-mine"]');
+    expect(menuTrigger).not.toBeNull();
+
+    await act(async () => {
+      menuTrigger?.click();
+    });
+
+    // The menu is portalled to <body> so the table's overflow does not clip it.
+    const deleteButton = document.body.querySelector<HTMLButtonElement>(
       'button[aria-label="Delete My Song"]',
     );
     expect(deleteButton).not.toBeNull();
@@ -728,6 +739,9 @@ describe("TrackBoardTable", () => {
       deleteButton?.closest("form")?.requestSubmit(deleteButton ?? undefined);
     });
 
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Delete "My Song" from the board? 1 player loses their seat.',
+    );
     expect(cancelTrackAction).toHaveBeenCalledTimes(1);
   });
 

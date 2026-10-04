@@ -676,6 +676,8 @@ Admins can override seat assignments for any track:
 - clear a claimed seat,
 - cancel a whole track if necessary.
 
+Deleting a track (admins, or the proposer on their own track) lives in the row's "⋯" menu rather than as an always-visible button. The confirmation names the song and how many players would lose their seat.
+
 These tools are important for resolving real-world exceptions near the event date.
 
 ## Business rules

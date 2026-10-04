@@ -12,7 +12,6 @@ import {
   Search,
   Send,
   UserPlus,
-  X,
   Youtube,
 } from "lucide-react";
 
@@ -34,6 +33,7 @@ import {
 
 import { FLOATING_TOAST_ERROR_AUTO_HIDE_MS, FloatingToast } from "@/components/floating-toast";
 import { TrackArrangementEditLauncher } from "@/components/track-arrangement-edit-launcher";
+import { TrackRowMenu } from "@/components/track-row-menu";
 import { Loader } from "@/components/ui/loader";
 
 type BoardUser = {
@@ -1937,42 +1937,15 @@ export function TrackBoardTable({
                               trackInfoFields={trackInfoFields}
                             />
                             {canManageTrack ? (
-                              <form
+                              <TrackRowMenu
                                 action={cancelTrackAction}
-                                onSubmit={(event) => {
-                                  if (
-                                    !window.confirm(
-                                      pick(locale, {
-                                        en: `Delete "${track.song.title}" from the setlist?`,
-                                        ru: `Удалить "${track.song.title}" из сетлиста?`,
-                                      }),
-                                    )
-                                  ) {
-                                    event.preventDefault();
-                                  }
-                                }}
-                              >
-                                <input name="trackId" type="hidden" value={track.id} />
-                                <input name="eventSlug" type="hidden" value={eventSlug} />
-                                <button
-                                  aria-label={pick(locale, {
-                                    en: `Delete ${track.song.title}`,
-                                    ru: `Удалить ${track.song.title}`,
-                                  })}
-                                  className={cn(
-                                    iconButtonClass(),
-                                    "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                                  )}
-                                  data-tip={pick(locale, { en: "Delete", ru: "Удалить" })}
-                                  title={pick(locale, {
-                                    en: `Delete ${track.song.title}`,
-                                    ru: `Удалить ${track.song.title}`,
-                                  })}
-                                  type="submit"
-                                >
-                                  <X className="h-4 w-4 stroke-[3]" />
-                                </button>
-                              </form>
+                                claimedSeatCount={track.seats.filter((seat) => seat.userId).length}
+                                eventSlug={eventSlug}
+                                locale={locale}
+                                songTitle={track.song.title}
+                                trackId={track.id}
+                                triggerClassName={iconButtonClass()}
+                              />
                             ) : null}
                           </>
                         ) : null}
@@ -2415,38 +2388,15 @@ export function TrackBoardTable({
                         trackInfoFields={trackInfoFields}
                       />
                       {canManageTrack ? (
-                        <form
+                        <TrackRowMenu
                           action={cancelTrackAction}
-                          onSubmit={(event) => {
-                            if (
-                              !window.confirm(
-                                pick(locale, {
-                                  en: `Delete "${track.song.title}" from the setlist?`,
-                                  ru: `Удалить "${track.song.title}" из сетлиста?`,
-                                }),
-                              )
-                            ) {
-                              event.preventDefault();
-                            }
-                          }}
-                        >
-                          <input name="trackId" type="hidden" value={track.id} />
-                          <input name="eventSlug" type="hidden" value={eventSlug} />
-                          <button
-                            aria-label={pick(locale, {
-                              en: `Delete ${track.song.title}`,
-                              ru: `Удалить ${track.song.title}`,
-                            })}
-                            className={cn(
-                              iconButtonClass(),
-                              "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                            )}
-                            data-tip={pick(locale, { en: "Delete", ru: "Удалить" })}
-                            type="submit"
-                          >
-                            <X className="h-4 w-4 stroke-[3]" />
-                          </button>
-                        </form>
+                          claimedSeatCount={track.seats.filter((seat) => seat.userId).length}
+                          eventSlug={eventSlug}
+                          locale={locale}
+                          songTitle={track.song.title}
+                          trackId={track.id}
+                          triggerClassName={iconButtonClass()}
+                        />
                       ) : null}
                     </>
                   ) : null}
