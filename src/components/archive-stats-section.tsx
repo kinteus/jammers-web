@@ -1,6 +1,6 @@
 import { CalendarDays, Mic2, Music2, Radio, Star, Trophy, Users2 } from "lucide-react";
 
-import { pick, type Locale } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick, type Locale } from "@/lib/i18n";
 import type { ArchiveRankingItem, ArchiveStatsSummary } from "@/lib/domain/archive-stats";
 
 import { AnimatedNumber } from "@/components/animated-number";
@@ -33,17 +33,19 @@ function StatTile({
 }
 
 function RankingList({
+  formatHint,
+  formatValue,
   icon: Icon,
   items,
   locale,
   title,
-  valueLabel,
 }: {
+  formatHint?: (hint: string) => string;
+  formatValue: (value: number) => string;
   icon: typeof Mic2;
   items: ArchiveRankingItem[];
   locale: Locale;
   title: string;
-  valueLabel: string;
 }) {
   return (
     <div className="space-y-4">
@@ -58,11 +60,11 @@ function RankingList({
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-sand">{item.label}</p>
               <p className="min-h-4 truncate text-xs text-sand/44">
-                {item.hint ?? ""}
+                {item.hint ? (formatHint ? formatHint(item.hint) : item.hint) : ""}
               </p>
             </div>
             <p className="text-sm font-bold text-sand/82">
-              {item.value} {valueLabel}
+              {formatValue(item.value)}
             </p>
           </div>
         ))}
@@ -143,14 +145,16 @@ export function ArchiveStatsSection({
           items={stats.topMusicians}
           locale={locale}
           title={pick(locale, { en: "Top musicians", ru: "Топ музыкантов" })}
-          valueLabel={pick(locale, { en: "gigs", ru: "гигов" })}
+          // value = main-set tracks played, hint = number of gigs they played in
+          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.tracks)}
+          formatHint={(hint) => formatCount(locale, Number(hint), COUNT_FORMS.gigs)}
         />
         <RankingList
           icon={Star}
           items={stats.topArtists}
           locale={locale}
           title={pick(locale, { en: "Top artists", ru: "Топ артистов" })}
-          valueLabel={pick(locale, { en: "plays", ru: "раз" })}
+          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.plays)}
         />
       </div>
     </section>

@@ -12,6 +12,34 @@ export function pick<T>(locale: Locale, values: Record<Locale, T>) {
   return values[locale];
 }
 
+type PluralForms = {
+  en: { one: string; other: string };
+  ru: { one: string; few: string; many: string };
+};
+
+// "1 track" / "2 tracks"; "1 трек" / "3 трека" / "5 треков".
+export function formatCount(locale: Locale, count: number, forms: PluralForms) {
+  if (locale === "ru") {
+    const rule = new Intl.PluralRules("ru-RU").select(count);
+    const word = rule === "one" ? forms.ru.one : rule === "few" ? forms.ru.few : forms.ru.many;
+    return `${count} ${word}`;
+  }
+
+  const word = new Intl.PluralRules("en-GB").select(count) === "one" ? forms.en.one : forms.en.other;
+  return `${count} ${word}`;
+}
+
+export const COUNT_FORMS = {
+  tracks: { en: { one: "track", other: "tracks" }, ru: { one: "трек", few: "трека", many: "треков" } },
+  gigs: { en: { one: "gig", other: "gigs" }, ru: { one: "гиг", few: "гига", many: "гигов" } },
+  plays: { en: { one: "play", other: "plays" }, ru: { one: "раз", few: "раза", many: "раз" } },
+  times: { en: { one: "time", other: "times" }, ru: { one: "раз", few: "раза", many: "раз" } },
+  sharedTracks: {
+    en: { one: "shared track", other: "shared tracks" },
+    ru: { one: "общий трек", few: "общих трека", many: "общих треков" },
+  },
+} satisfies Record<string, PluralForms>;
+
 export function getEventStatusLabel(status: string, locale: Locale) {
   const labels: Record<string, Record<Locale, string>> = {
     DRAFT: { en: "Draft", ru: "Черновик" },
