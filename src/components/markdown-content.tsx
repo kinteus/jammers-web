@@ -83,7 +83,7 @@ export function MarkdownContent({
         React.createElement(
           level === 1 ? "h1" : level === 2 ? "h2" : "h3",
           {
-            className: cn(headingClass, headingIds && "scroll-mt-28"),
+            className: cn(headingClass, headingIds && "scroll-mt-32"),
             id: headingIds ? getMarkdownHeadingId(text) : undefined,
             key: `heading-${index}`,
           },

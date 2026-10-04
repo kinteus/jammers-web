@@ -13,6 +13,7 @@ import { DatabaseUnavailableState } from "@/components/database-unavailable-stat
 import { MarkdownContent } from "@/components/markdown-content";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,22 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
             })}
           </p>
         </div>
+        <nav
+          aria-label={pick(locale, { en: "On this page", ru: "На этой странице" })}
+          className="flex flex-wrap gap-2"
+        >
+          <Button asChild size="sm" variant="secondary">
+            <a href="#rules">{pick(locale, { en: "Rules", ru: "Правила" })}</a>
+          </Button>
+          <Button asChild size="sm" variant="secondary">
+            <a href="#lineup">{pick(locale, { en: "Line-up details", ru: "Детали лайнапа" })}</a>
+          </Button>
+          <Button asChild size="sm">
+            <a data-faq-feedback-jump href="#feedback">
+              {pick(locale, { en: "Send feedback ↓", ru: "Написать команде ↓" })}
+            </a>
+          </Button>
+        </nav>
       </section>
 
       {notice === "feedback-sent" ? (
@@ -126,7 +143,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
       ) : null}
 
       <section className="grid items-start gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="brand-shell scroll-mt-28 space-y-4" id="rules">
+        <Card className="brand-shell scroll-mt-32 space-y-4" id="rules">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
@@ -136,7 +153,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
           <MarkdownContent headingIds value={participationRulesMarkdown} />
         </Card>
 
-        <Card className="brand-shell scroll-mt-28 space-y-4" id="lineup">
+        <Card className="brand-shell scroll-mt-32 space-y-4" id="lineup">
           <div className="flex items-center gap-2">
             <Video className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
@@ -172,7 +189,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </Card>
       </section>
 
-      <section className="scroll-mt-28" id="feedback">
+      <section className="scroll-mt-32" id="feedback">
         <Card className="brand-shell space-y-5">
           <div className="flex items-center gap-2">
             <MessageCircleMore className="h-4 w-4 text-gold" />
