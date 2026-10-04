@@ -100,6 +100,8 @@ function getTelegramBotId() {
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
+  // One label for "go join a gig" everywhere on this page (and the invitations panel).
+  const openGigBoardLabel = pick(locale, { en: "Open the gig board", ru: "Открыть доску гига" });
   const authError = typeof params.authError === "string" ? params.authError : null;
   const inviteError = typeof params.inviteError === "string" ? params.inviteError : null;
   const inviteNotice = typeof params.inviteNotice === "string" ? params.inviteNotice : null;
@@ -452,7 +454,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           <div className="flex flex-wrap gap-3">
             <Link href="/">
               <Button>
-                {pick(locale, { en: "Browse live gigs", ru: "Открыть живые гиги" })}
+                {openGigBoardLabel}
               </Button>
             </Link>
             <Link href="/faq">
@@ -538,10 +540,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   ru: "Сейчас нет исходящих запросов на optional-места.",
                 })}
               </p>
-              <Link href="/">
-                <Button size="sm" type="button" variant="secondary">
-                  {pick(locale, { en: "Find a board to join", ru: "Найти сетлист" })}
-                </Button>
+              <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
+                {openGigBoardLabel} →
               </Link>
             </div>
           ) : (
@@ -606,10 +606,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   ru: "Ты пока не вписан ни в одну песню.",
                 })}
               </p>
-              <Link href="/">
-                <Button size="sm" variant="secondary">
-                  {pick(locale, { en: "Join a live board", ru: "Войти в живой сетлист" })}
-                </Button>
+              <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
+                {openGigBoardLabel} →
               </Link>
             </div>
           ) : (

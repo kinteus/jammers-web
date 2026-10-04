@@ -173,10 +173,8 @@ export function ProfileInvitationsPanel({
                 ru: "Сейчас нет ожидающих приглашений.",
               })}
             </p>
-            <Link href="/">
-              <Button size="sm" variant="secondary">
-                {pick(locale, { en: "Open live gigs", ru: "Открыть живые гиги" })}
-              </Button>
+            <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
+              {pick(locale, { en: "Open the gig board", ru: "Открыть доску гига" })} →
             </Link>
           </div>
         ) : (
