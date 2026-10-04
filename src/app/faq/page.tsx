@@ -126,24 +126,24 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
       ) : null}
 
       <section className="grid items-start gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="brand-shell space-y-4">
+        <Card className="brand-shell scroll-mt-28 space-y-4" id="rules">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
               {pick(locale, { en: "Participation rules", ru: "Правила участия" })}
             </p>
           </div>
-          <MarkdownContent value={participationRulesMarkdown} />
+          <MarkdownContent headingIds value={participationRulesMarkdown} />
         </Card>
 
-        <Card className="brand-shell space-y-4">
+        <Card className="brand-shell scroll-mt-28 space-y-4" id="lineup">
           <div className="flex items-center gap-2">
             <Video className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
               {pick(locale, { en: "Line-up technical details", ru: "Технические детали лайнапа" })}
             </p>
           </div>
-          <MarkdownContent value={lineupDetailsMarkdown} />
+          <MarkdownContent headingIds value={lineupDetailsMarkdown} />
           {faq.lineupVideoUrls.length > 0 ? (
             <div className="grid gap-4">
               {faq.lineupVideoUrls.map((url) => {
@@ -172,7 +172,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </Card>
       </section>
 
-      <section id="feedback">
+      <section className="scroll-mt-28" id="feedback">
         <Card className="brand-shell space-y-5">
           <div className="flex items-center gap-2">
             <MessageCircleMore className="h-4 w-4 text-gold" />

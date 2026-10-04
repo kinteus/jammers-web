@@ -1,6 +1,6 @@
 import React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 
 function renderInline(text: string, keyPrefix: string) {
   const tokens: React.ReactNode[] = [];
@@ -44,12 +44,19 @@ function renderInline(text: string, keyPrefix: string) {
   return tokens;
 }
 
+export function getMarkdownHeadingId(text: string) {
+  return slugify(text.replace(/\*\*|\[([^\]]+)\]\([^)]+\)/g, "$1"));
+}
+
 export function MarkdownContent({
   value,
   className,
+  headingIds = false,
 }: {
   value: string;
   className?: string;
+  /** Give headings stable ids so other pages can deep-link to them (e.g. /faq#how-it-works). */
+  headingIds?: boolean;
 }) {
   const lines = value.split("\n");
   const blocks: React.ReactNode[] = [];
@@ -75,7 +82,11 @@ export function MarkdownContent({
       blocks.push(
         React.createElement(
           level === 1 ? "h1" : level === 2 ? "h2" : "h3",
-          { className: headingClass, key: `heading-${index}` },
+          {
+            className: cn(headingClass, headingIds && "scroll-mt-28"),
+            id: headingIds ? getMarkdownHeadingId(text) : undefined,
+            key: `heading-${index}`,
+          },
           renderInline(text, `heading-${index}`),
         ),
       );

@@ -68,7 +68,7 @@ The current application exposes the following main surfaces:
 - `/`
   Public home page with current events, newcomer onboarding, next-gig shortage framing, community quotes, and recently published setlists.
 - `/faq`
-  Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard.
+  Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard. Deep links: `#rules`, `#lineup`, `#feedback`, plus one anchor per markdown heading (slug of the heading text, e.g. `#how-it-works`).
 - `/about`
   Public about page with team, partner/brand blocks, and a contact-the-team call to action.
 - `/archive`
