@@ -34,6 +34,11 @@ export function formatEventDateShort(value: Date | string, locale: Locale = "en"
   return formatInEventTimeZone(value, "d MMM yyyy", locale);
 }
 
+// "2026", using the Cyprus calendar (a gig at 01:00 on 1 Jan belongs to the new year)
+export function formatEventYear(value: Date | string) {
+  return formatInEventTimeZone(value, "yyyy", "en");
+}
+
 // "20:00"
 export function formatEventTime(value: Date | string, locale: Locale = "en") {
   return formatInEventTimeZone(value, "HH:mm", locale);

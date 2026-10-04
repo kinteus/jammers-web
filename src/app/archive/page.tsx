@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { pick } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
-import { formatEventDateShort, formatEventTime } from "@/lib/utils";
+import { formatEventDateShort, formatEventTime, formatEventYear } from "@/lib/utils";
 import { getArchivePageData } from "@/server/query-data";
 
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
@@ -53,9 +53,9 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const selectedYear = typeof params.year === "string" ? params.year : "";
-  const years = [...new Set(data.publishedEvents.map((event) => String(new Date(event.startsAt).getFullYear())))];
+  const years = [...new Set(data.publishedEvents.map((event) => formatEventYear(event.startsAt)))];
   const events = data.publishedEvents.filter((event) => {
-    const yearMatches = !selectedYear || String(new Date(event.startsAt).getFullYear()) === selectedYear;
+    const yearMatches = !selectedYear || formatEventYear(event.startsAt) === selectedYear;
     const queryMatches =
       !query ||
       [
@@ -153,19 +153,19 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
                 <div className="font-display text-xl text-sand">
                   {formatEventDateShort(event.startsAt, locale)}
                 </div>
+                {/* Same structure for every row: title, then venue and time. */}
                 <div className="min-w-0">
-                  <h2 className="font-body text-base font-bold text-sand">
-                    {event.venueName ?? event.title}
+                  <h2 className="font-body text-base font-bold text-sand" data-archive-row-title>
+                    {event.title}
                   </h2>
-                  <p className="mt-1 text-sm text-sand/52">
-                    {formatEventTime(event.startsAt, locale)}
-                    {event.venueName && event.title !== event.venueName ? ` · ${event.title}` : ""}
+                  <p className="mt-1 text-sm text-sand/52" data-archive-row-meta>
+                    {[event.venueName, formatEventTime(event.startsAt, locale)]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 </div>
                 <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
-                  <span>
-                    {event.setlistItems.length} {pick(locale, { en: "tracks", ru: "треков" })}
-                  </span>
+                  <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.tracks)}</span>
                   <span aria-hidden="true" className="text-xl text-sand/42">›</span>
                 </div>
               </Link>
