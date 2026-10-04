@@ -72,7 +72,7 @@ The current application exposes the following main surfaces:
 - `/about`
   Public about page with team, partner/brand blocks, and a contact-the-team call to action.
 - `/archive`
-  Public archive of past published setlists ("Setlists").
+  Public archive of past published setlists ("Setlists"). Gigs are grouped by Cyprus calendar year under headers that stay pinned below the site header; the two most recent years start open and older years are collapsed (all open while a search or year filter is active). Each row shows date, gig title, venue · time and the number of performed tracks.
 - `/profile`
   Telegram sign-in, local development sign-in, profile editing, invite inbox, personal playing view, and next-step empty states.
 - `/events/[id]`

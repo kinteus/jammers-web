@@ -76,6 +76,14 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
     return yearMatches && queryMatches;
   });
   const stats = data.archiveStats;
+  const isFiltering = Boolean(query || selectedYear);
+  const eventsByYear = [
+    ...events.reduce((groups, event) => {
+      const year = formatEventYear(event.startsAt);
+      groups.set(year, [...(groups.get(year) ?? []), event]);
+      return groups;
+    }, new Map<string, typeof events>()),
+  ];
 
   return (
     <div className="space-y-8">
@@ -141,34 +149,54 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
         </Button>
       </form>
 
-      <section className="reference-section overflow-hidden">
+      <section className="reference-section overflow-clip">
         {events.length > 0 ? (
           <div className="divide-y divide-white/10">
-            {events.map((event) => (
-              <Link
-                className="grid gap-3 px-5 py-5 transition hover:bg-white/[0.035] md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-center"
-                href={`/events/${event.id}`}
-                key={event.id}
+            {eventsByYear.map(([year, yearEvents], yearIndex) => (
+              // Recent years start open; older ones collapse unless the visitor is filtering.
+              // Year headers stick right under the sticky site header (125 / 109 / 76px tall).
+              <details
+                className="group"
+                data-archive-year={year}
+                key={year}
+                open={isFiltering || yearIndex < 2}
               >
-                <div className="font-display text-xl text-sand">
-                  {formatEventDateShort(event.startsAt, locale)}
+                <summary className="sticky top-[125px] z-10 md:top-[109px] lg:top-[76px] flex cursor-pointer list-none items-center justify-between border-b border-white/10 bg-[#141414]/95 px-5 py-3 backdrop-blur">
+                  <span className="font-display text-2xl text-sand">{year}</span>
+                  <span className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/58">
+                    {formatCount(locale, yearEvents.length, COUNT_FORMS.gigs)}
+                    <span aria-hidden="true" className="text-base transition group-open:rotate-90">›</span>
+                  </span>
+                </summary>
+                <div className="divide-y divide-white/10">
+                  {yearEvents.map((event) => (
+              <Link
+                      className="grid gap-3 px-5 py-5 transition hover:bg-white/[0.035] md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-center"
+                      href={`/events/${event.id}`}
+                      key={event.id}
+                    >
+                      <div className="font-display text-xl text-sand">
+                        {formatEventDateShort(event.startsAt, locale)}
+                      </div>
+                      {/* Same structure for every row: title, then venue and time. */}
+                      <div className="min-w-0">
+                        <h2 className="font-body text-base font-bold text-sand" data-archive-row-title>
+                          {event.title}
+                        </h2>
+                        <p className="mt-1 text-sm text-sand/52" data-archive-row-meta>
+                          {[event.venueName, formatEventTime(event.startsAt, locale)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
+                        <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.tracks)}</span>
+                        <span aria-hidden="true" className="text-xl text-sand/42">›</span>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-                {/* Same structure for every row: title, then venue and time. */}
-                <div className="min-w-0">
-                  <h2 className="font-body text-base font-bold text-sand" data-archive-row-title>
-                    {event.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-sand/52" data-archive-row-meta>
-                    {[event.venueName, formatEventTime(event.startsAt, locale)]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
-                  <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.tracks)}</span>
-                  <span aria-hidden="true" className="text-xl text-sand/42">›</span>
-                </div>
-              </Link>
+              </details>
             ))}
           </div>
         ) : (
