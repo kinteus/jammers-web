@@ -4,6 +4,7 @@ import Link from "next/link";
 import { pick } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { formatEventDateShort, formatEventTime } from "@/lib/utils";
 import { getArchivePageData } from "@/server/query-data";
 
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
@@ -27,21 +28,6 @@ export const metadata: Metadata = {
 type ArchivePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function formatArchiveDate(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function formatArchiveTime(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 export default async function ArchivePage({ searchParams }: ArchivePageProps) {
   const params = await searchParams;
@@ -165,14 +151,14 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
                 key={event.id}
               >
                 <div className="font-display text-xl text-sand">
-                  {formatArchiveDate(event.startsAt, locale)}
+                  {formatEventDateShort(event.startsAt, locale)}
                 </div>
                 <div className="min-w-0">
                   <h2 className="font-body text-base font-bold text-sand">
                     {event.venueName ?? event.title}
                   </h2>
                   <p className="mt-1 text-sm text-sand/52">
-                    {formatArchiveTime(event.startsAt, locale)}
+                    {formatEventTime(event.startsAt, locale)}
                     {event.venueName && event.title !== event.venueName ? ` · ${event.title}` : ""}
                   </p>
                 </div>

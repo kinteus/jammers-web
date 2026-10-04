@@ -14,7 +14,7 @@ import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatEventDateLong, formatEventTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
 import { ArchiveStatsSection } from "@/components/archive-stats-section";
@@ -42,21 +42,6 @@ export const metadata: Metadata = {
 };
 
 const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
-
-function formatGigDate(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function formatGigTime(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 function getRightNowContent({
   event,
@@ -98,11 +83,11 @@ function getRightNowContent({
   const eventDetails = [
     {
       label: pick(locale, { en: "Date", ru: "Дата" }),
-      value: formatGigDate(event.startsAt, locale),
+      value: formatEventDateLong(event.startsAt, locale),
     },
     {
       label: pick(locale, { en: "Time", ru: "Время" }),
-      value: formatGigTime(event.startsAt, locale),
+      value: formatEventTime(event.startsAt, locale),
     },
     {
       label: pick(locale, { en: "Venue", ru: "Место" }),

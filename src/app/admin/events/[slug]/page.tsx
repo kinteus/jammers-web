@@ -4,6 +4,7 @@ import { TrackSeatStatus } from "@prisma/client";
 
 import { getAllowedNextEventStatuses, getEffectiveEventStatus } from "@/lib/domain/event-status";
 import { formatDateTimeLocalInput } from "@/lib/domain/local-datetime";
+import { formatEventTime } from "@/lib/utils";
 import { getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
@@ -490,8 +491,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <p className="text-sm text-white/70">
               {activeLock
                 ? pick(locale, {
-                    en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
-                    ru: `Лок у @${activeLock.user.telegramUsername ?? activeLock.user.fullName} до ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
+                    en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${formatEventTime(activeLock.expiresAt)}.`,
+                    ru: `Лок у @${activeLock.user.telegramUsername ?? activeLock.user.fullName} до ${formatEventTime(activeLock.expiresAt)}.`,
                   })
                 : pick(locale, {
                     en: "No active curation lock. Acquire one before running the algorithm or publishing.",

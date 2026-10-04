@@ -13,10 +13,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDateTime(value: Date | string, locale: Locale = "en") {
-  return formatInTimeZone(new Date(value), EVENT_TIME_ZONE, "dd MMM yyyy, HH:mm", {
+function formatInEventTimeZone(value: Date | string, pattern: string, locale: Locale) {
+  return formatInTimeZone(new Date(value), EVENT_TIME_ZONE, pattern, {
     locale: locale === "ru" ? ru : enUS,
   });
+}
+
+export function formatDateTime(value: Date | string, locale: Locale = "en") {
+  return formatInEventTimeZone(value, "dd MMM yyyy, HH:mm", locale);
+}
+
+// "18 October 2026"
+export function formatEventDateLong(value: Date | string, locale: Locale = "en") {
+  return formatInEventTimeZone(value, "d MMMM yyyy", locale);
+}
+
+// "18 Oct 2026"
+export function formatEventDateShort(value: Date | string, locale: Locale = "en") {
+  return formatInEventTimeZone(value, "d MMM yyyy", locale);
+}
+
+// "20:00"
+export function formatEventTime(value: Date | string, locale: Locale = "en") {
+  return formatInEventTimeZone(value, "HH:mm", locale);
 }
 
 export function slugify(value: string) {

@@ -1,6 +1,5 @@
 import { env } from "@/lib/env";
-
-const EVENT_TIME_ZONE = "Europe/Nicosia";
+import { EVENT_TIME_ZONE } from "@/lib/utils";
 
 async function sendTelegramMessage({
   chatId,

@@ -26,7 +26,7 @@ import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/rol
 import { getEventTrackInfoFields } from "@/lib/track-info-flags";
 import { serializeJsonForHtmlScript } from "@/lib/html-script";
 import { env } from "@/lib/env";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatEventDateShort, formatEventTime } from "@/lib/utils";
 import {
   createTrackAction,
   updateEventStatusAction,
@@ -101,13 +101,7 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
     };
   }
 
-  const dateLabel = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(event.startsAt));
+  const dateLabel = `${formatEventDateShort(event.startsAt)}, ${formatEventTime(event.startsAt)}`;
   const venueLabel = event.venueName ? ` at ${event.venueName}` : "";
   const description =
     event.description?.trim() ||
