@@ -142,7 +142,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </div>
       ) : null}
 
-      <section className="grid items-start gap-6 xl:grid-cols-[1fr_1fr]">
+      <section className="grid items-stretch gap-6 xl:grid-cols-[1fr_1fr]">
         <Card className="brand-shell scroll-mt-32 space-y-4" id="rules">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-gold" />
