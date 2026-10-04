@@ -17,6 +17,8 @@ import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
+  getEventStatusActionConfirm,
+  getEventStatusActionLabel,
   getEventStatusLabel,
   getRoleFamilyLabel,
   pick,
@@ -41,6 +43,7 @@ import { TrackBoardTable } from "@/components/track-board-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 const EventRegistrationCountdown = nextDynamic(
   () =>
@@ -811,28 +814,49 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                     {pick(locale, { en: "Admin status control", ru: "Управление статусом" })}
                   </p>
-                  <p className="text-sm leading-6 text-white/70">
-                    {pick(locale, {
-                      en: `Stored status: ${event.status}. Effective status now: ${effectiveStatus}.`,
-                      ru: `Сохранённый статус: ${event.status}. Фактический статус сейчас: ${effectiveStatus}.`,
-                    })}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                    <span>{pick(locale, { en: "Registration status:", ru: "Статус регистрации:" })}</span>
+                    <Badge className="border-gold/24 bg-gold/12 text-gold" data-admin-current-status>
+                      {getEventStatusLabel(effectiveStatus, locale)}
+                    </Badge>
+                  </div>
+                  {effectiveStatus !== event.status ? (
+                    <p className="text-xs leading-5 text-white/55">
+                      {pick(locale, {
+                        en: `Set automatically by the registration dates (saved as ${getEventStatusLabel(event.status, locale)}).`,
+                        ru: `Выставлено автоматически по датам регистрации (сохранено как «${getEventStatusLabel(event.status, locale)}»).`,
+                      })}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {nextAdminStatuses.map((status) => (
-                    <form action={updateEventStatusAction} key={status}>
-                      <input name="eventId" type="hidden" value={event.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <input name="status" type="hidden" value={status} />
-                      <Button
-                        size="sm"
-                        type="submit"
-                        variant={event.status === status ? "primary" : "secondary"}
-                      >
-                        {status}
-                      </Button>
-                    </form>
-                  ))}
+                  {nextAdminStatuses.map((status) => {
+                    const label = getEventStatusActionLabel(status, effectiveStatus, locale);
+                    const confirmMessage = getEventStatusActionConfirm(status, locale);
+
+                    return (
+                      <form action={updateEventStatusAction} key={status}>
+                        <input name="eventId" type="hidden" value={event.id} />
+                        <input name="eventSlug" type="hidden" value={event.id} />
+                        <input name="status" type="hidden" value={status} />
+                        {confirmMessage ? (
+                          <ConfirmSubmitButton
+                            confirmMessage={confirmMessage}
+                            data-admin-status-action={status}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            {label}
+                          </ConfirmSubmitButton>
+                        ) : (
+                          <Button data-admin-status-action={status} size="sm" type="submit" variant="secondary">
+                            {label}
+                          </Button>
+                        )}
+                      </form>
+                    );
+                  })}
                 </div>
               </Card>
             ) : null}
