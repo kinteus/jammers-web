@@ -918,17 +918,30 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   trackInfoFields={trackInfoFields}
                 />
               ) : null}
-              {!user && effectiveStatus === "OPEN" ? (
-                <SignInLink returnTo={signInReturnTo}>
-                  <Button size="sm" variant="secondary">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
-                  </Button>
-                </SignInLink>
-              ) : null}
             </div>
           </div>
         </Card>
+
+        {!user && effectiveStatus === "OPEN" ? (
+          // Guests can't take seats; put the sign-in prompt right above the songs it unlocks.
+          <div
+            className="flex flex-col gap-3 rounded-xl border border-gold/24 bg-gold/[0.07] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            data-board-sign-in-banner
+          >
+            <p className="text-sm leading-6 text-white/82">
+              {pick(locale, {
+                en: "Sign in with Telegram to take a seat or propose a song.",
+                ru: "Войди через Telegram, чтобы занять место или предложить песню.",
+              })}
+            </p>
+            <SignInLink returnTo={signInReturnTo}>
+              <Button size="sm">
+                <LogIn className="mr-2 h-4 w-4" />
+                {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
+              </Button>
+            </SignInLink>
+          </div>
+        ) : null}
 
         {visibleTracks.length === 0 ? (
           <Card className="brand-shell">
