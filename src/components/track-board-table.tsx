@@ -545,7 +545,7 @@ function claimSeatButtonClass(isOptional: boolean, variant: "icon" | "text") {
 
   if (variant === "text") {
     return cn(
-      "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-70",
+      "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-70",
       colorClass,
     );
   }
@@ -944,7 +944,7 @@ function SeatRequestsControl({
       ref={detailsRef}
     >
       <summary
-        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[3px]"
+        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[11px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[3px]"
         onClick={(event) => {
           event.preventDefault();
           setIsOpen((current) => !current);
@@ -963,11 +963,11 @@ function SeatRequestsControl({
           preferAbove ? "bottom-6" : "top-5",
         )}
       >
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/62">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/62">
           {pick(locale, { en: "Pending seat activity", ru: "Ожидает по месту" })}
         </p>
         {requests.map((request) => (
-          <p className="text-[10px] leading-4 text-white/78" key={request.id}>
+          <p className="text-xs leading-4 text-white/78" key={request.id}>
             {request.kind === "invite"
               ? pick(locale, {
                   en: `${request.requesterLabel} invited ${request.targetLabel}`,
@@ -1364,7 +1364,7 @@ function InviteControl({
                   >
                     <span className="truncate font-semibold text-sand">{label}</span>
                     {secondary ? (
-                      <span className="truncate text-[10px] text-white/54">{secondary}</span>
+                      <span className="truncate text-xs text-white/54">{secondary}</span>
                     ) : null}
                   </button>
                 );
@@ -1379,7 +1379,7 @@ function InviteControl({
             )}
           </div>
           <button
-            className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting || !selectedUser}
             type="submit"
           >
@@ -1779,7 +1779,7 @@ export function TrackBoardTable({
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
-                    "z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
+                    "z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[11px] uppercase tracking-[0.22em] text-white/82",
                     index > 0 && "border-l border-white/16",
                   )}
                   colSpan={group.columns.length}
@@ -1912,7 +1912,7 @@ export function TrackBoardTable({
                           </a>
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
-                              className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
+                              className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
                               title={activeTrackInfoLabels.join(", ")}
                             >
                               {activeTrackInfoLabels[0]}
@@ -2060,12 +2060,12 @@ export function TrackBoardTable({
                                     )}
                                   />
                                   {seat.isOptional ? (
-                                    <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-gold/84">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gold/84">
                                       OPT
                                     </span>
                                   ) : null}
                                   {userHasPendingRequest ? (
-                                    <span className="rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white">
+                                    <span className="rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-white">
                                       {pick(locale, { en: "Sent", ru: "Есть" })}
                                     </span>
                                   ) : null}
@@ -2209,7 +2209,7 @@ export function TrackBoardTable({
                               {getTelegramProfileUrl(seat.user) ? (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <a
-                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                    className="max-w-full truncate text-center text-xs font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                     href={getTelegramProfileUrl(seat.user) ?? undefined}
                                     rel="noreferrer"
                                     target="_blank"
@@ -2221,7 +2221,7 @@ export function TrackBoardTable({
                               ) : (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <span
-                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                    className="max-w-full truncate text-center text-xs font-semibold leading-[1.05rem] text-sand"
                                     title={formatPersonLabel(seat.user, locale)}
                                   >
                                     {formatPersonLabel(seat.user, locale)}
@@ -2339,7 +2339,7 @@ export function TrackBoardTable({
                             en: `Search on YouTube: ${getTrackFullTitle(track)}`,
                             ru: `Искать на YouTube: ${getTrackFullTitle(track)}`,
                           })}
-                          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-red/25 bg-red/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/84"
+                          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-red/25 bg-red/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/84"
                           data-mobile-youtube-link={track.id}
                           href={getYoutubeSearchUrl(track)}
                           rel="noreferrer"
@@ -2351,11 +2351,11 @@ export function TrackBoardTable({
                         </a>
                       </div>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/72">
+                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/72">
                       {pick(locale, { en: "Details", ru: "Детали" })}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-white/62">
+                  <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.14em] text-white/62">
                     <span
                       className={cn(
                         "rounded-full border px-2.5 py-1",
@@ -2470,7 +2470,7 @@ export function TrackBoardTable({
                             {seat.user ? (
                               getTelegramProfileUrl(seat.user) ? (
                                 <a
-                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                  className="break-all text-xs font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                   href={getTelegramProfileUrl(seat.user) ?? undefined}
                                   rel="noreferrer"
                                   target="_blank"
@@ -2480,14 +2480,14 @@ export function TrackBoardTable({
                                 </a>
                               ) : (
                                 <span
-                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                  className="break-all text-xs font-semibold leading-[1.05rem] text-sand"
                                   title={formatPersonLabel(seat.user, locale)}
                                 >
                                   {formatPersonLabel(seat.user, locale)}
                                 </span>
                               )
                             ) : (
-                              <span className="text-[10px] font-semibold text-sand">
+                              <span className="text-xs font-semibold text-sand">
                                 {getMobileSeatDisplayLabel(seat, locale)}
                               </span>
                             )}
@@ -2540,7 +2540,7 @@ export function TrackBoardTable({
 
                           {canInvite ? (
                             <div className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-1.5 py-1">
-                              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/78">
+                              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/78">
                                 {pick(locale, { en: "Invite", ru: "Позвать" })}
                               </span>
                               <InviteControl
@@ -2565,7 +2565,7 @@ export function TrackBoardTable({
                                   en: `Release ${seat.label}`,
                                   ru: `Освободить ${seat.label}`,
                                 })}
-                                className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14 disabled:opacity-70"
+                                className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14 disabled:opacity-70"
                                 disabled={pendingSeatId !== null}
                                 onClick={(event) => {
                                   event.preventDefault();
@@ -2592,7 +2592,7 @@ export function TrackBoardTable({
                           ) : null}
 
                           {userHasPendingRequest ? (
-                            <span className="rounded-full border border-blue/30 bg-blue/16 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white">
+                            <span className="rounded-full border border-blue/30 bg-blue/16 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white">
                               {pick(locale, { en: "Request sent", ru: "Запрос отправлен" })}
                             </span>
                           ) : null}

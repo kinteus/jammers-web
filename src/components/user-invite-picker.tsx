@@ -122,7 +122,7 @@ export function UserInvitePicker({
                     {getInviteableUserLabel(candidate)}
                   </span>
                   {secondary ? (
-                    <span className="truncate text-[10px] text-white/54">{secondary}</span>
+                    <span className="truncate text-xs text-white/54">{secondary}</span>
                   ) : null}
                 </button>
               );
