@@ -1,5 +1,5 @@
 import { env } from "@/lib/env";
-import { EVENT_TIME_ZONE } from "@/lib/utils";
+import { EVENT_TIME_ZONE, formatDateTime } from "@/lib/utils";
 
 async function sendTelegramMessage({
   chatId,
@@ -81,14 +81,7 @@ export function buildTelegramPublishedSetMessage({
     songLabel: string;
   }>;
 }) {
-  const dateLabel = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: EVENT_TIME_ZONE,
-  }).format(eventStartsAt);
+  const dateLabel = formatDateTime(eventStartsAt);
 
   return [
     `You're in the final set for ${eventTitle}.`,

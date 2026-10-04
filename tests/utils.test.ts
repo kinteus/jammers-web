@@ -34,6 +34,12 @@ describe("event date helpers", () => {
     expect(formatEventDateShort("2026-10-17T22:30:00.000Z")).toBe("18 Oct 2026");
   });
 
+  it("uses the same short month in every format (Sep, not Sept)", () => {
+    const september = "2026-09-08T17:00:00.000Z";
+    expect(formatEventDateShort(september)).toBe("8 Sep 2026");
+    expect(formatDateTime(september)).toBe("8 Sep 2026, 20:00");
+  });
+
   it("formats long and short dates in both locales", () => {
     expect(formatEventDateLong(startsAt)).toBe("18 October 2026");
     expect(formatEventDateShort(startsAt)).toBe("18 Oct 2026");

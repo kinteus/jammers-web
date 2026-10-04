@@ -19,8 +19,9 @@ function formatInEventTimeZone(value: Date | string, pattern: string, locale: Lo
   });
 }
 
+// "8 Oct 2026, 20:00". All user-facing dates go through the helpers below so pages agree.
 export function formatDateTime(value: Date | string, locale: Locale = "en") {
-  return formatInEventTimeZone(value, "dd MMM yyyy, HH:mm", locale);
+  return formatInEventTimeZone(value, "d MMM yyyy, HH:mm", locale);
 }
 
 // "18 October 2026"
