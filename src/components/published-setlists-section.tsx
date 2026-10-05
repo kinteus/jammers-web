@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 
 import { COUNT_FORMS, formatCount, getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { getRoleFamilyKey, type RoleFamilyKey } from "@/lib/role-families";
 import { formatDateTime } from "@/lib/utils";
 
@@ -153,7 +154,7 @@ export function PublishedSetlistsSection({
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1.5">
                       <h2 className="font-display text-xl font-semibold uppercase tracking-[0.03em] text-sand">
-                        {event.title}
+                        {getGigDisplayTitle(event, locale)}
                       </h2>
                       <div className="flex flex-wrap gap-3 text-sm text-white/66">
                         <span>

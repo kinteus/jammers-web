@@ -2,6 +2,7 @@ import { CalendarClock, Music2, Radio, Users2 } from "lucide-react";
 
 import type { UserArchiveStatsSummary } from "@/lib/domain/archive-stats";
 import { COUNT_FORMS, formatCount, getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { formatDateTime } from "@/lib/utils";
 
 import { AnimatedNumber } from "@/components/animated-number";
@@ -100,7 +101,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "First gig", ru: "Первый гиг" })}:{" "}
                   <strong className="text-sand">
                     {stats.firstGig
-                      ? `${stats.firstGig.title} · ${formatDateTime(stats.firstGig.startsAt, locale)}`
+                      ? `${getGigDisplayTitle(stats.firstGig, locale)} · ${formatDateTime(stats.firstGig.startsAt, locale)}`
                       : pick(locale, { en: "Soon", ru: "Скоро" })}
                   </strong>
                 </li>
@@ -108,7 +109,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "Latest gig", ru: "Последний гиг" })}:{" "}
                   <strong className="text-sand">
                     {stats.latestGig
-                      ? `${stats.latestGig.title} · ${formatDateTime(stats.latestGig.startsAt, locale)}`
+                      ? `${getGigDisplayTitle(stats.latestGig, locale)} · ${formatDateTime(stats.latestGig.startsAt, locale)}`
                       : pick(locale, { en: "Soon", ru: "Скоро" })}
                   </strong>
                 </li>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { COUNT_FORMS, formatCount, pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { formatEventDateShort, formatEventTime, formatEventYear } from "@/lib/utils";
@@ -60,6 +61,7 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
       !query ||
       [
         event.title,
+        getGigDisplayTitle(event, locale),
         event.venueName,
         ...event.setlistItems.flatMap((item) => [
           item.track.song.title,
@@ -161,7 +163,7 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
                       {/* Same structure for every row: title, then venue and time. */}
                       <div className="min-w-0">
                         <h2 className="font-body text-base font-bold text-sand" data-archive-row-title>
-                          {event.title}
+                          {getGigDisplayTitle(event, locale)}
                         </h2>
                         <p className="mt-1 text-sm text-sand/52" data-archive-row-meta>
                           {[event.venueName, formatEventTime(event.startsAt, locale)]

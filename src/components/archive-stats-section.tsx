@@ -1,6 +1,7 @@
 import { CalendarDays, Mic2, Music2, Radio, Star, Trophy, Users2 } from "lucide-react";
 
 import { COUNT_FORMS, formatCount, pick, type Locale } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import type { ArchiveRankingItem, ArchiveStatsSummary } from "@/lib/domain/archive-stats";
 
 import { AnimatedNumber } from "@/components/animated-number";
@@ -112,7 +113,7 @@ export function ArchiveStatsSection({
         <StatTile icon={Radio} label={pick(locale, { en: "Unique songs", ru: "Уникальных песен" })} value={stats.uniqueSongs} />
         <StatTile icon={Users2} label={pick(locale, { en: "Participants", ru: "Участников" })} value={stats.totalMusicians} />
         <StatTile
-          hint={stats.busiestGig?.title ?? undefined}
+          hint={stats.busiestGig ? getGigDisplayTitle(stats.busiestGig, locale) : undefined}
           icon={Trophy}
           label={pick(locale, { en: "Largest set", ru: "Самый большой сет" })}
           value={stats.busiestGig?.tracks ?? 0}

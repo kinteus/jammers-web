@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { getSafeReturnTo } from "@/lib/return-to";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
@@ -318,12 +319,12 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     const requestDescription = requestMeta
       ? requestMeta.mode === "self"
         ? pick(locale, {
-            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} seat on ${invite.track.event.title}.`,
-            ru: `${requestMeta.requesterLabel} хочет вписаться на опциональное место ${invite.seat.label} в ${invite.track.event.title}.`,
+            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} seat on ${getGigDisplayTitle(invite.track.event, locale)}.`,
+            ru: `${requestMeta.requesterLabel} хочет вписаться на опциональное место ${invite.seat.label} в ${getGigDisplayTitle(invite.track.event, locale)}.`,
           })
         : pick(locale, {
-            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} seat on ${invite.track.event.title}.`,
-            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на опциональное место ${invite.seat.label} в ${invite.track.event.title}.`,
+            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} seat on ${getGigDisplayTitle(invite.track.event, locale)}.`,
+            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на опциональное место ${invite.seat.label} в ${getGigDisplayTitle(invite.track.event, locale)}.`,
           })
       : null;
 
@@ -341,7 +342,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
 
     return {
       eventId: invite.track.event.id,
-      eventTitle: invite.track.event.title,
+      eventTitle: getGigDisplayTitle(invite.track.event, locale),
       id: invite.id,
       isApprovalRequest: Boolean(requestMeta),
       lineup,
@@ -566,7 +567,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     {invite.track.song.artist.name} - {invite.track.song.title}
                   </p>
                   <p className="mt-1 text-sm text-white/70">
-                    {modeLabel} · {invite.seat.label} · {invite.track.event.title}
+                    {modeLabel} · {invite.seat.label} · {getGigDisplayTitle(invite.track.event, locale)}
                   </p>
                   <p className="mt-1 text-sm text-white/60">
                     {pick(locale, {
@@ -618,7 +619,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 </p>
                 <p className="mt-1 text-sm text-white/70">
                   {entry.positions.join(", ")} · {formatDateTime(entry.track.event.startsAt, locale)} ·{" "}
-                  {entry.track.event.title}
+                  {getGigDisplayTitle(entry.track.event, locale)}
                 </p>
                 <p className="mt-2 text-sm text-white/70">
                   {pick(locale, { en: "Seats", ru: "Места" })}:{" "}

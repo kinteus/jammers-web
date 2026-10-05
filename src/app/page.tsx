@@ -12,6 +12,7 @@ import {
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
 import { formatDateTime, formatEventDateLong, formatEventTime } from "@/lib/utils";
@@ -422,7 +423,7 @@ export default async function HomePage() {
               {featuredEvent ? (
                 <>
                   {pick(locale, { en: "Next gig", ru: "Следующий гиг" })}:{" "}
-                  <span className="text-gold">{featuredEvent.title}</span>
+                  <span className="text-gold">{getGigDisplayTitle(featuredEvent, locale)}</span>
                 </>
               ) : rightNowContent ? (
                 rightNowContent.title

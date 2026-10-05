@@ -101,6 +101,10 @@ User-facing wording (EN / RU) used everywhere in the UI, Telegram messages and t
 
 "Setlist / сетлист" is kept for the final, published running order of a gig.
 
+### Gig titles on public pages
+
+Titles that only restate the date ("Гиг The Jammers 12 of June 2023", "Гиг The Jammers 27 сентября", "The Jammers Gig 18/10/26") are shown in the visitor's language as "The Jammers · 12 June 2023" / "The Jammers · 12 июня 2023". Custom titles such as "The Jammers Hot June" are shown as typed. The stored title is never changed, and admin screens show it as stored (`src/lib/gig-title.ts`).
+
 ## Core product concepts
 
 ### Event

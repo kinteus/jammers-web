@@ -11,6 +11,7 @@ import {
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
 import { countLineupParticipants, matchesRoleFilters } from "@/lib/event-board";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
@@ -106,27 +107,28 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
     };
   }
 
+  const gigTitle = getGigDisplayTitle(event, await getLocale());
   const dateLabel = `${formatEventDateShort(event.startsAt)}, ${formatEventTime(event.startsAt)}`;
   const venueLabel = event.venueName ? ` at ${event.venueName}` : "";
   const description =
     event.description?.trim() ||
-    `${event.title}${venueLabel} on ${dateLabel}. See the live board, who is in which seat, and published setlist details.`;
+    `${gigTitle}${venueLabel} on ${dateLabel}. See the live board, who is in which seat, and published setlist details.`;
 
   return {
-    title: event.title,
+    title: gigTitle,
     description,
     alternates: {
       canonical: `/events/${event.id}`,
     },
     openGraph: {
       type: "article",
-      title: event.title,
+      title: gigTitle,
       description,
       url: `/events/${event.id}`,
     },
     twitter: {
       card: "summary_large_image",
-      title: event.title,
+      title: gigTitle,
       description,
     },
   };
@@ -560,7 +562,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "MusicEvent",
-    name: event.title,
+    name: getGigDisplayTitle(event, locale),
     description: event.description ?? undefined,
     startDate: new Date(event.startsAt).toISOString(),
     eventStatus: `https://schema.org/${
@@ -724,7 +726,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
 
             <div className="space-y-3">
               <h1 className="font-display text-5xl uppercase text-sand lg:text-6xl">
-                {event.title}
+                {getGigDisplayTitle(event, locale)}
               </h1>
               <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-sand/58">
                 <span>{formatDateTime(event.startsAt, locale)}</span>
