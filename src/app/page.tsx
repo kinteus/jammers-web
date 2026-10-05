@@ -315,9 +315,17 @@ export default async function HomePage() {
                 </p>
                 <p className="max-w-2xl text-sm leading-6 text-sand/62">
                   {pick(locale, {
-                    en: "Some edges are still rough. If a flow feels unclear or breaks, send feedback from the FAQ form.",
-                    ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, отправь feedback через форму в FAQ.",
+                    en: "Some edges are still rough. If a flow feels unclear or breaks, ",
+                    ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, ",
                   })}
+                  <Link
+                    className="font-semibold text-gold underline-offset-4 transition hover:text-white hover:underline"
+                    data-beta-feedback-link
+                    href="/faq#feedback"
+                  >
+                    {pick(locale, { en: "send us feedback", ru: "напиши нам" })}
+                  </Link>
+                  .
                 </p>
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">
