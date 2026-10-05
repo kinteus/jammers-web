@@ -98,6 +98,6 @@ npm run build
 - [GitHub Actions + Kubernetes CI/CD setup](./docs/GITHUB_K8S_CICD_SETUP.md)
 - [Kubernetes deployment guide](./docs/K8S_DEPLOYMENT.md)
 
-## Current external dependency
+## Selection engine package
 
-Repository publication to GitHub is blocked until `gh` is re-authenticated for account `kinteus` in the current environment.
+The application consumes [`@kinteus/jammers-setlist`](https://github.com/kinteus/jammers-setlist), pinned to a full GitHub commit archive in the package manifests. The public repository accepts issues and pull requests; only @kinteus merges into its `main`. See [local setup](./docs/LOCAL_SETUP.md#selection-package-dependency) for dependency updates.

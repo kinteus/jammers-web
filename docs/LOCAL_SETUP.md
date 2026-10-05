@@ -75,3 +75,17 @@ npm run test
 npm run test:coverage
 npm run build
 ```
+
+## Selection package dependency
+
+`npm ci` downloads `@kinteus/jammers-setlist` from the public GitHub archive URL pinned in the lockfile. GitHub must be reachable; no registry login, Git installation, or separate package compilation is required. Do not replace the SHA with a moving branch.
+
+Develop algorithm changes in [kinteus/jammers-setlist](https://github.com/kinteus/jammers-setlist), run its `npm run check`, and submit a PR for @kinteus to merge. Once merged, update the app with:
+
+```sh
+npm install --save-exact 'https://api.github.com/repos/kinteus/jammers-setlist/tarball/<FULL_MERGED_COMMIT_SHA>'
+npm run typecheck
+npm test -- tests/setlist-algorithm.test.ts tests/setlist-history.test.ts
+```
+
+Commit both package manifests. The selection-confirmation smoke test still describes the same behavior; run it only against an isolated test database, never the production tunnel.

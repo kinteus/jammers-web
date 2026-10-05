@@ -2,7 +2,7 @@
 
 ## High-level design
 
-The application is implemented as a single deployable Next.js monolith with server-rendered pages, server actions, and Prisma-backed domain services.
+The application is implemented as a single deployable Next.js monolith with server-rendered pages, server actions, and Prisma-backed domain services. Its pure history-weighted selection engine is supplied by the public [`@kinteus/jammers-setlist`](https://github.com/kinteus/jammers-setlist) package, pinned to a GitHub commit archive. The package is an in-process dependency; database reads, authorization, candidate preparation, and persistence remain in the application.
 
 ```mermaid
 flowchart LR

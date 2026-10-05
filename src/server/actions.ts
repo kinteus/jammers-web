@@ -52,8 +52,8 @@ import {
 import {
   buildSetlistRecommendation,
   findParticipantsExceedingTrackLimit,
-} from "@/lib/domain/setlist-algorithm";
-import { buildParticipantHistorySnapshot } from "@/lib/domain/setlist-history";
+  buildParticipantHistorySnapshot,
+} from "@kinteus/jammers-setlist";
 import { env } from "@/lib/env";
 import { consumeRateLimit, getClientIpFromHeaders } from "@/lib/rate-limit";
 import {

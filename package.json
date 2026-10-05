@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@kinteus/jammers-setlist": "https://api.github.com/repos/kinteus/jammers-setlist/tarball/0a2c69bc7519525ecd12820b57abb1527ec97ad9",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.4",

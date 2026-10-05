@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSetlistRecommendation,
   findParticipantsExceedingTrackLimit,
-} from "@/lib/domain/setlist-algorithm";
+} from "@kinteus/jammers-setlist";
 
 function candidate(
   id: string,

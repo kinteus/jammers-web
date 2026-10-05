@@ -186,7 +186,7 @@ Important rule and domain modules include:
 - [src/lib/domain/event-status.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-status.ts)
 - [src/lib/domain/event-registration.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-registration.ts)
 - [src/lib/domain/lineup.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/lineup.ts)
-- [src/lib/domain/setlist-algorithm.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-algorithm.ts)
+- [`@kinteus/jammers-setlist`](https://github.com/kinteus/jammers-setlist) — external pure selection engine and historical weights
 - [src/lib/domain/setlist-limit.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-limit.ts)
 
 These modules are the main place to evolve business rules without bloating page components.
@@ -395,6 +395,10 @@ The algorithm is documented at a product level in:
 
 Implementation details:
 
+- `src/server/actions.ts` imports `@kinteus/jammers-setlist` directly; local copies of the algorithm and history engine have been removed,
+- the package has no runtime dependencies and no Prisma/database coupling; MAIN/BACKLOG are compatible string literals,
+- npm installs committed JavaScript and declarations from an immutable GitHub commit archive, so Docker builds do not need Git, a registry token, or a package build step,
+- the package repository owns algorithm unit tests and a packed-consumer smoke test; the app retains regression tests against the installed package and its existing selection E2E,
 - current strategy is deterministic sequential history-weighted ranking,
 - history includes only earlier `PUBLISHED` events with at least one `MAIN` item; participants are deduplicated per event,
 - each current participant starts with exact weight `2^r + m`, where `r` is their most-recent participation position (or history length plus one) and `m` is their miss count over the newest ten qualifying events,
