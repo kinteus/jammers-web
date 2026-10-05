@@ -269,6 +269,11 @@ h3,
   position: relative;
 }
 
+/* The shell is the content column; quote bubbles use its width (cqw) to stay out of it. */
+.home-page-shell {
+  container-type: inline-size;
+}
+
 .home-page-shell > section:not(.community-quotes-root) {
   position: relative;
   z-index: 2;
@@ -296,6 +301,24 @@ h3,
 
 .community-quotes-root:has(.community-quote-peek:hover, .community-quote-peek:focus-within) {
   z-index: 3;
+}
+
+/* Some cards are translucent, so z-index alone would let bubbles show through them. Clip the
+   layer to the strips left and right of the content column (50% is the viewport centre, 50cqw
+   half the column) until a bubble is hovered or focused. Clipping also limits the hover target
+   to the visible part. */
+.community-quotes-root:not(:has(.community-quote-peek:hover, .community-quote-peek:focus-within))
+  .community-quotes-perimeter {
+  clip-path: polygon(
+    0 0,
+    calc(50% - 50cqw) 0,
+    calc(50% - 50cqw) 100%,
+    calc(50% + 50cqw) 100%,
+    calc(50% + 50cqw) 0,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
 }
 
 @media (max-width: 1023px) {
@@ -432,7 +455,9 @@ h3,
 .community-quote-peek:hover .community-quote-card--ambient,
 .community-quote-peek:focus-within .community-quote-card--ambient {
   z-index: 140 !important;
-  width: var(--quote-open-width) !important;
+  /* Open only as wide as the quote needs, up to --quote-open-width. */
+  width: max-content !important;
+  min-width: var(--quote-peek-width);
   max-width: var(--quote-open-width);
   opacity: 1;
   animation-play-state: paused;
@@ -443,11 +468,19 @@ h3,
   transform: rotate(0deg) scale(1.04) !important;
 }
 
+/* Right-edge bubbles stay anchored to their right side and grow leftwards when opened. */
+.community-quote-peek[data-edge="right"] {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.community-quote-peek[data-edge="right"] .community-quote-card--ambient {
+  flex-shrink: 0;
+}
+
 .community-quote-peek[data-edge="right"]:hover .community-quote-card--ambient,
 .community-quote-peek[data-edge="right"]:focus-within .community-quote-card--ambient {
   text-align: left;
-  transform: translateX(calc((var(--quote-open-width) - var(--quote-peek-width)) * -1)) rotate(0deg)
-    scale(1.04) !important;
 }
 
 .community-quote-card__glow {

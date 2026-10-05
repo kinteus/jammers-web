@@ -99,6 +99,26 @@ describe("CommunityQuotesCloud", () => {
     expect(new Set(quoteTops).size).toBe(8);
   });
 
+  it("clips resting quotes to the strips outside the content column", () => {
+    const clipRule = globalCss.match(
+      /\.community-quotes-root:not\(:has\([^)]*\)\)\s*\.community-quotes-perimeter\s*\{[^}]+\}/,
+    )?.[0];
+
+    expect(globalCss).toMatch(/\.home-page-shell\s*\{\s*container-type: inline-size;/);
+    expect(clipRule).toContain("calc(50% - 50cqw)");
+    expect(clipRule).toContain("calc(50% + 50cqw)");
+  });
+
+  it("opens a hovered quote only as wide as its text", () => {
+    const hoverRule = globalCss.match(
+      /\.community-quote-peek:hover\s+\.community-quote-card--ambient,\s*\.community-quote-peek:focus-within\s+\.community-quote-card--ambient\s*\{[^}]+\}/,
+    )?.[0];
+
+    expect(hoverRule).toContain("width: max-content");
+    expect(hoverRule).toContain("max-width: var(--quote-open-width)");
+    expect(globalCss).not.toContain("translateX(calc((var(--quote-open-width)");
+  });
+
   it("keeps ambient quote previews readable before hover", () => {
     const ambientRule = globalCss.match(/\.community-quote-card--ambient\s*\{[^}]+\}/)?.[0];
     const opacity = Number(ambientRule?.match(/opacity:\s*([0-9.]+)/)?.[1]);
