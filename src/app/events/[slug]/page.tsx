@@ -595,6 +595,10 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           .filter((track): track is (typeof event.tracks)[number] => Boolean(track))
       : event.tracks;
 
+  // Same rule as the Setlists archive: published or archived gigs that already started.
+  const isPastSetlistGig =
+    (event.status === "PUBLISHED" || event.status === "ARCHIVED") &&
+    new Date(event.startsAt).getTime() < Date.now();
   const joinedTrackCount = user ? countJoinedTracks(event.tracks, user.id) : 0;
   const atTrackLimit = Boolean(user) && joinedTrackCount >= event.maxTracksPerUser;
 
@@ -697,8 +701,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       ) : null}
 
       <section className="space-y-7 border-b border-white/8 pb-8">
-        <Link className="inline-flex items-center gap-2 text-sm font-bold text-sand/52 hover:text-gold" href="/">
-          ← {pick(locale, { en: "Back to home", ru: "На главную" })}
+        {/* Past gigs are reached from Setlists, so the back link returns there. */}
+        <Link
+          className="inline-flex items-center gap-2 text-sm font-bold text-sand/52 hover:text-gold"
+          data-gig-back-link
+          href={isPastSetlistGig ? "/archive" : "/"}
+        >
+          ←{" "}
+          {isPastSetlistGig
+            ? pick(locale, { en: "Back to setlists", ru: "К сетлистам" })
+            : pick(locale, { en: "Back to home", ru: "На главную" })}
         </Link>
         <div className="space-y-7">
           <div className="space-y-5">
