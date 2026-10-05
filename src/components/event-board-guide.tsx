@@ -97,19 +97,19 @@ export function EventBoardGuide({
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Required seats open", ru: "Открыто обязательных мест" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{requiredOpenSeatCount}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Songs needing participants", ru: "Песен ждут участников" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{tracksNeedingPlayers}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Optional seats open", ru: "Открыто опциональных мест" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{optionalOpenSeatCount}</p>

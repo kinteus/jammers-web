@@ -57,7 +57,7 @@ export function ProfileArchiveStats({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1.5">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{item.label}</p>
+                <p className="text-xs text-white/45">{item.label}</p>
                 <p className="text-3xl font-semibold text-sand">
                   <AnimatedNumber value={item.value} />
                 </p>

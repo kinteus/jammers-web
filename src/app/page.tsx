@@ -446,7 +446,7 @@ export default async function HomePage() {
                         className="rounded-xl border border-white/12 bg-black/28 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                         key={detail.label}
                       >
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{detail.label}</p>
+                        <p className="text-xs text-white/45">{detail.label}</p>
                         <div className="mt-1 text-base font-semibold leading-6 text-sand">{detail.value}</div>
                       </div>
                     ))}
@@ -463,7 +463,7 @@ export default async function HomePage() {
                       className="rounded-xl border border-white/12 bg-black/28 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                       key={stat.label}
                     >
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{stat.label}</p>
+                      <p className="text-xs text-white/45">{stat.label}</p>
                       <div className="mt-2 text-3xl font-semibold text-sand">{stat.value}</div>
                     </div>
                   ))}
@@ -473,7 +473,7 @@ export default async function HomePage() {
                 <div className="grid gap-3 md:grid-cols-3">
                   {featuredEvent.registrationOpensAt && featuredEvent.effectiveStatus === EventStatus.DRAFT ? (
                     <div className="rounded-xl border border-gold/18 bg-black/28 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      <p className="text-xs text-white/45">
                         {pick(locale, { en: "Board opens in", ru: "Таблица откроется через" })}
                       </p>
                       <p className="mt-1 text-lg">
@@ -488,7 +488,7 @@ export default async function HomePage() {
                   ) : null}
                   {featuredEvent.registrationClosesAt && featuredEvent.effectiveStatus === EventStatus.OPEN ? (
                     <div className="rounded-xl border border-red/18 bg-black/28 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      <p className="text-xs text-white/45">
                         {pick(locale, { en: "Board closes in", ru: "Таблица закроется через" })}
                       </p>
                       <p className="mt-1 text-lg">
@@ -503,7 +503,7 @@ export default async function HomePage() {
                     </div>
                   ) : null}
                   <div className="rounded-xl border border-white/12 bg-black/28 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    <p className="text-xs text-white/45">
                       {pick(locale, { en: "Gig starts in", ru: "Гиг начнётся через" })}
                     </p>
                     <p className="mt-1 text-lg">

@@ -24,7 +24,7 @@ function StatTile({
           <p className="font-display text-4xl text-sand">
             {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
           </p>
-          <p className="mt-9 text-[11px] font-bold uppercase tracking-[0.28em] text-sand/52">{label}</p>
+          <p className="mt-9 text-xs font-bold text-sand/52">{label}</p>
           {hint ? <p className="mt-1 text-xs text-sand/50">{hint}</p> : null}
         </div>
         <Icon className="h-4 w-4 text-sand/36" />
@@ -134,7 +134,7 @@ export function ArchiveStatsSection({
               </div>
             ))}
           </div>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-sand/52">
+          <p className="mt-4 text-xs font-bold text-sand/52">
             {pick(locale, { en: "Performed songs by year", ru: "Песни из сетлиста по годам" })}
           </p>
         </div>

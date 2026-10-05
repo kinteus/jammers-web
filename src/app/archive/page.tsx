@@ -116,7 +116,7 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
               [pick(locale, { en: "Participants on stage", ru: "Участников на сцене" }), stats.totalMusicians],
             ].map(([label, value]) => (
               <div key={label}>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/48">{label}</p>
+                <p className="text-xs font-bold text-sand/48">{label}</p>
                 <p className="mt-2 font-display text-3xl text-sand">{value}</p>
               </div>
             ))}

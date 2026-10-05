@@ -288,7 +288,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="space-y-5">
         <div className="space-y-2">
           <Badge>{pick(locale, { en: "Admin cockpit", ru: "Панель админа" })}</Badge>
-          <h1 className="font-display text-4xl font-semibold text-sand">
+          <h1 className="font-display text-4xl font-semibold text-sand uppercase tracking-[0.03em]">
             {pick(locale, {
               en: "Open only the tool you need",
               ru: "Открывай только тот инструмент, который нужен прямо сейчас",
@@ -304,19 +304,19 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="grid gap-3 md:grid-cols-3">
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Gigs", ru: "Гиги" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{data.events.length}</p>
           </div>
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Song requests", ru: "Запросы на песни" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{data.songRequests.length}</p>
           </div>
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Admins", ru: "Админы" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{adminUsers.length}</p>
@@ -486,7 +486,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           >
             <div className="grid gap-6 md:grid-cols-2">
               <form action={setBanAction} className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold text-sand">
+                <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Ban user", ru: "Заблокировать пользователя" })}
                 </h3>
                 <input
@@ -515,7 +515,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </form>
 
               <form action={setRatingAction} className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold text-sand">
+                <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Rate participant", ru: "Оценить участника" })}
                 </h3>
                 <input
@@ -714,7 +714,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <div className="space-y-6" id="community-quotes">
               <form action={updateCommunityQuoteSettingsAction} className="brand-shell-soft grid gap-4 rounded-2xl border border-white/10 p-4">
                 <div className="space-y-1">
-                  <h3 className="font-display text-2xl font-semibold text-sand">
+                  <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                     {pick(locale, { en: "Display settings", ru: "Настройки показа" })}
                   </h3>
                   <p className="max-w-2xl text-sm leading-6 text-white/66">
@@ -862,7 +862,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           >
             <div className="grid gap-6 lg:grid-cols-[0.85fr,1.15fr]">
               <div className="space-y-3">
-                <h2 className="font-display text-3xl font-semibold">
+                <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Current admins", ru: "Текущие админы" })}
                 </h2>
                 <div className="grid gap-3">
@@ -904,7 +904,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold">
+                <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Manage admin list", ru: "Управление списком админов" })}
                 </h3>
                 {canManageAdmins ? (
@@ -1003,7 +1003,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="space-y-4">
         <div className="space-y-2">
           <Badge>{pick(locale, { en: "Gig workspaces", ru: "Рабочие пространства гигов" })}</Badge>
-          <h2 className="font-display text-3xl font-semibold text-sand">
+          <h2 className="font-display text-3xl font-semibold text-sand uppercase tracking-[0.03em]">
             {pick(locale, { en: "All gigs, with fast next moves", ru: "Все гиги и быстрые следующие действия" })}
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-white/70">

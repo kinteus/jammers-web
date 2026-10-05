@@ -350,7 +350,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       <section className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
         <Card className="space-y-4">
           <Badge>{pick(locale, { en: "Gig settings", ru: "Настройки гига" })}</Badge>
-          <h1 className="font-display text-4xl font-semibold">{event.title}</h1>
+          <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.03em]">{event.title}</h1>
           <form action={updateEventAction} className="grid gap-4 md:grid-cols-2">
             <AdminTimezoneOffsetField />
             <input name="eventId" type="hidden" value={event.id} />
@@ -589,7 +589,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Participants", ru: "Участники" })}</Badge>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                <p className="text-xs text-white/46">
                   {pick(locale, {
                     en: "Participants in main set",
                     ru: "Участников в мейн-сете",
@@ -600,7 +600,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                <p className="text-xs text-white/46">
                   {pick(locale, {
                     en: "Participants in assembled board songs",
                     ru: "Участников в собранных песнях таблицы",
@@ -696,10 +696,10 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               <details className="brand-shell overflow-hidden rounded-2xl border-white/10" key={track.id}>
                 <summary className="flex cursor-pointer flex-wrap items-start justify-between gap-4 px-5 py-4">
                   <div className="min-w-0 space-y-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
+                    <p className="text-xs text-white/42">
                       {pick(locale, { en: "Proposer", ru: "Автор заявки" })} @{track.proposedBy.telegramUsername}
                     </p>
-                    <h2 className="font-display text-2xl font-semibold text-sand">
+                    <h2 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                       {track.song.artist.name} - {track.song.title}
                     </h2>
                     <p className="text-sm leading-6 text-white/62">

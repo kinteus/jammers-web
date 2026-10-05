@@ -409,25 +409,25 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Pending invites", ru: "Ожидают ответа" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{profile.invitations.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Requests sent", ru: "Запросов отправлено" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{outgoingSeatRequests.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Current songs", ru: "Текущие песни" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{currentSongs.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Primary instruments", ru: "Основные инструменты" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{profile.instruments.length}</p>
