@@ -157,9 +157,9 @@ export default async function AboutPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {ABOUT_PAGE_CONTENT.organizers.map((organizer) => (
-            <Card className="space-y-6 px-5 py-5" key={organizer.name}>
+            <Card className="space-y-6 px-5 py-5" key={organizer.contactValue}>
               <div className="space-y-4">
-                <h3 className="font-display text-2xl uppercase text-sand">{organizer.name}</h3>
+                <h3 className="font-display text-2xl uppercase text-sand">{pick(locale, organizer.name)}</h3>
                 <p className="text-sm text-sand/58">{organizer.role[locale]}</p>
               </div>
               <div className="border-t border-white/10 pt-4">

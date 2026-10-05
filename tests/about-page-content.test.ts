@@ -11,3 +11,12 @@ describe("about page content", () => {
     expect(placeholderContacts).toHaveLength(0);
   });
 });
+
+describe("organizer names", () => {
+  it("has a Latin spelling for English and Cyrillic for Russian", () => {
+    for (const organizer of ABOUT_PAGE_CONTENT.organizers) {
+      expect(organizer.name.en).toMatch(/^[A-Za-z][A-Za-z .'-]*$/);
+      expect(organizer.name.ru).toMatch(/[А-Яа-яЁё]/);
+    }
+  });
+});
