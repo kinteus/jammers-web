@@ -21,10 +21,16 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   "connect-src 'self' ws: wss: https://itunes.apple.com https://telegram.org https://*.telegram.org",
   "frame-src https://telegram.org https://*.telegram.org",
-  "upgrade-insecure-requests",
+  // The dev server is plain HTTP. Browsers exempt localhost from this directive but not LAN
+  // addresses, so on a phone at http://192.168.x.x:3000 every asset was upgraded to https
+  // and failed. Production (HTTPS) keeps it.
+  ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Dev only: let phones/laptops on the same Wi-Fi load dev assets and live reload
+  // (http://<this-mac's-LAN-IP>:3000). Has no effect on production builds.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*", "*.local"],
   htmlLimitedBots: /.*/,
   output: "standalone",
   poweredByHeader: false,
