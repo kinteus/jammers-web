@@ -4,12 +4,25 @@ import { pick, type Locale } from "@/lib/i18n";
 
 import { BrandLogo } from "@/components/brand-logo";
 
-export function SiteFooter({ locale }: { locale: Locale }) {
+export function SiteFooter({
+  isSignedIn = false,
+  locale,
+}: {
+  isSignedIn?: boolean;
+  locale: Locale;
+}) {
   const links = [
     { href: "/", label: pick(locale, { en: "Home", ru: "Главная" }) },
     { href: "/archive", label: pick(locale, { en: "Setlists", ru: "Сетлисты" }) },
     { href: "/about", label: pick(locale, { en: "About", ru: "О нас" }) },
     { href: "/faq", label: "FAQ" },
+    // Same destination either way: /profile shows the Telegram sign-in when logged out.
+    {
+      href: "/profile",
+      label: isSignedIn
+        ? pick(locale, { en: "Profile", ru: "Профиль" })
+        : pick(locale, { en: "Sign in", ru: "Войти" }),
+    },
   ];
 
   return (

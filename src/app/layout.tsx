@@ -69,7 +69,7 @@ export default async function RootLayout({
         <main className="reference-main mx-auto">
           {children}
         </main>
-        <SiteFooter locale={locale} />
+        <SiteFooter isSignedIn={Boolean(user)} locale={locale} />
       </body>
     </html>
   );
