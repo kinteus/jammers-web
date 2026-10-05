@@ -32,8 +32,8 @@ export async function generateMetadata(): Promise<Metadata> {
   // The root page is in the same segment as the layout, so the "%s | The Jammers" template
   // does not apply here: give it a complete, branded title.
   const title = pick(locale, {
-    en: "The Jammers: Live gig boards in Cyprus",
-    ru: "The Jammers: живые гиги на Кипре",
+    en: "Home | The Jammers",
+    ru: "Главная | The Jammers",
   });
   const description = pick(locale, {
     en: "Follow upcoming gigs, see which songs are already moving, and join the live board for The Jammers community.",
