@@ -187,6 +187,14 @@ test.describe("Jammers smoke", () => {
     });
     await expect(nextGigLink).toBeVisible();
     await expect(nextGigLink).toHaveAttribute("href", /\/events\/[a-z0-9-]+/i);
+    const nextGigSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Next gig|Следующий гиг/i }),
+    });
+    await expect(nextGigSection).toHaveCount(1);
+    await expect(nextGigSection.getByText(/^Date$/)).toHaveCount(0);
+    await expect(nextGigSection.getByText(/^Time$/)).toHaveCount(0);
+    await expect(nextGigSection.getByText(/^Дата$/)).toHaveCount(0);
+    await expect(nextGigSection.getByText(/^Время$/)).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Read the FAQ|Открыть FAQ/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Setlists|Сетлисты/i }).first()).toHaveAttribute(
       "href",
