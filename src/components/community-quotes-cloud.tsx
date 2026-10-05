@@ -158,50 +158,15 @@ function getQuoteText(locale: Locale, quote: CommunityQuote) {
   });
 }
 
-function MobileQuotesStack({
+function QuotesPerimeter({
+  desktopDisplayLimit,
   locale,
   mobileDisplayLimit,
   quotes,
 }: {
-  locale: Locale;
-  mobileDisplayLimit: number;
-  quotes: CommunityQuote[];
-}) {
-  const mobileQuotes = pickDisplayQuotes(quotes, mobileDisplayLimit);
-
-  return (
-    <div className="community-quotes-mobile-stack">
-      {mobileQuotes.map((quote, index) => (
-        <article
-          className="community-mobile-quote-card"
-          key={quote.id}
-          style={{
-            animationDelay: `${index * 0.18}s`,
-            animationDuration: `${6.2 + (index % 5) * 0.45}s`,
-            ["--mobile-quote-drift" as string]: `${(index % 3) - 1}`,
-          }}
-        >
-          <div className="flex items-start gap-2">
-            <p aria-hidden="true" className="pt-0.5 text-sm leading-none text-gold/70">
-              “
-            </p>
-            <blockquote className="community-mobile-quote-card__text text-[0.98rem] leading-6 text-sand/92">
-              {getQuoteText(locale, quote)}
-            </blockquote>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function DesktopQuotesPerimeter({
-  desktopDisplayLimit,
-  locale,
-  quotes,
-}: {
   desktopDisplayLimit: number;
   locale: Locale;
+  mobileDisplayLimit: number;
   quotes: CommunityQuote[];
 }) {
   const desktopQuotes = pickDisplayQuotes(
@@ -210,10 +175,10 @@ function DesktopQuotesPerimeter({
   );
   const layoutOffset = randomInt(QUOTE_SLOTS.length);
 
-  // Floating bubbles only when the side gutters can hold them without covering content
-  // (1360px content column + ~240px bubble per side). Narrower screens get the in-flow section.
+  // The bubbles sit behind all page content (see .community-quotes-root in globals.css), so they
+  // only show where nothing else is drawn. Phones show the first mobileDisplayLimit of them.
   return (
-    <div className="community-quotes-perimeter hidden min-[1840px]:block">
+    <div className="community-quotes-perimeter">
       {desktopQuotes.map((quote, index) => {
         const slot = QUOTE_SLOTS[(index + layoutOffset) % QUOTE_SLOTS.length];
         const peekWidth = "14rem";
@@ -232,6 +197,7 @@ function DesktopQuotesPerimeter({
             className="community-quote-peek"
             data-depth={slot.depth}
             data-edge={slot.edge}
+            data-mobile-hidden={index >= mobileDisplayLimit ? "" : undefined}
             key={quote.id}
             style={{
               ...sideStyle,
@@ -299,39 +265,10 @@ export function CommunityQuotesCloud({
           ru: "Фразы, которые сцена уже знает наизусть",
         })}
       </h2>
-      <div className="community-quotes-mobile-section mx-auto max-w-[1360px] space-y-5 min-[1840px]:hidden">
-        <div className="space-y-2 px-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/52">
-            {pick(locale, {
-              en: "Community pulse",
-              ru: "Пульс коммьюнити",
-            })}
-          </p>
-          <h3 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-sand">
-            {pick(locale, {
-              en: "Quotes the scene already knows by heart",
-              ru: "Фразы, которые сцена уже знает наизусть",
-            })}
-          </h3>
-          <p className="max-w-2xl text-sm leading-6 text-white/66">
-            {pick(locale, {
-              en: "A moving wall of in-jokes, backstage wisdom, and the lines that keep coming back after every jam.",
-              ru: "Живая стена внутренних мемов, сценической мудрости и фраз, которые возвращаются после каждого джема.",
-            })}
-          </p>
-        </div>
-
-        <div className="community-quotes-stage rounded-[2rem] border border-white/10 px-4 py-5">
-          <MobileQuotesStack
-            locale={locale}
-            mobileDisplayLimit={mobileDisplayLimit}
-            quotes={quotes}
-          />
-        </div>
-      </div>
-      <DesktopQuotesPerimeter
+      <QuotesPerimeter
         desktopDisplayLimit={desktopDisplayLimit}
         locale={locale}
+        mobileDisplayLimit={mobileDisplayLimit}
         quotes={quotes}
       />
     </section>
