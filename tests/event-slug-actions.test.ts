@@ -193,7 +193,8 @@ describe("event route slugs in server actions", () => {
 
     expect(dbMock.trackSeat.deleteMany).not.toHaveBeenCalled();
     expect(dbMock.event.delete).not.toHaveBeenCalled();
-  });
+    // First import of server actions is slow under full-suite load (same as the test below).
+  }, 10_000);
 
   it(
     "deletes an event with a short cascade path instead of a long interactive transaction",
