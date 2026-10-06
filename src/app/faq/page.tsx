@@ -13,6 +13,7 @@ import { DatabaseUnavailableState } from "@/components/database-unavailable-stat
 import { MarkdownContent } from "@/components/markdown-content";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -20,21 +21,21 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "FAQ",
   description:
-    "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+    "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
   alternates: {
     canonical: "/faq",
   },
   openGraph: {
     title: "The Jammers FAQ",
     description:
-      "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+      "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
     url: "/faq",
   },
   twitter: {
     card: "summary_large_image",
     title: "The Jammers FAQ",
     description:
-      "Learn how The Jammers works: joining songs, understanding the line-up, and sending feedback to the team.",
+      "Learn how The Jammers works: joining songs, understanding seats on the board, and sending feedback to the team.",
   },
 };
 
@@ -91,11 +92,27 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
           </h1>
           <p className="max-w-3xl text-sm leading-6 text-white/72">
             {pick(locale, {
-              en: "The essentials in one place: how to join, what the line-up means and how to send feedback to the team.",
-              ru: "Всё важное в одном месте: как участвовать, что значат детали лайнапа и как отправить обратную связь команде.",
+              en: "The essentials in one place: how to join, what the seats on the board mean and how to send feedback to the team.",
+              ru: "Всё важное в одном месте: как участвовать, что значат места в таблице и как отправить обратную связь команде.",
             })}
           </p>
         </div>
+        <nav
+          aria-label={pick(locale, { en: "On this page", ru: "На этой странице" })}
+          className="flex flex-wrap gap-2"
+        >
+          <Button asChild size="sm" variant="secondary">
+            <a href="#rules">{pick(locale, { en: "Rules", ru: "Правила" })}</a>
+          </Button>
+          <Button asChild size="sm" variant="secondary">
+            <a href="#lineup">{pick(locale, { en: "Seats & glossary", ru: "Места и словарь" })}</a>
+          </Button>
+          <Button asChild size="sm">
+            <a data-faq-feedback-jump href="#feedback">
+              {pick(locale, { en: "Send feedback ↓", ru: "Написать команде ↓" })}
+            </a>
+          </Button>
+        </nav>
       </section>
 
       {notice === "feedback-sent" ? (
@@ -125,25 +142,25 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </div>
       ) : null}
 
-      <section className="grid items-start gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="brand-shell space-y-4">
+      <section className="grid items-stretch gap-6 xl:grid-cols-[1fr_1fr]">
+        <Card className="brand-shell scroll-mt-32 space-y-4" id="rules">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
               {pick(locale, { en: "Participation rules", ru: "Правила участия" })}
             </p>
           </div>
-          <MarkdownContent value={participationRulesMarkdown} />
+          <MarkdownContent headingIds value={participationRulesMarkdown} />
         </Card>
 
-        <Card className="brand-shell space-y-4">
+        <Card className="brand-shell scroll-mt-32 space-y-4" id="lineup">
           <div className="flex items-center gap-2">
             <Video className="h-4 w-4 text-gold" />
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Line-up technical details", ru: "Технические детали лайнапа" })}
+              {pick(locale, { en: "Seats & glossary", ru: "Места и словарь" })}
             </p>
           </div>
-          <MarkdownContent value={lineupDetailsMarkdown} />
+          <MarkdownContent headingIds value={lineupDetailsMarkdown} />
           {faq.lineupVideoUrls.length > 0 ? (
             <div className="grid gap-4">
               {faq.lineupVideoUrls.map((url) => {
@@ -172,7 +189,7 @@ export default async function FaqPage({ searchParams }: FaqPageProps) {
         </Card>
       </section>
 
-      <section id="feedback">
+      <section className="scroll-mt-32" id="feedback">
         <Card className="brand-shell space-y-5">
           <div className="flex items-center gap-2">
             <MessageCircleMore className="h-4 w-4 text-gold" />

@@ -69,13 +69,50 @@ describe("site content helpers", () => {
     ).toBe(getDefaultLineupDetailsMarkdown("en"));
   });
 
-  it("uses setlist wording in russian built-in defaults", () => {
+  it("uses the glossary wording in russian built-in defaults", () => {
     const participation = getDefaultParticipationRulesMarkdown("ru");
     const lineup = getDefaultLineupDetailsMarkdown("ru");
 
-    expect(participation).toContain("сетлист");
+    expect(participation).toContain("таблиц");
+    expect(participation).toContain("автора заявки");
     expect(participation).not.toContain("борд");
-    expect(lineup).toContain("## Что значат роли в сетлисте");
+    expect(participation).not.toMatch(/трек|партии|optional-позиции/);
+    expect(lineup).toContain("## Что значат места в таблице");
+    expect(lineup).toContain("## Словарь");
     expect(lineup).not.toContain("борд");
+  });
+
+  it("adds a glossary to the english line-up defaults", () => {
+    expect(getDefaultLineupDetailsMarkdown("en")).toContain("## Glossary");
+    expect(getDefaultLineupDetailsMarkdown("en")).toContain("**Participant**");
+  });
+
+  it("keeps partial copies of old defaults as custom text", () => {
+    const partial = "## Что значат роли в сетлисте\n\n- **Required** роли нужны, чтобы песня считалась собранной.";
+    expect(resolveFaqMarkdown({ kind: "lineup", locale: "en", value: partial })).toBe(partial);
+  });
+
+  it("treats a stored copy of the previous default as the current default", () => {
+    const previousRuDefault = `## Что значат роли в сетлисте
+
+- **Required** роли нужны, чтобы песня считалась собранной.
+- **OPT / optional** роли дают дополнительный цвет и энергию, но не блокируют собранность.
+- Дополнительные флаги вроде **Плейбэк** лишь добавляют контекст к песне.
+
+## Перед тем как вписаться
+
+- Проверь тональность, плейбэк, заметки автора и общий состав сетлиста.
+- Если хочешь позвать человека, используй кнопку приглашения прямо в нужной ячейке.
+`;
+    expect(resolveFaqMarkdown({ kind: "lineup", locale: "en", value: previousRuDefault })).toBe(
+      getDefaultLineupDetailsMarkdown("en"),
+    );
+    expect(
+      resolveFaqSectionMarkdown({
+        kind: "lineup",
+        locale: "ru",
+        faqContentJson: JSON.stringify({ ru: { lineupDetails: previousRuDefault } }),
+      }),
+    ).toBe(getDefaultLineupDetailsMarkdown("ru"));
   });
 });

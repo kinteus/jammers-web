@@ -116,7 +116,7 @@ describe("inline song editor", () => {
     for (const name of ["Replace song", "Delete track", "Save track settings", "Clear seat"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
     }
-    expect(screen.getByLabelText("Search registered musicians")).toBeTruthy();
+    expect(screen.getByLabelText("Search registered participants")).toBeTruthy();
     expect(screen.getByLabelText("Guitar")).toBeTruthy();
     expect(screen.getByLabelText("Playback")).toBeTruthy();
     const notes = screen.getByLabelText("Track notes") as HTMLTextAreaElement;

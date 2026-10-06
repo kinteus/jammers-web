@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { getSafeReturnTo } from "@/lib/return-to";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
@@ -100,6 +101,8 @@ function getTelegramBotId() {
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
+  // One label for "go join a gig" everywhere on this page (and the invitations panel).
+  const openGigBoardLabel = pick(locale, { en: "Open the gig board", ru: "Открыть таблицу гига" });
   const authError = typeof params.authError === "string" ? params.authError : null;
   const inviteError = typeof params.inviteError === "string" ? params.inviteError : null;
   const inviteNotice = typeof params.inviteNotice === "string" ? params.inviteNotice : null;
@@ -121,8 +124,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             </h1>
             <p className="mx-auto max-w-2xl text-base leading-7 text-sand/68">
               {pick(locale, {
-                en: "Your Telegram account becomes the single entry point for invites, line-ups and musician coordination.",
-                ru: "Твой Telegram-аккаунт становится единой точкой входа для приглашений, лайнапов и координации музыкантов.",
+                en: "Your Telegram account becomes the single entry point for invites, seats and coordination with other participants.",
+                ru: "Твой Telegram-аккаунт становится единой точкой входа для приглашений, мест и координации с другими участниками.",
               })}
             </p>
           </div>
@@ -170,13 +173,13 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   {pick(locale, {
                     en:
                       item === "Claim open spots"
-                        ? "Take any vacant role in a live setlist."
+                        ? "Take any open seat on a live board."
                         : item === "Manage invites"
                           ? "Accept or decline invitations in one place."
                           : "Keep your instruments up to date.",
                     ru:
                       item === "Занимай свободные места"
-                        ? "Бери свободную роль в живом сетлисте."
+                        ? "Занимай свободное место в живой таблице."
                         : item === "Управляй инвайтами"
                           ? "Принимай и отклоняй приглашения в одном месте."
                           : "Держи инструменты актуальными.",
@@ -316,12 +319,12 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     const requestDescription = requestMeta
       ? requestMeta.mode === "self"
         ? pick(locale, {
-            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
-            ru: `${requestMeta.requesterLabel} хочет вписаться на optional ${invite.seat.label} в ${invite.track.event.title}.`,
+            en: `${requestMeta.requesterLabel} wants to join the optional ${invite.seat.label} seat on ${getGigDisplayTitle(invite.track.event, locale)}.`,
+            ru: `${requestMeta.requesterLabel} хочет вписаться на опциональное место ${invite.seat.label} в ${getGigDisplayTitle(invite.track.event, locale)}.`,
           })
         : pick(locale, {
-            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} slot on ${invite.track.event.title}.`,
-            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на optional ${invite.seat.label} в ${invite.track.event.title}.`,
+            en: `${requestMeta.requesterLabel} suggested ${requestMeta.targetLabel} for the optional ${invite.seat.label} seat on ${getGigDisplayTitle(invite.track.event, locale)}.`,
+            ru: `${requestMeta.requesterLabel} предложил(а) ${requestMeta.targetLabel} на опциональное место ${invite.seat.label} в ${getGigDisplayTitle(invite.track.event, locale)}.`,
           })
       : null;
 
@@ -339,7 +342,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
 
     return {
       eventId: invite.track.event.id,
-      eventTitle: invite.track.event.title,
+      eventTitle: getGigDisplayTitle(invite.track.event, locale),
       id: invite.id,
       isApprovalRequest: Boolean(requestMeta),
       lineup,
@@ -399,32 +402,32 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           </h1>
           <p className="max-w-3xl text-sm leading-6 text-white/70">
             {pick(locale, {
-              en: "Invites, current songs and your musician profile all stay here in one place.",
-              ru: "Приглашения, текущие песни и твой музыкальный профиль собраны здесь в одном месте.",
+              en: "Invites, current songs and your participant profile all stay here in one place.",
+              ru: "Приглашения, текущие песни и твой профиль участника собраны здесь в одном месте.",
             })}
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Pending invites", ru: "Ожидают ответа" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{profile.invitations.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Requests sent", ru: "Запросов отправлено" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{outgoingSeatRequests.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Current songs", ru: "Текущие песни" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{currentSongs.length}</p>
           </div>
           <div className="brand-shell-soft rounded-xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Primary instruments", ru: "Основные инструменты" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{profile.instruments.length}</p>
@@ -439,7 +442,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
               {pick(locale, {
                 en: "Your profile is ready. Join a live board next.",
-                ru: "Профиль готов. Следующий шаг — открыть живой сетлист.",
+                ru: "Профиль готов. Следующий шаг — открыть живую таблицу.",
               })}
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-white/74">
@@ -452,7 +455,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           <div className="flex flex-wrap gap-3">
             <Link href="/">
               <Button>
-                {pick(locale, { en: "Browse live gigs", ru: "Открыть живые гиги" })}
+                {openGigBoardLabel}
               </Button>
             </Link>
             <Link href="/faq">
@@ -495,17 +498,17 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             {pick(locale, {
               en:
                 inviteError === "track-limit"
-                  ? "You have already reached the event limit of tracks. Leave one current song before accepting another invite."
+                  ? "You have already reached this gig's song limit. Leave one current song before accepting another invite."
                   : inviteError === "duplicate-role-family"
-                    ? "You already have this instrument family on that song."
+                    ? "You already have a seat for this instrument in that song."
                     : inviteError === "seat-occupied"
                       ? "That seat is no longer open."
                       : "Could not process the invite. Please try again.",
               ru:
                 inviteError === "track-limit"
-                  ? "У тебя уже достигнут лимит треков на этот гиг. Выпишись из одной текущей песни перед принятием нового инвайта."
+                  ? "У тебя уже достигнут лимит песен на этот гиг. Выпишись из одной текущей песни перед принятием нового инвайта."
                   : inviteError === "duplicate-role-family"
-                    ? "У тебя уже есть эта группа инструментов в этой песне."
+                    ? "У тебя уже есть место на этом инструменте в этой песне."
                     : inviteError === "seat-occupied"
                       ? "Это место уже занято."
                       : "Не получилось обработать приглашение. Попробуй ещё раз.",
@@ -525,7 +528,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
           <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
             {pick(locale, {
               en: "Optional seat requests you've sent",
-              ru: "Отправленные тобой запросы на optional-места",
+              ru: "Отправленные тобой запросы на опциональные места",
             })}
           </h2>
         </div>
@@ -535,20 +538,18 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
               <p className="text-sm text-white/60">
                 {pick(locale, {
                   en: "No outgoing optional-seat requests right now.",
-                  ru: "Сейчас нет исходящих запросов на optional-места.",
+                  ru: "Сейчас нет исходящих запросов на опциональные места.",
                 })}
               </p>
-              <Link href="/">
-                <Button size="sm" type="button" variant="secondary">
-                  {pick(locale, { en: "Find a board to join", ru: "Найти сетлист" })}
-                </Button>
+              <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
+                {openGigBoardLabel} →
               </Link>
             </div>
           ) : (
             outgoingSeatRequests.map(({ invite, requestMeta }) => {
               const recipientLabel = invite.recipient.telegramUsername
                 ? `@${invite.recipient.telegramUsername}`
-                : invite.recipient.fullName ?? pick(locale, { en: "track proposer", ru: "автор трека" });
+                : invite.recipient.fullName ?? pick(locale, { en: "proposer", ru: "автор заявки" });
               const modeLabel =
                 requestMeta.mode === "self"
                   ? pick(locale, {
@@ -566,7 +567,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                     {invite.track.song.artist.name} - {invite.track.song.title}
                   </p>
                   <p className="mt-1 text-sm text-white/70">
-                    {modeLabel} · {invite.seat.label} · {invite.track.event.title}
+                    {modeLabel} · {invite.seat.label} · {getGigDisplayTitle(invite.track.event, locale)}
                   </p>
                   <p className="mt-1 text-sm text-white/60">
                     {pick(locale, {
@@ -577,7 +578,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   <div className="mt-4">
                     <Link href={`/events/${invite.track.event.id}#track-board`}>
                       <Button size="sm" type="button" variant="ghost">
-                        {pick(locale, { en: "Open board", ru: "Открыть сетлист" })}
+                        {pick(locale, { en: "Open board", ru: "Открыть таблицу" })}
                       </Button>
                     </Link>
                   </div>
@@ -606,10 +607,8 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                   ru: "Ты пока не вписан ни в одну песню.",
                 })}
               </p>
-              <Link href="/">
-                <Button size="sm" variant="secondary">
-                  {pick(locale, { en: "Join a live board", ru: "Войти в живой сетлист" })}
-                </Button>
+              <Link className="text-sm font-semibold text-gold transition hover:text-white hover:underline" href="/">
+                {openGigBoardLabel} →
               </Link>
             </div>
           ) : (
@@ -620,10 +619,10 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 </p>
                 <p className="mt-1 text-sm text-white/70">
                   {entry.positions.join(", ")} · {formatDateTime(entry.track.event.startsAt, locale)} ·{" "}
-                  {entry.track.event.title}
+                  {getGigDisplayTitle(entry.track.event, locale)}
                 </p>
                 <p className="mt-2 text-sm text-white/70">
-                  {pick(locale, { en: "Line-up", ru: "Лайнап" })}:{" "}
+                  {pick(locale, { en: "Seats", ru: "Места" })}:{" "}
                     {entry.track.seats
                       .filter((seat: ProfileTrackSeat) => seat.user)
                       .map(
@@ -635,7 +634,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 <div className="mt-4">
                   <Link href={`/events/${entry.track.event.id}?view=mine#track-board`}>
                     <Button size="sm" variant="secondary">
-                      {pick(locale, { en: "Open on board", ru: "Открыть в сетлисте" })}
+                      {pick(locale, { en: "Open on board", ru: "Открыть в таблице" })}
                     </Button>
                   </Link>
                 </div>
@@ -651,7 +650,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             {pick(locale, { en: "Settings", ru: "Настройки" })}
           </p>
           <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em] text-sand">
-            {pick(locale, { en: "Musician profile", ru: "Профиль музыканта" })}
+            {pick(locale, { en: "Participant profile", ru: "Профиль участника" })}
           </h2>
         </div>
 
@@ -718,7 +717,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                       value={instrument.id}
                     />
                     <InstrumentToken
-                      className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08]"
+                      className="border-white/10 bg-white/[0.03] transition duration-200 group-hover:border-white/18 peer-checked:border-gold/30 peer-checked:bg-gold/[0.08] peer-focus-visible:ring-2 peer-focus-visible:ring-gold/60"
                       compact
                       label={getInstrumentDisplayLabel(instrument.name, locale)}
                       locale={locale}
@@ -727,7 +726,12 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                         ru: "Отметь, если это часть твоего основного набора",
                       })}
                     />
-                    <span className="pointer-events-none absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/16 bg-black/18 text-[10px] font-semibold text-white/82 transition peer-checked:border-gold/40 peer-checked:bg-gold peer-checked:text-ink">
+                    {/* Empty circle when unselected; the check mark only appears once selected. */}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/24 bg-transparent text-[11px] font-semibold text-transparent transition peer-checked:border-gold/40 peer-checked:bg-gold peer-checked:text-ink"
+                      data-instrument-check
+                    >
                       ✓
                     </span>
                   </label>

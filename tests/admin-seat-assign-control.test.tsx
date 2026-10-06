@@ -46,8 +46,8 @@ describe("AdminSeatAssignControl", () => {
       />,
     );
 
-    fireEvent.focus(screen.getByLabelText("Search registered musicians"));
-    fireEvent.change(screen.getByLabelText("Search registered musicians"), {
+    fireEvent.focus(screen.getByLabelText("Search registered participants"));
+    fireEvent.change(screen.getByLabelText("Search registered participants"), {
       target: { value: "boris" },
     });
     fireEvent.click(screen.getByRole("button", { name: /@boris_bass/i }));

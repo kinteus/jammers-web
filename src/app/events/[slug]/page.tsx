@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { TrackSeatStatus } from "@prisma/client";
 import { ArrowRight, Clock3, LogIn } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -12,12 +11,17 @@ import {
   getAllowedNextEventStatuses,
   getEffectiveEventStatus,
 } from "@/lib/domain/event-status";
-import { countLineupParticipants } from "@/lib/event-board";
+import { countLineupParticipants, matchesRoleFilters } from "@/lib/event-board";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { getTrackBoardEmptyState } from "@/lib/event-board-copy";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
+  COUNT_FORMS,
+  formatCount,
+  getEventStatusActionConfirm,
+  getEventStatusActionLabel,
   getEventStatusLabel,
   getRoleFamilyLabel,
   pick,
@@ -27,7 +31,8 @@ import { getRoleFamilyKey, roleFamilyOrder, type RoleFamilyKey } from "@/lib/rol
 import { getEventTrackInfoFields } from "@/lib/track-info-flags";
 import { serializeJsonForHtmlScript } from "@/lib/html-script";
 import { env } from "@/lib/env";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime, formatEventDateShort, formatEventTime } from "@/lib/utils";
+import { countJoinedTracks } from "@/lib/domain/rules";
 import {
   createTrackAction,
   updateEventStatusAction,
@@ -42,6 +47,7 @@ import { TrackBoardTable } from "@/components/track-board-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 const EventRegistrationCountdown = nextDynamic(
   () =>
@@ -80,8 +86,8 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return {
-        title: "Event Temporarily Unavailable",
-        description: "The event board is temporarily unavailable while the database connection is being restored.",
+        title: "Gig Temporarily Unavailable",
+        description: "The gig board is temporarily unavailable while the database connection is being restored.",
         robots: {
           index: false,
           follow: false,
@@ -94,7 +100,7 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
 
   if (!event) {
     return {
-      title: "Event Not Found",
+      title: "Gig Not Found",
       robots: {
         index: false,
         follow: false,
@@ -102,33 +108,28 @@ export async function generateMetadata({ params }: Pick<EventPageProps, "params"
     };
   }
 
-  const dateLabel = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(event.startsAt));
+  const gigTitle = getGigDisplayTitle(event, await getLocale());
+  const dateLabel = `${formatEventDateShort(event.startsAt)}, ${formatEventTime(event.startsAt)}`;
   const venueLabel = event.venueName ? ` at ${event.venueName}` : "";
   const description =
     event.description?.trim() ||
-    `${event.title}${venueLabel} on ${dateLabel}. See the live board, current line-up, and published setlist details.`;
+    `${gigTitle}${venueLabel} on ${dateLabel}. See the live board, who is in which seat, and published setlist details.`;
 
   return {
-    title: event.title,
+    title: gigTitle,
     description,
     alternates: {
       canonical: `/events/${event.id}`,
     },
     openGraph: {
       type: "article",
-      title: event.title,
+      title: gigTitle,
       description,
       url: `/events/${event.id}`,
     },
     twitter: {
       card: "summary_large_image",
-      title: event.title,
+      title: gigTitle,
       description,
     },
   };
@@ -155,8 +156,8 @@ function filterLabel(locale: Locale, view: "all" | "open" | "mine") {
   }
   if (view === "open") {
     return pick(locale, {
-      en: "Songs still looking for players",
-      ru: "Песни, где ещё нужны музыканты",
+      en: "Songs still looking for participants",
+      ru: "Песни, где ещё нужны участники",
     });
   }
   return pick(locale, { en: "Songs already proposed", ru: "Песни, уже предложенные в гиг" });
@@ -178,10 +179,10 @@ function getFloatingFeedback({
   if (notice === "seat-claimed") {
     return {
       tone: "success" as const,
-      title: pick(locale, { en: "You're in", ru: "Ты в лайнапе" }),
+      title: pick(locale, { en: "You're in", ru: "Ты в составе" }),
       description: pick(locale, {
         en: "The seat was claimed and the board has been updated.",
-        ru: "Место занято, сетлист уже обновлён.",
+        ru: "Место занято, таблица уже обновлена.",
       }),
     };
   }
@@ -189,10 +190,10 @@ function getFloatingFeedback({
   if (notice === "track-updated") {
     return {
       tone: "success" as const,
-      title: pick(locale, { en: "Track updated", ru: "Трек обновлён" }),
+      title: pick(locale, { en: "Song updated", ru: "Песня обновлена" }),
       description: pick(locale, {
         en: "The arrangement changes are saved and the board has been updated.",
-        ru: "Изменения аранжировки сохранены, сетлист уже обновлён.",
+        ru: "Изменения аранжировки сохранены, таблица уже обновлена.",
       }),
     };
   }
@@ -202,8 +203,8 @@ function getFloatingFeedback({
       tone: "success" as const,
       title: pick(locale, { en: "Request sent", ru: "Запрос отправлен" }),
       description: pick(locale, {
-        en: "The track proposer will review your request.",
-        ru: "Автор трека увидит и рассмотрит твой запрос.",
+        en: "The proposer will review your request.",
+        ru: "Автор заявки увидит и рассмотрит твой запрос.",
       }),
     };
   }
@@ -213,8 +214,8 @@ function getFloatingFeedback({
       tone: "success" as const,
       title: pick(locale, { en: "Saved", ru: "Сохранено" }),
       description: pick(locale, {
-        en: "Your request is saved and visible to the track proposer.",
-        ru: "Твой запрос сохранён и виден автору трека.",
+        en: "Your request is saved and visible to the proposer.",
+        ru: "Твой запрос сохранён и виден автору заявки.",
       }),
     };
   }
@@ -224,8 +225,8 @@ function getFloatingFeedback({
       tone: "success" as const,
       title: pick(locale, { en: "Invite sent", ru: "Инвайт отправлен" }),
       description: pick(locale, {
-        en: "The player now has a seat invite in the app and a Telegram message if their chat is linked.",
-        ru: "У музыканта появился инвайт в приложении и сообщение в Telegram, если чат уже привязан.",
+        en: "The participant now has a seat invite in the app and a Telegram message if their chat is linked.",
+        ru: "У участника появился инвайт в приложении и сообщение в Telegram, если чат уже привязан.",
       }),
     };
   }
@@ -235,8 +236,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Invite saved, Telegram not delivered", ru: "Инвайт сохранён, Telegram не доставлен" }),
       description: pick(locale, {
-        en: "The invite exists in the app, but Telegram delivery failed. Ask the player to sign in and check their profile invites.",
-        ru: "Инвайт сохранён в приложении, но Telegram не доставился. Попроси музыканта войти в систему и проверить инвайты в профиле.",
+        en: "The invite exists in the app, but Telegram delivery failed. Ask the participant to sign in and check their profile invites.",
+        ru: "Инвайт сохранён в приложении, но Telegram не доставился. Попроси участника войти в систему и проверить инвайты в профиле.",
       }),
     };
   }
@@ -246,8 +247,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Seat already taken", ru: "Место уже занято" }),
       description: pick(locale, {
-        en: "Someone claimed this position first. Pick another open seat or refresh the board.",
-        ru: "Кто-то занял это место раньше. Выбери другое открытое место или обнови сетлист.",
+        en: "Someone claimed this seat first. Pick another open seat or refresh the board.",
+        ru: "Кто-то занял это место раньше. Выбери другое открытое место или обнови таблицу.",
       }),
     };
   }
@@ -257,8 +258,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Seat unavailable", ru: "Место недоступно" }),
       description: pick(locale, {
-        en: "This position is currently disabled in the arrangement.",
-        ru: "Эта позиция сейчас выключена в аранжировке.",
+        en: "This seat is currently disabled in the arrangement.",
+        ru: "Это место сейчас выключено в аранжировке.",
       }),
     };
   }
@@ -266,7 +267,7 @@ function getFloatingFeedback({
   if (error === "track-limit") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      title: pick(locale, { en: "Song limit reached", ru: "Лимит песен достигнут" }),
       description: pick(locale, {
         en: "Leave one of your current songs before joining another one in this gig.",
         ru: "Сначала выпишись из одной из текущих песен, а потом вписывайся в новую.",
@@ -277,7 +278,7 @@ function getFloatingFeedback({
   if (error === "track-exists") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Song already on the board", ru: "Песня уже есть в сетлисте" }),
+      title: pick(locale, { en: "Song already on the board", ru: "Песня уже есть в таблице" }),
       description: pick(locale, {
         en: "This song has already been proposed for the current gig.",
         ru: "Эта песня уже заявлена в текущий гиг.",
@@ -289,15 +290,15 @@ function getFloatingFeedback({
     const requiredCount = minRequired && minRequired > 0 ? minRequired : null;
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Too few required parts", ru: "Слишком мало обязательных партий" }),
+      title: pick(locale, { en: "Too few required seats", ru: "Слишком мало обязательных мест" }),
       description: requiredCount
         ? pick(locale, {
-            en: `This gig needs at least ${requiredCount} required players per song. Mark more positions as required before publishing the track.`,
-            ru: `Этому гигу нужно минимум ${requiredCount} обязательных музыкантов на песню. Оставь больше позиций обязательными перед публикацией трека.`,
+            en: `This gig needs at least ${requiredCount} required seats per song. Mark more seats as required before publishing the song.`,
+            ru: `Этому гигу нужно минимум ${requiredCount} обязательных мест на песню. Оставь больше мест обязательными перед публикацией песни.`,
           })
         : pick(locale, {
-            en: "This gig has a minimum player count per song. Mark more positions as required before publishing the track.",
-            ru: "У этого гига задан минимум людей на песню. Оставь больше позиций обязательными перед публикацией трека.",
+            en: "This gig has a minimum number of required seats per song. Mark more seats as required before publishing the song.",
+            ru: "У этого гига задан минимум обязательных мест на песню. Оставь больше мест обязательными перед публикацией песни.",
           }),
     };
   }
@@ -307,8 +308,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "No song chosen", ru: "Песня не выбрана" }),
       description: pick(locale, {
-        en: "Pick a track from the search results before publishing the proposal.",
-        ru: "Выбери трек из результатов поиска, прежде чем публиковать трек в сетлист.",
+        en: "Pick a song from the search results before publishing the proposal.",
+        ru: "Выбери песню из результатов поиска, прежде чем публиковать заявку в таблицу.",
       }),
     };
   }
@@ -319,7 +320,7 @@ function getFloatingFeedback({
       title: pick(locale, { en: "Telegram username needed", ru: "Нужен Telegram-ник" }),
       description: pick(locale, {
         en: "Set your Telegram username in your profile before changing the board.",
-        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять сетлист.",
+        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять таблицу.",
       }),
     };
   }
@@ -329,8 +330,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Add yourself first", ru: "Сначала впишись сам" }),
       description: pick(locale, {
-        en: "You must take at least one position yourself before proposing a track.",
-        ru: "Нельзя предложить трек, не вписав себя хотя бы на одну позицию.",
+        en: "You must take at least one seat yourself before proposing a song.",
+        ru: "Нельзя предложить песню, не вписав себя хотя бы на одно место.",
       }),
     };
   }
@@ -339,15 +340,15 @@ function getFloatingFeedback({
     const limit = maxTracks && maxTracks > 0 ? maxTracks : null;
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Track limit reached", ru: "Достигнут лимит треков" }),
+      title: pick(locale, { en: "Song limit reached", ru: "Достигнут лимит песен" }),
       description: limit
         ? pick(locale, {
             en: `You can join at most ${limit} songs on this gig. Leave one of your current songs before proposing another with yourself in it.`,
             ru: `На этом гиге можно участвовать максимум в ${limit} песнях. Выпишись из одной из текущих песен, прежде чем предлагать новую с собой в составе.`,
           })
         : pick(locale, {
-            en: "You have reached this gig's track limit. Leave one of your current songs before proposing another with yourself in it.",
-            ru: "Ты достиг лимита треков на этом гиге. Выпишись из одной из текущих песен, прежде чем предлагать новую с собой в составе.",
+            en: "You have reached this gig's song limit. Leave one of your current songs before proposing another with yourself in it.",
+            ru: "Ты достиг лимита песен на этом гиге. Выпишись из одной из текущих песен, прежде чем предлагать новую с собой в составе.",
           }),
     };
   }
@@ -377,9 +378,9 @@ function getFloatingFeedback({
   if (error === "duplicate-role-family") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Already on this role", ru: "Эта роль уже занята тобой" }),
+      title: pick(locale, { en: "Already on this instrument", ru: "На этом инструменте ты уже есть" }),
       description: pick(locale, {
-        en: "You can join the same song multiple times only with different instrument families.",
+        en: "You can join the same song multiple times only on different instruments.",
         ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
       }),
     };
@@ -390,8 +391,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Enter a username", ru: "Укажи username" }),
       description: pick(locale, {
-        en: "Type the player's Telegram username before sending the invite.",
-        ru: "Введи Telegram username музыканта перед отправкой инвайта.",
+        en: "Type the participant's Telegram username before sending the invite.",
+        ru: "Введи Telegram username участника перед отправкой инвайта.",
       }),
     };
   }
@@ -399,7 +400,7 @@ function getFloatingFeedback({
   if (error === "invite-recipient-not-found") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Player not found", ru: "Музыкант не найден" }),
+      title: pick(locale, { en: "Participant not found", ru: "Участник не найден" }),
       description: pick(locale, {
         en: "Invites work only for people who already created a profile in The Jammers.",
         ru: "Инвайты работают только для тех, кто уже создал профиль в The Jammers.",
@@ -412,8 +413,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Invite not allowed", ru: "Нельзя отправить инвайт" }),
       description: pick(locale, {
-        en: "Only the track proposer or an admin can invite someone to this seat.",
-        ru: "Позвать кого-то на это место может только автор трека или админ.",
+        en: "Only the proposer or an admin can invite someone to this seat.",
+        ru: "Позвать кого-то на это место может только автор заявки или админ.",
       }),
     };
   }
@@ -423,8 +424,8 @@ function getFloatingFeedback({
       tone: "error" as const,
       title: pick(locale, { en: "Invite already pending", ru: "Инвайт уже ожидает ответа" }),
       description: pick(locale, {
-        en: "This player already has an active invite for the selected seat.",
-        ru: "У этого музыканта уже есть активный инвайт на выбранное место.",
+        en: "This participant already has an active invite for the selected seat.",
+        ru: "У этого участника уже есть активный инвайт на выбранное место.",
       }),
     };
   }
@@ -432,9 +433,9 @@ function getFloatingFeedback({
   if (error === "invite-track-limit") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Player hit the track limit", ru: "У музыканта достигнут лимит треков" }),
+      title: pick(locale, { en: "Participant hit the song limit", ru: "У участника достигнут лимит песен" }),
       description: pick(locale, {
-        en: "They need to leave one of their current songs before you can place them on this track.",
+        en: "They need to leave one of their current songs before you can place them on this song.",
         ru: "Сначала ему нужно выписаться из одной из текущих песен, и только потом можно поставить его сюда.",
       }),
     };
@@ -443,9 +444,9 @@ function getFloatingFeedback({
   if (error === "invite-duplicate-role-family") {
     return {
       tone: "error" as const,
-      title: pick(locale, { en: "Player already covers this role", ru: "Музыкант уже закрывает эту роль" }),
+      title: pick(locale, { en: "Participant already plays this instrument here", ru: "Участник уже играет на этом инструменте в песне" }),
       description: pick(locale, {
-        en: "They can join the same song twice only on different instrument families.",
+        en: "They can join the same song twice only on different instruments.",
         ru: "В одну песню можно поставить человека дважды только на разные типы инструментов.",
       }),
     };
@@ -561,7 +562,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "MusicEvent",
-    name: event.title,
+    name: getGigDisplayTitle(event, locale),
     description: event.description ?? undefined,
     startDate: new Date(event.startsAt).toISOString(),
     eventStatus: `https://schema.org/${
@@ -594,6 +595,13 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           .filter((track): track is (typeof event.tracks)[number] => Boolean(track))
       : event.tracks;
 
+  // Same rule as the Setlists archive: published or archived gigs that already started.
+  const isPastSetlistGig =
+    (event.status === "PUBLISHED" || event.status === "ARCHIVED") &&
+    new Date(event.startsAt).getTime() < Date.now();
+  const joinedTrackCount = user ? countJoinedTracks(event.tracks, user.id) : 0;
+  const atTrackLimit = Boolean(user) && joinedTrackCount >= event.maxTracksPerUser;
+
   const selectedParticipant = typeof resolvedSearchParams.participant === "string" ? resolvedSearchParams.participant : "";
   const participants = Array.from(new Map(boardTracks.flatMap((track) =>
     track.seats.flatMap((seat) => seat.userId && seat.user
@@ -619,15 +627,12 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       return false;
     }
 
-    const matchesRoles =
-      roleFilters.length === 0 ||
-      roleFilters.every((role) =>
-        track.seats.some(
-          (seat) =>
-            seat.status === TrackSeatStatus.OPEN &&
-            getRoleFamilyKey(seat.label, seat.lineupSlot?.key ?? "") === role,
-        ),
-      );
+    const matchesRoles = matchesRoleFilters({
+      getRoleKey: (seat) => getRoleFamilyKey(seat.label, seat.lineupSlot?.key ?? ""),
+      onlyRequiredSeats: activeView === "open",
+      roles: roleFilters,
+      seats: track.seats,
+    });
 
     if (!matchesRoles) {
       return false;
@@ -680,7 +685,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "The song is now on the board.",
-            ru: "Песня появилась в сетлисте.",
+            ru: "Песня появилась в таблице.",
           })}
         </div>
       ) : null}
@@ -689,7 +694,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "Admins received the song request. As soon as it lands in the catalog, you can add it to the board.",
-            ru: "Админы получили запрос на песню. Как только она появится в каталоге, её можно будет добавить в сетлист.",
+            ru: "Админы получили запрос на песню. Как только она появится в каталоге, её можно будет добавить в таблицу.",
           })}
         </div>
       ) : null}
@@ -704,8 +709,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       ) : null}
 
       <section className="space-y-7 border-b border-white/8 pb-8">
-        <Link className="inline-flex items-center gap-2 text-sm font-bold text-sand/52 hover:text-gold" href="/">
-          ← {pick(locale, { en: "Back to home", ru: "На главную" })}
+        {/* Past gigs are reached from Setlists, so the back link returns there. */}
+        <Link
+          className="inline-flex items-center gap-2 text-sm font-bold text-sand/52 hover:text-gold"
+          data-gig-back-link
+          href={isPastSetlistGig ? "/archive" : "/"}
+        >
+          ←{" "}
+          {isPastSetlistGig
+            ? pick(locale, { en: "Back to setlists", ru: "К сетлистам" })
+            : pick(locale, { en: "Back to home", ru: "На главную" })}
         </Link>
         <div className="space-y-7">
           <div className="space-y-5">
@@ -717,7 +730,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                 <Badge className="border-red/24 bg-red/14 text-white">
                   {pick(locale, {
                     en: "Fill the board before adding songs",
-                    ru: "Сначала закрывай сетлист, потом добавляй песни",
+                    ru: "Сначала заполни таблицу, потом добавляй песни",
                   })}
                 </Badge>
               ) : null}
@@ -733,13 +746,16 @@ export default async function EventPage({ params, searchParams }: EventPageProps
 
             <div className="space-y-3">
               <h1 className="font-display text-5xl uppercase text-sand lg:text-6xl">
-                {event.title}
+                {getGigDisplayTitle(event, locale)}
               </h1>
               <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-sand/58">
                 <span>{formatDateTime(event.startsAt, locale)}</span>
                 <span>{event.venueName ?? pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })}</span>
                 <span>
-                  {signedParticipantCount} {pick(locale, { en: "jammers signed", ru: "участников вписано" })}
+                  {pick(locale, {
+                    en: `${formatCount(locale, signedParticipantCount, COUNT_FORMS.participants)} signed up`,
+                    ru: `Вписано: ${formatCount(locale, signedParticipantCount, COUNT_FORMS.participants)}`,
+                  })}
                 </span>
               </div>
               {event.description ? (
@@ -753,29 +769,29 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               }`}
             >
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Songs on board", ru: "Песен в сетлисте" })}
+                <p className="text-xs font-bold text-sand/45">
+                  {pick(locale, { en: "Songs on board", ru: "Песен в таблице" })}
                 </p>
                 <p className="mt-2 font-display text-4xl text-sand">{event.tracks.length}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
+                <p className="text-xs font-bold text-sand/45">
                   {pick(locale, { en: "Songs ready", ru: "Песен собрано" })}
                 </p>
                 <p className="mt-2 font-display text-4xl text-gold">{readyTrackCount}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Players on board", ru: "Всего музыкантов в таблице" })}
+                <p className="text-xs font-bold text-sand/45">
+                  {pick(locale, { en: "Participants on board", ru: "Участников в таблице" })}
                 </p>
                 <p className="mt-2 font-display text-4xl text-emerald-300">{lineupParticipantCounts.total}</p>
               </div>
               {effectiveStatus === "PUBLISHED" ? null : (
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/45">
+                  <p className="text-xs font-bold text-sand/45">
                     {pick(locale, {
-                      en: "Players in ready songs",
-                      ru: "Музыкантов в набранных треках",
+                      en: "Participants in ready songs",
+                      ru: "Участников в собранных песнях",
                     })}
                   </p>
                   <p className="mt-2 font-display text-4xl text-emerald-300">
@@ -825,28 +841,49 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                     {pick(locale, { en: "Admin status control", ru: "Управление статусом" })}
                   </p>
-                  <p className="text-sm leading-6 text-white/70">
-                    {pick(locale, {
-                      en: `Stored status: ${event.status}. Effective status now: ${effectiveStatus}.`,
-                      ru: `Сохранённый статус: ${event.status}. Фактический статус сейчас: ${effectiveStatus}.`,
-                    })}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                    <span>{pick(locale, { en: "Registration status:", ru: "Статус регистрации:" })}</span>
+                    <Badge className="border-gold/24 bg-gold/12 text-gold" data-admin-current-status>
+                      {getEventStatusLabel(effectiveStatus, locale)}
+                    </Badge>
+                  </div>
+                  {effectiveStatus !== event.status ? (
+                    <p className="text-xs leading-5 text-white/55">
+                      {pick(locale, {
+                        en: `Set automatically by the registration dates (saved as ${getEventStatusLabel(event.status, locale)}).`,
+                        ru: `Выставлено автоматически по датам регистрации (сохранено как «${getEventStatusLabel(event.status, locale)}»).`,
+                      })}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {nextAdminStatuses.map((status) => (
-                    <form action={updateEventStatusAction} key={status}>
-                      <input name="eventId" type="hidden" value={event.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <input name="status" type="hidden" value={status} />
-                      <Button
-                        size="sm"
-                        type="submit"
-                        variant={event.status === status ? "primary" : "secondary"}
-                      >
-                        {status}
-                      </Button>
-                    </form>
-                  ))}
+                  {nextAdminStatuses.map((status) => {
+                    const label = getEventStatusActionLabel(status, effectiveStatus, locale);
+                    const confirmMessage = getEventStatusActionConfirm(status, locale);
+
+                    return (
+                      <form action={updateEventStatusAction} key={status}>
+                        <input name="eventId" type="hidden" value={event.id} />
+                        <input name="eventSlug" type="hidden" value={event.id} />
+                        <input name="status" type="hidden" value={status} />
+                        {confirmMessage ? (
+                          <ConfirmSubmitButton
+                            confirmMessage={confirmMessage}
+                            data-admin-status-action={status}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            {label}
+                          </ConfirmSubmitButton>
+                        ) : (
+                          <Button data-admin-status-action={status} size="sm" type="submit" variant="secondary">
+                            {label}
+                          </Button>
+                        )}
+                      </form>
+                    );
+                  })}
                 </div>
               </Card>
             ) : null}
@@ -865,20 +902,45 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           <div className="flex flex-wrap items-center gap-3 text-sm text-white/66">
             <span>
               {pick(locale, {
-                en: "Start here: scan the songs and take the part you can really cover.",
-                ru: "Начинай отсюда: смотри песни и занимай ту партию, которую реально можешь закрыть.",
+                en: "Start here: scan the songs and take the seat you can really cover.",
+                ru: "Начинай отсюда: смотри песни и занимай то место, которое реально можешь закрыть.",
               })}
             </span>
+            {user && effectiveStatus === "OPEN" ? (
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold",
+                  atTrackLimit
+                    ? "border-gold/40 bg-gold/12 text-gold"
+                    : "border-white/14 bg-white/6 text-white/80",
+                )}
+                data-board-track-limit
+                title={pick(locale, {
+                  en: `Each participant can be in up to ${event.maxTracksPerUser} songs per gig.`,
+                  ru: `На одном гиге можно участвовать максимум в ${event.maxTracksPerUser} песнях.`,
+                })}
+              >
+                {atTrackLimit
+                  ? pick(locale, {
+                      en: `Limit reached: ${joinedTrackCount} of ${event.maxTracksPerUser} songs. Leave one to join another.`,
+                      ru: `Лимит: ${joinedTrackCount} из ${event.maxTracksPerUser} песен. Выйди из одной, чтобы вписаться в другую.`,
+                    })
+                  : pick(locale, {
+                      en: `You're in ${joinedTrackCount} of ${event.maxTracksPerUser} songs`,
+                      ru: `Ты в ${joinedTrackCount} из ${event.maxTracksPerUser} песен`,
+                    })}
+              </span>
+            ) : null}
             <Link className="font-semibold text-gold transition hover:text-gold/80 hover:underline" href="/faq">
               {pick(locale, {
                 en: "Need the board rules? FAQ has the short version.",
-                ru: "Нужны правила сетлиста? В FAQ есть короткое объяснение.",
+                ru: "Нужны правила таблицы? В FAQ есть короткое объяснение.",
               })}
             </Link>
           </div>
           {roleFilters.length > 0 ? (
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/62">
-              {pick(locale, { en: "Open role focus", ru: "Фокус по открытым ролям" })}: {selectedRoleLabel}
+              {pick(locale, { en: "Instrument filter", ru: "Фильтр по инструментам" })}: {selectedRoleLabel}
             </p>
           ) : null}
         </div>
@@ -911,17 +973,30 @@ export default async function EventPage({ params, searchParams }: EventPageProps
                   trackInfoFields={trackInfoFields}
                 />
               ) : null}
-              {!user && effectiveStatus === "OPEN" ? (
-                <SignInLink returnTo={signInReturnTo}>
-                  <Button size="sm" variant="secondary">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
-                  </Button>
-                </SignInLink>
-              ) : null}
             </div>
           </div>
         </Card>
+
+        {!user && effectiveStatus === "OPEN" ? (
+          // Guests can't take seats; put the sign-in prompt right above the songs it unlocks.
+          <div
+            className="flex flex-col gap-3 rounded-xl border border-gold/24 bg-gold/[0.07] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            data-board-sign-in-banner
+          >
+            <p className="text-sm leading-6 text-white/82">
+              {pick(locale, {
+                en: "Sign in with Telegram to take a seat or propose a song.",
+                ru: "Войди через Telegram, чтобы занять место или предложить песню.",
+              })}
+            </p>
+            <SignInLink returnTo={signInReturnTo}>
+              <Button size="sm">
+                <LogIn className="mr-2 h-4 w-4" />
+                {pick(locale, { en: "Sign in to join", ru: "Войти и вписаться" })}
+              </Button>
+            </SignInLink>
+          </div>
+        ) : null}
 
         {visibleTracks.length === 0 ? (
           <Card className="brand-shell">
@@ -986,7 +1061,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               <p className="max-w-3xl text-sm leading-6 text-white/74">
                 {pick(locale, {
                   en: "This gig is already visible, but song proposals and seat claims stay locked until registration starts.",
-                  ru: "Этот гиг уже виден в сетлисте, но добавление песен и вписка в партии откроются только со стартом регистрации.",
+                  ru: "Этот гиг уже виден, но добавление песен и вписка на места откроются только со стартом регистрации.",
                 })}
               </p>
               <p className="text-lg font-semibold text-sand">
@@ -1006,7 +1081,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       {effectiveStatus !== "OPEN" && !registrationOpensSoon ? (
         <Card className="brand-shell space-y-3">
           <Badge className="border-white/10 bg-transparent text-white/62">
-            {pick(locale, { en: "Board status", ru: "Статус сетлиста" })}
+            {pick(locale, { en: "Board status", ru: "Статус таблицы" })}
           </Badge>
           <div className="flex items-start gap-3">
             <Clock3 className="mt-1 h-5 w-5 text-blue" />
@@ -1014,11 +1089,11 @@ export default async function EventPage({ params, searchParams }: EventPageProps
               {effectiveStatus === "CLOSED"
                 ? pick(locale, {
                     en: "Registration is closed for this gig. The board is now in review mode while admins lock the final set.",
-                    ru: "Набор в этот гиг уже закрыт. Сетлист перешёл в режим просмотра, пока админы собирают финальный сет.",
+                    ru: "Набор в этот гиг уже закрыт. Таблица перешла в режим просмотра, пока админы собирают финальный сет.",
                   })
                 : pick(locale, {
-                    en: "This gig is no longer editable, so the page shifts into inspection mode: review the proposed songs, the final line-up state and, when published, the released order.",
-                    ru: "Этот гиг больше нельзя редактировать, поэтому страница переходит в режим просмотра: можно изучить предложенные песни, финальный лайнап и, если сет уже опубликован, итоговый порядок.",
+                    en: "This gig is no longer editable, so the page shifts into inspection mode: review the proposed songs, who ended up in which seat and, when published, the released order.",
+                    ru: "Этот гиг больше нельзя редактировать, поэтому страница переходит в режим просмотра: можно изучить предложенные песни, итоговый состав и, если сет уже опубликован, итоговый порядок.",
                   })}
             </p>
           </div>

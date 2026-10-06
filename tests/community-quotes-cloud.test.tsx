@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("CommunityQuotesCloud", () => {
-  it("renders desktop quotes across the full home scroll area while keeping mobile stack", () => {
+  it("renders one floating quote layer for every screen size", () => {
     const html = renderToStaticMarkup(
       <CommunityQuotesCloud
         desktopDisplayLimit={3}
@@ -46,10 +46,42 @@ describe("CommunityQuotesCloud", () => {
 
     expect(html).toContain("community-quotes-perimeter");
     expect(html).toContain("community-quote-card--ambient");
-    expect(html).toContain("community-quotes-mobile-section");
-    expect(html).toContain("community-quotes-mobile-stack");
+    expect(html).not.toContain("community-quotes-mobile-section");
+    expect(html).not.toContain("hidden min-[");
     expect(html).toContain("--quote-top");
     expect(html).not.toContain("community-quotes-canvas");
+  });
+
+  it("hides quotes past the mobile limit only on small screens", () => {
+    const html = renderToStaticMarkup(
+      <CommunityQuotesCloud
+        desktopDisplayLimit={5}
+        locale="en"
+        mobileDisplayLimit={2}
+        quotes={quotes}
+      />,
+    );
+
+    expect(html.match(/community-quote-peek"/g)).toHaveLength(5);
+    expect(html.match(/data-mobile-hidden=""/g)).toHaveLength(3);
+    expect(globalCss).toMatch(
+      /@media \(max-width: 1023px\)\s*\{\s*\.community-quote-peek\[data-mobile-hidden\]\s*\{\s*display: none;/,
+    );
+  });
+
+  it("keeps quotes behind page content until a bubble is hovered or focused", () => {
+    const rootRule = globalCss.match(/\.community-quotes-root\s*\{[^}]+\}/)?.[0];
+    const raisedRule = globalCss.match(/\.community-quotes-root:has\([^)]*\)[^{]*\{[^}]+\}/)?.[0];
+    const sectionRule = globalCss.match(
+      /\.home-page-shell > section:not\(\.community-quotes-root\)\s*\{[^}]+\}/,
+    )?.[0];
+
+    expect(rootRule).toContain("z-index: 1");
+    expect(sectionRule).toContain("z-index: 2");
+    expect(sectionRule).toContain("pointer-events: none");
+    expect(raisedRule).toContain(":hover");
+    expect(raisedRule).toContain(":focus-within");
+    expect(raisedRule).toContain("z-index: 3");
   });
 
   it("spreads desktop quotes across distinct vertical positions", () => {
@@ -65,6 +97,26 @@ describe("CommunityQuotesCloud", () => {
 
     expect(quoteTops).toHaveLength(8);
     expect(new Set(quoteTops).size).toBe(8);
+  });
+
+  it("clips resting quotes to the strips outside the content column", () => {
+    const clipRule = globalCss.match(
+      /\.community-quotes-root:not\(:has\([^)]*\)\)\s*\.community-quotes-perimeter\s*\{[^}]+\}/,
+    )?.[0];
+
+    expect(globalCss).toMatch(/\.home-page-shell\s*\{\s*container-type: inline-size;/);
+    expect(clipRule).toContain("calc(50% - 50cqw)");
+    expect(clipRule).toContain("calc(50% + 50cqw)");
+  });
+
+  it("opens a hovered quote only as wide as its text", () => {
+    const hoverRule = globalCss.match(
+      /\.community-quote-peek:hover\s+\.community-quote-card--ambient,\s*\.community-quote-peek:focus-within\s+\.community-quote-card--ambient\s*\{[^}]+\}/,
+    )?.[0];
+
+    expect(hoverRule).toContain("width: max-content");
+    expect(hoverRule).toContain("max-width: var(--quote-open-width)");
+    expect(globalCss).not.toContain("translateX(calc((var(--quote-open-width)");
   });
 
   it("keeps ambient quote previews readable before hover", () => {

@@ -47,13 +47,13 @@ export function TrackProposalDialog({
                   {eyebrow ?? pick(locale, { en: "Add song", ru: "Добавить песню" })}
                 </p>
                 <Dialog.Title className="font-display text-2xl font-semibold uppercase tracking-[0.04em] text-sand">
-                  {title ?? pick(locale, { en: "Propose a track", ru: "Предложить трек" })}
+                  {title ?? pick(locale, { en: "Propose a song", ru: "Предложить песню" })}
                 </Dialog.Title>
                 <Dialog.Description className="max-w-2xl text-sm leading-6 text-white/68">
                   {description ??
                     pick(locale, {
                       en: "1. Choose the song. 2. Set only the useful arrangement. 3. Publish it straight back to the board.",
-                      ru: "1. Выбери песню. 2. Оставь только полезную аранжировку. 3. Сразу публикуй трек обратно в сетлист.",
+                      ru: "1. Выбери песню. 2. Оставь только полезную аранжировку. 3. Сразу публикуй её в таблицу.",
                     })}
                 </Dialog.Description>
               </div>

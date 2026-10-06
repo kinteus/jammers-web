@@ -4,6 +4,7 @@ import { TrackSeatStatus } from "@prisma/client";
 
 import { getAllowedNextEventStatuses, getEffectiveEventStatus } from "@/lib/domain/event-status";
 import { formatDateTimeLocalInput } from "@/lib/domain/local-datetime";
+import { formatEventTime } from "@/lib/utils";
 import { getEffectiveMaxSetTrackCount } from "@/lib/domain/setlist-limit";
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getEventStatusLabel, pick } from "@/lib/i18n";
@@ -32,6 +33,7 @@ import { AdminSongWorkspace } from "@/components/admin-song-workspace";
 import { AdminSetlistStack } from "@/components/admin-setlist-stack";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { DeleteGigForm } from "@/components/delete-gig-form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
@@ -73,7 +75,7 @@ function buildLineupSummary(
   return occupied.length > 0
     ? occupied.join(", ")
     : pick(locale, {
-        en: "No players assigned yet.",
+        en: "No participants assigned yet.",
         ru: "Пока никто не назначен.",
       });
 }
@@ -153,7 +155,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         <DatabaseUnavailableState
           locale={locale}
           title={pick(locale, {
-            en: "This admin event view can't load right now",
+            en: "This gig admin view can't load right now",
             ru: "Сейчас админский экран гига не загружается",
           })}
         />
@@ -198,7 +200,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       <DatabaseUnavailableState
         locale={locale}
         title={pick(locale, {
-          en: "This admin event view can't load right now",
+          en: "This gig admin view can't load right now",
           ru: "Сейчас админский экран гига не загружается",
         })}
       />
@@ -292,8 +294,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         moveDisabled,
         moveDisabledLabel: moveDisabled
           ? pick(locale, {
-              en: "Needs full required line-up",
-              ru: "Нужен полный обязательный состав",
+              en: "Needs all required seats filled",
+              ru: "Нужны все обязательные места",
             })
           : undefined,
         originatorLabel: buildUserLabel(locale, item.track.proposedBy),
@@ -320,8 +322,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       {error === "selection-track-limit" ? (
         <div className="rounded-xl border border-red/35 bg-red/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
-            en: "Selection could not run because these participants exceed the event track limit:",
-            ru: "Не удалось запустить отбор: эти участники превышают лимит треков для гига:",
+            en: "Selection could not run because these participants exceed the gig's song limit:",
+            ru: "Не удалось запустить отбор: эти участники превышают лимит песен для гига:",
           })}{" "}
           <strong>{selectionTrackLimitParticipants ?? pick(locale, { en: "unknown", ru: "неизвестно" })}</strong>
         </div>
@@ -329,7 +331,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       {notice === "event-saved" ? (
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
-            en: "Event settings saved.",
+            en: "Gig settings saved.",
             ru: "Настройки гига сохранены.",
           })}
         </div>
@@ -337,8 +339,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       {notice === "publish-partial-notify" ? (
         <div className="rounded-xl border border-gold/30 bg-gold/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
-            en: "Some Telegram notifications failed after publish. The setlist is live, but at least one player may need a manual heads-up.",
-            ru: "После публикации часть уведомлений Telegram не дошла. Сетлист уже опубликован, но как минимум одному музыканту может понадобиться ручное сообщение.",
+            en: "Some Telegram notifications failed after publish. The setlist is live, but at least one participant may need a manual heads-up.",
+            ru: "После публикации часть уведомлений Telegram не дошла. Сетлист уже опубликован, но как минимум одному участнику может понадобиться ручное сообщение.",
           })}
         </div>
       ) : null}
@@ -364,8 +366,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
       </nav>
       <section className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
         <Card className="space-y-4">
-          <Badge>{pick(locale, { en: "Event settings", ru: "Настройки гига" })}</Badge>
-          <h1 className="font-display text-4xl font-semibold">{event.title}</h1>
+          <Badge>{pick(locale, { en: "Gig settings", ru: "Настройки гига" })}</Badge>
+          <h1 className="font-display text-4xl font-semibold uppercase tracking-[0.03em]">{event.title}</h1>
           <form action={updateEventAction} className="grid gap-4 md:grid-cols-2">
             <AdminTimezoneOffsetField />
             <input name="eventId" type="hidden" value={event.id} />
@@ -435,7 +437,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span>{pick(locale, { en: "Tracks per user", ru: "Треков на человека" })}</span>
+              <span>{pick(locale, { en: "Songs per participant", ru: "Песен на участника" })}</span>
               <input
                 className="w-full px-4 py-3"
                 defaultValue={event.maxTracksPerUser}
@@ -444,7 +446,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               />
             </label>
             <label className="space-y-2 text-sm">
-              <span>{pick(locale, { en: "Min players per song", ru: "Мин. людей на песню" })}</span>
+              <span>{pick(locale, { en: "Min participants per song", ru: "Мин. участников на песню" })}</span>
               <input
                 className="w-full px-4 py-3"
                 defaultValue={event.minParticipantsPerTrack}
@@ -462,7 +464,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               {pick(locale, { en: "Allow playback", ru: "Разрешить плейбэк" })}
             </label>
             <label className="space-y-2 text-sm md:col-span-2">
-              <span>{pick(locale, { en: "Track info flags", ru: "Флаги трека" })}</span>
+              <span>{pick(locale, { en: "Song info flags", ru: "Флаги песни" })}</span>
               <textarea
                 className="min-h-24 w-full px-4 py-3"
                 defaultValue={trackInfoFields}
@@ -476,7 +478,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               </p>
             </label>
             <label className="space-y-2 text-sm md:col-span-2">
-              <span>{pick(locale, { en: "Lineup JSON", ru: "JSON лайнапа" })}</span>
+              <span>{pick(locale, { en: "Seat layout JSON", ru: "JSON схемы мест" })}</span>
               <textarea className="min-h-40 w-full px-4 py-3 font-mono text-xs" defaultValue={lineupJson} name="lineupJson" />
               <p className="text-xs leading-5 text-white/55">
                 {pick(locale, {
@@ -490,13 +492,13 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 })}
                 <code>false</code>
                 {pick(locale, {
-                  en: " for lineup roles that cannot be treated as optional in track proposals.",
-                  ru: " для ролей лайнапа, которые не должны считаться optional в заявках на треки.",
+                  en: " for seats that cannot be treated as optional in song proposals.",
+                  ru: " для мест, которые не могут быть опциональными в заявках на песни.",
                 })}
               </p>
             </label>
-            <SubmitButton className="md:col-span-2" pendingLabel={pick(locale, { en: "Saving event...", ru: "Сохраняем гиг..." })} type="submit">
-              {pick(locale, { en: "Save event settings", ru: "Сохранить настройки гига" })}
+            <SubmitButton className="md:col-span-2" pendingLabel={pick(locale, { en: "Saving gig...", ru: "Сохраняем гиг..." })} type="submit">
+              {pick(locale, { en: "Save gig settings", ru: "Сохранить настройки гига" })}
             </SubmitButton>
           </form>
         </Card>
@@ -507,8 +509,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <p className="text-sm text-white/70">
               {activeLock
                 ? pick(locale, {
-                    en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
-                    ru: `Право редактирования закреплено за ${buildUserLabel(locale, activeLock.user)} до ${new Date(activeLock.expiresAt).toLocaleTimeString()}. Это защищает сетлист от одновременных правок других администраторов. Владелец может продлить этот режим на 15 минут кнопкой ниже.`,
+                    en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${formatEventTime(activeLock.expiresAt)}.`,
+                    ru: `Право редактирования закреплено за ${buildUserLabel(locale, activeLock.user)} до ${formatEventTime(activeLock.expiresAt)}. Это защищает сетлист от одновременных правок других администраторов. Владелец может продлить этот режим на 15 минут кнопкой ниже.`,
                   })
                 : pick(locale, {
                     en: "No active curation lock. Acquire one before running the algorithm or publishing.",
@@ -566,8 +568,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Selection", ru: "Отбор" })}</Badge>
             <p className="text-sm text-white/70">
               {pick(locale, {
-                en: "Rank tracks by participant history to populate the main set and backlog without changing the board status.",
-                ru: "Ранжируй треки по истории участия, чтобы заполнить мейн-сет и бэклог без изменения статуса таблицы.",
+                en: "Rank songs by participant history to populate the main set and backlog without changing the board status.",
+                ru: "Ранжируй песни по истории участия, чтобы заполнить мейн-сет и бэклог без изменения статуса таблицы.",
               })}
             </p>
             <form action={runSelectionAction}>
@@ -604,9 +606,9 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             <Badge>{pick(locale, { en: "Participants", ru: "Участники" })}</Badge>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                <p className="text-xs text-white/46">
                   {pick(locale, {
-                    en: "People in main set",
+                    en: "Participants in main set",
                     ru: "Участников в мейн-сете",
                   })}
                 </p>
@@ -615,9 +617,9 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/46">
+                <p className="text-xs text-white/46">
                   {pick(locale, {
-                    en: "People in assembled board songs",
+                    en: "Participants in assembled board songs",
                     ru: "Участников в собранных песнях таблицы",
                   })}
                 </p>
@@ -636,23 +638,17 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               </p>
               <p className="text-sm leading-6 text-white/66">
                 {pick(locale, {
-                  en: "This removes the public board, setlist, seats, invites and admin workspace for this event.",
-                  ru: "Это удалит публичный борд, сетлист, места, инвайты и админское рабочее пространство этого гига.",
+                  en: "This removes the public board, setlist, seats, invites and admin workspace for this gig.",
+                  ru: "Это удалит публичную таблицу, сетлист, места, инвайты и админское рабочее пространство этого гига.",
                 })}
               </p>
             </div>
-            <form action={deleteEventAction}>
-              <input name="eventId" type="hidden" value={event.id} />
-              <input name="eventSlug" type="hidden" value={event.id} />
-              <SubmitButton
-                className="border-red/45 bg-red/12 text-white hover:border-red/65 hover:bg-red/18"
-                pendingLabel={pick(locale, { en: "Deleting gig...", ru: "Удаляем гиг..." })}
-                type="submit"
-                variant="secondary"
-              >
-                {pick(locale, { en: "Delete gig", ru: "Удалить гиг" })}
-              </SubmitButton>
-            </form>
+            <DeleteGigForm
+              action={deleteEventAction}
+              eventId={event.id}
+              eventTitle={event.title}
+              locale={locale}
+            />
           </Card>
         </div>
       </section>
@@ -676,8 +672,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             savingLabel={pick(locale, { en: "Saving order...", ru: "Сохраняем порядок..." })}
             section="MAIN"
             sectionLabel={pick(locale, { en: "Main", ru: "Мейн" })}
-            clusterItemLabel={pick(locale, { en: "song", ru: "трек" })}
-            clusterItemsLabel={pick(locale, { en: "songs", ru: "треков" })}
+            clusterItemLabel={pick(locale, { en: "song", ru: "песня" })}
+            clusterItemsLabel={pick(locale, { en: "songs", ru: "песен" })}
             targetSection="BACKLOG"
             title={pick(locale, { en: "Main set", ru: "Мейн-сет" })}
             unsavedOrderLabel={pick(locale, { en: "Unsaved order", ru: "Порядок не сохранён" })}
@@ -687,7 +683,7 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         <Card className="scroll-mt-48 sm:scroll-mt-28 space-y-4" id="songs-backlog">
           <AdminSetlistStack
             locale={locale}
-            emptyLabel={pick(locale, { en: "No backlog tracks yet.", ru: "Пока нет треков в бэклоге." })}
+            emptyLabel={pick(locale, { en: "No backlog songs yet.", ru: "Пока нет песен в бэклоге." })}
             eventId={event.id}
             eventSlug={event.id}
             items={backlogItems}

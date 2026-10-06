@@ -9,7 +9,8 @@ export type AboutGalleryItem = {
 };
 
 export type AboutOrganizer = {
-  name: string;
+  // EN shows the Latin spelling the person uses; RU shows Cyrillic.
+  name: LocalizedText;
   role: LocalizedText;
   contactLabel: string;
   contactValue: string;
@@ -75,31 +76,31 @@ export const ABOUT_PAGE_CONTENT: AboutPageContent = {
   ],
   organizers: [
     {
-      name: "Максим Наумов",
+      name: { en: "Maksim Naumov", ru: "Максим Наумов" },
       role: { en: "Community organizer", ru: "Bad Boy, дед, ворчун" },
       contactLabel: "Telegram",
       contactValue: "@kinteus",
     },
     {
-      name: "Анастасия Ивченко",
+      name: { en: "Anastasia Ivchenko", ru: "Анастасия Ивченко" },
       role: { en: "Community organizer", ru: "Душа и сердце сообщества" },
       contactLabel: "Telegram",
       contactValue: "@ana_ivchenko",
     },
     {
-      name: "Андрей Кротов",
+      name: { en: "Andrei Krotov", ru: "Андрей Кротов" },
       role: { en: "Community organizer", ru: "Машина, Властелин, Легенда" },
       contactLabel: "Telegram",
       contactValue: "@A_Krotov",
     },
     {
-      name: "Алексей Бурсан",
+      name: { en: "Alexey Bursan", ru: "Алексей Бурсан" },
       role: { en: "Community organizer", ru: "Серый кардинал" },
       contactLabel: "Telegram",
       contactValue: "@bodomic",
     },
     {
-      name: "Алеся",
+      name: { en: "Alesya", ru: "Алеся" },
       role: { en: "Community organizer", ru: "Жизнерадостный ивент-мэйкер" },
       contactLabel: "Telegram",
       contactValue: "@alesichd",

@@ -33,7 +33,7 @@ export function SiteHeader({ locale, user }: SiteHeaderProps) {
         <div className="grid items-center gap-4 md:grid-cols-[260px_minmax(0,1fr)_auto]">
           <div className="flex items-center justify-between gap-4">
             <Link className="block" href="/">
-              <BrandLogo className="max-w-[180px] md:max-w-[230px]" priority variant="dark" />
+              <BrandLogo className="max-w-[180px] md:max-w-[230px]" priority sizes="(min-width: 768px) 230px, 180px" variant="dark" />
             </Link>
             <div className="md:hidden">
               <LocaleSwitcher locale={locale} />

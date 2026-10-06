@@ -69,11 +69,11 @@ The current application exposes the following main surfaces:
   Public home page with current events, newcomer onboarding, next-gig shortage framing, community quotes, and recently published setlists.
   The next-gig card omits the duplicate Date / Time / Place summary row; gig details remain in its status-specific statistics and countdowns.
 - `/faq`
-  Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard.
+  Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard. Deep links: `#rules`, `#lineup`, `#feedback`, plus one anchor per markdown heading (slug of the heading text, e.g. `#how-it-works`).
 - `/about`
   Public about page with team, partner/brand blocks, and a contact-the-team call to action.
 - `/archive`
-  Public archive of past published setlists ("Setlists").
+  Public archive of past published setlists ("Setlists"). Gigs are grouped by Cyprus calendar year under headers that stay pinned below the site header; the two most recent years start open and older years are collapsed (all open while a search or year filter is active). Each row shows date, gig title, venue · time and the number of performed tracks. Search (song, artist, musician, gig) and the year filter apply as you type; the URL keeps `?q=` and `?year=` so results can be shared.
 - `/profile`
   Telegram sign-in, local development sign-in, profile editing, invite inbox, personal playing view, and next-step empty states.
 - `/events/[id]`
@@ -82,6 +82,29 @@ The current application exposes the following main surfaces:
   Admin dashboard for global operations.
 - `/admin/events/[id]`
   Event-level curation and publishing console.
+- Any unknown URL
+  Branded, translated 404 page ("This page went off-stage") with links to the home page (next gig) and setlists. It does not query the database, so it renders even when data is unavailable.
+
+## Glossary
+
+User-facing wording (EN / RU) used everywhere in the UI, Telegram messages and the default FAQ. Code identifiers (`Track`, `TrackSeat`, `lineupSlot`…) keep their names.
+
+| Concept | EN | RU | Replaces in UI |
+| --- | --- | --- | --- |
+| One event (date + venue) | gig | гиг | event, concert |
+| List of songs proposed for a gig | board | таблица | table, line-up (as the list), доска, борд |
+| One entry on the board | song | песня | track, трек |
+| A song that was actually played | performed song | песня из сетлиста | track (in statistics) |
+| One instrument place in a song | seat (required / optional) | место (обязательное / опциональное) | slot, position, part, role |
+| Instrument category for filters | instrument | инструмент | role family |
+| A person in a seat | participant | участник | jammer, musician, player |
+| The person who added the song | proposer | автор заявки | track proposer, initiator, track author |
+
+"Setlist / сетлист" is kept for the final, published running order of a gig.
+
+### Gig titles on public pages
+
+Titles that only restate the date ("Гиг The Jammers 12 of June 2023", "Гиг The Jammers 27 сентября", "The Jammers Gig 18/10/26") are shown in the visitor's language as "The Jammers · 12 June 2023" / "The Jammers · 12 июня 2023". Custom titles such as "The Jammers Hot June" are shown as typed. The stored title is never changed, and admin screens show it as stored (`src/lib/gig-title.ts`).
 
 ## Core product concepts
 
@@ -429,6 +452,8 @@ The page is also intentionally "songs first". Users are pushed to review what al
 - grouped headers by role family,
 - one compact seat cell per stage position,
 - mobile fallback cards when a desktop table would be too dense.
+- the song column stays pinned while scrolling sideways; seat columns are 7rem wide so a typical 9-seat lineup fits a 1440px screen without scrolling,
+- when columns are hidden to the right, a fade and a "More columns →" button (scrolls the board) appear at the right edge.
 
 ### Track metadata shown in the sticky column
 
@@ -545,6 +570,8 @@ Admins edit the public FAQ body as markdown directly from the dashboard. Both FA
 
 Admins curate the community quote pool shown on the home page, including quote text, source label, active state, display order, and separate desktop/mobile display limits.
 
+On every screen size, quotes float as a layer between the page background and the content: cards and text always sit on top, and quotes are cut off at the edge of the content column, so they only show in the side margins. Hovering or focusing the visible part of a quote brings it to the front and opens it in full, only as wide as its text needs; clicking it hides it. The "desktop" display limit sets how many quotes are placed; on screens narrower than 1024px only the first "mobile" limit of them are shown. Phones have almost no side margin, so quotes are practically hidden there.
+
 ### Global queue visibility
 
 The dashboard also shows:
@@ -557,7 +584,9 @@ The admin home is now intentionally compact:
 
 - most heavy global tools open inside focused dialog panels,
 - the event list stays visible on the main page,
+- the gig list shows active gigs first; archived gigs are collapsed under "Archived gigs (N)". A search box filters by gig title or date (EN or RU month names) and opens the archived section when searching,
 - each event row exposes quick actions such as open, close, publish, and delete.
+- "Close gig" asks for confirmation first. "Delete gig" sits behind a "More" toggle and only becomes available after the admin types the exact gig title; the server repeats this check, so a mismatched title never deletes anything. The event admin "Danger zone" uses the same typed confirmation.
 
 Opening an event admin shows a spinner and an opening label on the link while navigation is pending, followed by a loading panel while the event workspace loads. Both messages follow the selected language.
 
@@ -681,6 +710,8 @@ Admins can override seat assignments for any track:
 - assign a user into a seat by Telegram username,
 - clear a claimed seat,
 - cancel a whole track if necessary.
+
+Deleting a track (admins, or the proposer on their own track) lives in the row's "⋯" menu rather than as an always-visible button. The confirmation names the song and how many players would lose their seat.
 
 These tools are important for resolving real-world exceptions near the event date.
 

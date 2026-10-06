@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { pick } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { getLocale } from "@/lib/i18n-server";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
+import { formatEventDateShort, formatEventTime, formatEventYear } from "@/lib/utils";
 import { getArchivePageData } from "@/server/query-data";
 
+import { ArchiveFilters } from "@/components/archive-filters";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
-import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -27,21 +29,6 @@ export const metadata: Metadata = {
 type ArchivePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function formatArchiveDate(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function formatArchiveTime(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 export default async function ArchivePage({ searchParams }: ArchivePageProps) {
   const params = await searchParams;
@@ -67,13 +54,14 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const selectedYear = typeof params.year === "string" ? params.year : "";
-  const years = [...new Set(data.publishedEvents.map((event) => String(new Date(event.startsAt).getFullYear())))];
+  const years = [...new Set(data.publishedEvents.map((event) => formatEventYear(event.startsAt)))];
   const events = data.publishedEvents.filter((event) => {
-    const yearMatches = !selectedYear || String(new Date(event.startsAt).getFullYear()) === selectedYear;
+    const yearMatches = !selectedYear || formatEventYear(event.startsAt) === selectedYear;
     const queryMatches =
       !query ||
       [
         event.title,
+        getGigDisplayTitle(event, locale),
         event.venueName,
         ...event.setlistItems.flatMap((item) => [
           item.track.song.title,
@@ -90,6 +78,14 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
     return yearMatches && queryMatches;
   });
   const stats = data.archiveStats;
+  const isFiltering = Boolean(query || selectedYear);
+  const eventsByYear = [
+    ...events.reduce((groups, event) => {
+      const year = formatEventYear(event.startsAt);
+      groups.set(year, [...(groups.get(year) ?? []), event]);
+      return groups;
+    }, new Map<string, typeof events>()),
+  ];
 
   return (
     <div className="space-y-8">
@@ -104,8 +100,8 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
             </h1>
             <p className="max-w-3xl text-base leading-7 text-sand/62">
               {pick(locale, {
-                en: "Every published line-up. Filter, search and re-open the energy.",
-                ru: "Каждый опубликованный лайнап. Ищи, фильтруй и открывай энергию заново.",
+                en: "Every published setlist. Filter, search and re-open the energy.",
+                ru: "Каждый опубликованный сетлист. Ищи, фильтруй и открывай энергию заново.",
               })}
             </p>
           </div>
@@ -115,12 +111,12 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
           <div className="reference-section grid gap-5 px-6 py-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
               [pick(locale, { en: "Gigs in archive", ru: "Гигов в архиве" }), stats.totalGigs],
-              [pick(locale, { en: "Tracks performed", ru: "Сыграно треков" }), stats.totalTracks],
+              [pick(locale, { en: "Performed songs", ru: "Песен из сетлиста" }), stats.totalTracks],
               [pick(locale, { en: "Unique songs", ru: "Уникальных песен" }), stats.uniqueSongs],
-              [pick(locale, { en: "Musicians on stage", ru: "Музыкантов на сцене" }), stats.totalMusicians],
+              [pick(locale, { en: "Participants on stage", ru: "Участников на сцене" }), stats.totalMusicians],
             ].map(([label, value]) => (
               <div key={label}>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-sand/48">{label}</p>
+                <p className="text-xs font-bold text-sand/48">{label}</p>
                 <p className="mt-2 font-display text-3xl text-sand">{value}</p>
               </div>
             ))}
@@ -128,61 +124,61 @@ export default async function ArchivePage({ searchParams }: ArchivePageProps) {
         ) : null}
       </section>
 
-      <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto]">
-        <input
-          className="min-h-12 w-full rounded-md border-white/12 bg-transparent px-4 text-sm"
-          defaultValue={typeof params.q === "string" ? params.q : ""}
-          name="q"
-          placeholder={pick(locale, {
-            en: "Search song, artist or musician...",
-            ru: "Поиск по песне, артисту или музыканту...",
-          })}
-        />
-        <select
-          className="min-h-12 rounded-md border-white/12 bg-transparent px-4 text-sm"
-          defaultValue={selectedYear}
-          name="year"
-        >
-          <option value="">{pick(locale, { en: "All years", ru: "Все годы" })}</option>
-          {years.map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
-        <Button className="min-h-12 px-5" type="submit" variant="secondary">
-          {pick(locale, { en: "Apply", ru: "Применить" })}
-        </Button>
-      </form>
+      <ArchiveFilters
+        initialQuery={typeof params.q === "string" ? params.q : ""}
+        initialYear={selectedYear}
+        locale={locale}
+        years={years}
+      />
 
-      <section className="reference-section overflow-hidden">
+      <section className="reference-section overflow-clip">
         {events.length > 0 ? (
           <div className="divide-y divide-white/10">
-            {events.map((event) => (
-              <Link
-                className="grid gap-3 px-5 py-5 transition hover:bg-white/[0.035] md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-center"
-                href={`/events/${event.id}`}
-                key={event.id}
+            {eventsByYear.map(([year, yearEvents], yearIndex) => (
+              // Recent years start open; older ones collapse unless the visitor is filtering.
+              // Year headers stick right under the sticky site header (125 / 109 / 76px tall).
+              <details
+                className="group"
+                data-archive-year={year}
+                key={year}
+                open={isFiltering || yearIndex < 2}
               >
-                <div className="font-display text-xl text-sand">
-                  {formatArchiveDate(event.startsAt, locale)}
-                </div>
-                <div className="min-w-0">
-                  <h2 className="font-body text-base font-bold text-sand">
-                    {event.venueName ?? event.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-sand/52">
-                    {formatArchiveTime(event.startsAt, locale)}
-                    {event.venueName && event.title !== event.venueName ? ` · ${event.title}` : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
-                  <span>
-                    {event.setlistItems.length} {pick(locale, { en: "tracks", ru: "треков" })}
+                <summary className="sticky top-[125px] z-10 md:top-[109px] lg:top-[76px] flex cursor-pointer list-none items-center justify-between border-b border-white/10 bg-[#141414]/95 px-5 py-3 backdrop-blur">
+                  <span className="font-display text-2xl text-sand">{year}</span>
+                  <span className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/58">
+                    {formatCount(locale, yearEvents.length, COUNT_FORMS.gigs)}
+                    <span aria-hidden="true" className="text-base transition group-open:rotate-90">›</span>
                   </span>
-                  <span aria-hidden="true" className="text-xl text-sand/42">›</span>
+                </summary>
+                <div className="divide-y divide-white/10">
+                  {yearEvents.map((event) => (
+              <Link
+                      className="grid gap-3 px-5 py-5 transition hover:bg-white/[0.035] md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-center"
+                      href={`/events/${event.id}`}
+                      key={event.id}
+                    >
+                      <div className="font-display text-xl text-sand">
+                        {formatEventDateShort(event.startsAt, locale)}
+                      </div>
+                      {/* Same structure for every row: title, then venue and time. */}
+                      <div className="min-w-0">
+                        <h2 className="font-body text-base font-bold text-sand" data-archive-row-title>
+                          {getGigDisplayTitle(event, locale)}
+                        </h2>
+                        <p className="mt-1 text-sm text-sand/52" data-archive-row-meta>
+                          {[event.venueName, formatEventTime(event.startsAt, locale)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-5 text-[11px] font-bold uppercase tracking-[0.22em] text-sand/68">
+                        <span>{formatCount(locale, event.setlistItems.length, COUNT_FORMS.performedSongs)}</span>
+                        <span aria-hidden="true" className="text-xl text-sand/42">›</span>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              </Link>
+              </details>
             ))}
           </div>
         ) : (

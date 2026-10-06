@@ -81,8 +81,8 @@ export function InstrumentToken({
         ) : (
           <span className="block text-xs leading-5 text-white/56">
             {pick(locale, {
-              en: `${getRoleFamilyLabel(family, locale)} role`,
-              ru: `${getRoleFamilyLabel(family, locale)}-роль`,
+              en: `Instrument: ${getRoleFamilyLabel(family, locale)}`,
+              ru: `Инструмент: ${getRoleFamilyLabel(family, locale)}`,
             })}
           </span>
         )}

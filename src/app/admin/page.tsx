@@ -5,7 +5,10 @@ import Link from "next/link";
 import { hasActiveBan } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
+import { EventStatus } from "@prisma/client";
+
 import { getEffectiveEventStatus } from "@/lib/domain/event-status";
+import { formatEventDateShort } from "@/lib/utils";
 import { getDefaultLineupInput } from "@/lib/domain/lineup";
 import { DEFAULT_MAX_SET_TRACK_COUNT } from "@/lib/domain/setlist-limit";
 import {
@@ -16,7 +19,7 @@ import { env } from "@/lib/env";
 import { formatVideoUrlsForTextarea, resolveFaqSectionMarkdown } from "@/lib/site-content";
 import { isSuperAdminUser } from "@/lib/auth/admin-access";
 import { getLocale } from "@/lib/i18n-server";
-import { pick } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick } from "@/lib/i18n";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   createCommunityQuoteAction,
@@ -39,10 +42,12 @@ import { getAdminDashboardData, getFaqPageData } from "@/server/query-data";
 
 import { AdminActionDialog } from "@/components/admin-action-dialog";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
+import { DeleteGigForm } from "@/components/delete-gig-form";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +59,8 @@ export const metadata: Metadata = {
     follow: false,
   },
 };
+
+type AdminGig = Awaited<ReturnType<typeof getAdminDashboardData>>["events"][number];
 
 type AdminPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -147,6 +154,101 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const primaryAdminTelegramId = env.PRIMARY_ADMIN_TELEGRAM_ID;
   const primaryAdminUsername = normalizeTelegramUsername(env.DEFAULT_ADMIN_USERNAME);
 
+  const gigQuery = typeof params.gigQuery === "string" ? params.gigQuery.trim() : "";
+  const normalizedGigQuery = gigQuery.toLocaleLowerCase();
+  const matchingGigs = data.events.filter((event) => {
+    if (!normalizedGigQuery) {
+      return true;
+    }
+    const haystack = [
+      event.title,
+      formatEventDateShort(event.startsAt, "en"),
+      formatEventDateShort(event.startsAt, "ru"),
+    ]
+      .join(" ")
+      .toLocaleLowerCase();
+    return haystack.includes(normalizedGigQuery);
+  });
+  const activeGigs = matchingGigs.filter(
+    (event) => getEffectiveEventStatus(event) !== EventStatus.ARCHIVED,
+  );
+  const archivedGigs = matchingGigs.filter(
+    (event) => getEffectiveEventStatus(event) === EventStatus.ARCHIVED,
+  );
+
+  function renderGigRow(event: AdminGig) {
+            const effectiveStatus = getEffectiveEventStatus(event);
+            const quickAction = getQuickAction({
+              status: event.status,
+              effectiveStatus,
+            }, locale);
+
+
+    return (
+              <Card className="brand-shell rounded-[1.35rem] border-white/10 p-4" key={event.id}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="border-blue/24 bg-blue/16 text-white">{effectiveStatus}</Badge>
+              <span className="text-sm text-white/58">
+                {formatCount(locale, event.tracks.length, COUNT_FORMS.songs)} {pick(locale, { en: "on the board", ru: "в таблице" })}
+              </span>
+            </div>
+            <div>
+              <p className="font-semibold text-sand">{event.title}</p>
+              {effectiveStatus !== event.status ? (
+                <p className="mt-1 text-xs text-white/45">
+                  {pick(locale, { en: "Stored status", ru: "Сохранённый статус" })}: {event.status}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminEventLink
+              href={`/admin/events/${event.id}`}
+              label={pick(locale, { en: "Open gig admin", ru: "Открыть админку гига" })}
+              pendingLabel={pick(locale, { en: "Opening…", ru: "Открываем…" })}
+            />
+
+            {quickAction ? (
+              <form action={updateEventStatusAction}>
+                <input name="eventId" type="hidden" value={event.id} />
+                <input name="eventSlug" type="hidden" value={event.id} />
+                <input name="status" type="hidden" value={quickAction.status} />
+                {quickAction.status === "CLOSED" ? (
+                  <ConfirmSubmitButton
+                    confirmMessage={pick(locale, {
+                      en: `Close registration for "${event.title}"? Participants won't be able to join required seats.`,
+                      ru: `Закрыть регистрацию на «${event.title}»? Участники не смогут записываться на обязательные места.`,
+                    })}
+                    pendingLabel={quickAction.pendingLabel}
+                    size="sm"
+                    type="submit"
+                  >
+                    {quickAction.label}
+                  </ConfirmSubmitButton>
+                ) : (
+                  <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
+                    {quickAction.label}
+                  </SubmitButton>
+                )}
+              </form>
+            ) : null}
+
+            <DeleteGigForm
+              action={deleteEventAction}
+              collapsed
+              eventId={event.id}
+              eventTitle={event.title}
+              locale={locale}
+            />
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-8 text-sand">
       {notice === "faq-saved" ? (
@@ -167,11 +269,20 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         </div>
       ) : null}
 
+      {notice === "event-delete-not-confirmed" ? (
+        <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-white">
+          {pick(locale, {
+            en: "Gig not deleted: the typed title didn't match.",
+            ru: "Гиг не удалён: введённое название не совпало.",
+          })}
+        </div>
+      ) : null}
+
       {notice === "event-deleted" ? (
         <div className="rounded-xl border border-red/30 bg-red/12 px-4 py-3 text-sm text-white">
           {pick(locale, {
             en: "Gig deleted. The public board and admin workspace have been removed.",
-            ru: "Гиг удалён. Публичный борд и админское рабочее пространство убраны.",
+            ru: "Гиг удалён. Публичная таблица и админское рабочее пространство убраны.",
           })}
         </div>
       ) : null}
@@ -179,7 +290,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="space-y-5">
         <div className="space-y-2">
           <Badge>{pick(locale, { en: "Admin cockpit", ru: "Панель админа" })}</Badge>
-          <h1 className="font-display text-4xl font-semibold text-sand">
+          <h1 className="font-display text-4xl font-semibold text-sand uppercase tracking-[0.03em]">
             {pick(locale, {
               en: "Open only the tool you need",
               ru: "Открывай только тот инструмент, который нужен прямо сейчас",
@@ -195,19 +306,19 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="grid gap-3 md:grid-cols-3">
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-              {pick(locale, { en: "Events", ru: "Гиги" })}
+            <p className="text-xs text-white/45">
+              {pick(locale, { en: "Gigs", ru: "Гиги" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{data.events.length}</p>
           </div>
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Song requests", ru: "Запросы на песни" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{data.songRequests.length}</p>
           </div>
           <div className="brand-shell-soft rounded-2xl px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-xs text-white/45">
               {pick(locale, { en: "Admins", ru: "Админы" })}
             </p>
             <p className="mt-2 text-3xl font-semibold text-sand">{adminUsers.length}</p>
@@ -216,13 +327,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <AdminActionDialog
-            badge={pick(locale, { en: "Create event", ru: "Создать гиг" })}
+            badge={pick(locale, { en: "Create gig", ru: "Создать гиг" })}
             closeLabel={pick(locale, { en: "Close admin dialog", ru: "Закрыть админское окно" })}
             description={pick(locale, {
               en: "Launch a new gig board without keeping the full form open on the page.",
-              ru: "Запусти новый борд гига, не держа большую форму постоянно открытой на странице.",
+              ru: "Запусти новую таблицу гига, не держа большую форму постоянно открытой на странице.",
             })}
-            title={pick(locale, { en: "Launch a new gig board", ru: "Запустить новый борд гига" })}
+            title={pick(locale, { en: "Launch a new gig board", ru: "Запустить новую таблицу гига" })}
             triggerLabel={pick(locale, { en: "Create gig", ru: "Создать гиг" })}
           >
             <form action={createEventAction} className="grid gap-4 md:grid-cols-2">
@@ -266,11 +377,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Max tracks per user", ru: "Макс. треков на человека" })}</span>
+                <span>{pick(locale, { en: "Max songs per participant", ru: "Макс. песен на участника" })}</span>
                 <input className="w-full px-4 py-3" defaultValue={3} name="maxTracksPerUser" type="number" />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Min players per song", ru: "Мин. людей на песню" })}</span>
+                <span>{pick(locale, { en: "Min participants per song", ru: "Мин. участников на песню" })}</span>
                 <input
                   className="w-full px-4 py-3"
                   defaultValue={1}
@@ -291,7 +402,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 })}
               </label>
               <label className="space-y-2 text-sm md:col-span-2">
-                <span>{pick(locale, { en: "Track info flags", ru: "Флаги трека" })}</span>
+                <span>{pick(locale, { en: "Song info flags", ru: "Флаги песни" })}</span>
                 <textarea
                   className="min-h-24 w-full px-4 py-3"
                   defaultValue={defaultTrackInfoFields}
@@ -305,7 +416,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 </p>
               </label>
               <label className="space-y-2 text-sm md:col-span-2">
-                <span>{pick(locale, { en: "Lineup JSON", ru: "JSON лайнапа" })}</span>
+                <span>{pick(locale, { en: "Seat layout JSON", ru: "JSON схемы мест" })}</span>
                 <textarea
                   className="min-h-48 w-full px-4 py-3 font-mono text-xs"
                   defaultValue={defaultLineup}
@@ -313,8 +424,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
                 <p className="text-xs leading-5 text-white/55">
                   {pick(locale, {
-                    en: '"defaultOptionalSeats" lists the seat numbers within a slot (1-based) that start as optional when a song is proposed. Proposers can still change each seat.',
-                    ru: '"defaultOptionalSeats" — номера позиций внутри слота (с 1), которые при создании песни по умолчанию помечаются как optional. Автор заявки может изменить любую позицию.',
+                    en: '"defaultOptionalSeats" lists the seat numbers within an instrument (1-based) that start as optional when a song is proposed. Proposers can still change each seat.',
+                    ru: '"defaultOptionalSeats" — номера мест внутри инструмента (с 1), которые при создании песни по умолчанию помечаются как опциональные. Автор заявки может изменить любое место.',
                   })}
                 </p>
               </label>
@@ -323,7 +434,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 pendingLabel={pick(locale, { en: "Creating gig...", ru: "Создаём гиг..." })}
                 type="submit"
               >
-                {pick(locale, { en: "Create event", ru: "Создать гиг" })}
+                {pick(locale, { en: "Create gig", ru: "Создать гиг" })}
               </SubmitButton>
             </form>
           </AdminActionDialog>
@@ -344,7 +455,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <input className="w-full px-4 py-3" name="artistName" required />
               </label>
               <label className="space-y-2 text-sm">
-                <span>{pick(locale, { en: "Track", ru: "Трек" })}</span>
+                <span>{pick(locale, { en: "Song title", ru: "Название песни" })}</span>
                 <input className="w-full px-4 py-3" name="trackTitle" required />
               </label>
               <label className="space-y-2 text-sm">
@@ -369,15 +480,15 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             badge={pick(locale, { en: "Moderation", ru: "Модерация" })}
             closeLabel={pick(locale, { en: "Close admin dialog", ru: "Закрыть админское окно" })}
             description={pick(locale, {
-              en: "Ban and rate musicians only when you need those controls.",
-              ru: "Используй блокировку и рейтинг музыкантов только тогда, когда действительно нужен модераторский контекст.",
+              en: "Ban and rate participants only when you need those controls.",
+              ru: "Используй блокировку и рейтинг участников только тогда, когда действительно нужен модераторский контекст.",
             })}
             title={pick(locale, { en: "Moderation", ru: "Модерация" })}
             triggerLabel={pick(locale, { en: "Moderation", ru: "Модерация" })}
           >
             <div className="grid gap-6 md:grid-cols-2">
               <form action={setBanAction} className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold text-sand">
+                <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Ban user", ru: "Заблокировать пользователя" })}
                 </h3>
                 <input
@@ -406,8 +517,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </form>
 
               <form action={setRatingAction} className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold text-sand">
-                  {pick(locale, { en: "Rate musician", ru: "Оценить музыканта" })}
+                <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
+                  {pick(locale, { en: "Rate participant", ru: "Оценить участника" })}
                 </h3>
                 <input
                   className="w-full px-4 py-3"
@@ -529,7 +640,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 text-sm">
-                    <span>{pick(locale, { en: "Line-up details · EN (Markdown)", ru: "Технические детали лайнапа · EN (Markdown)" })}</span>
+                    <span>{pick(locale, { en: "Seats & glossary · EN (Markdown)", ru: "Места и словарь · EN (Markdown)" })}</span>
                     <textarea
                       className="min-h-56 w-full px-4 py-3"
                       defaultValue={resolveFaqSectionMarkdown({
@@ -542,7 +653,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     />
                   </label>
                   <label className="space-y-2 text-sm">
-                    <span>{pick(locale, { en: "Line-up details · RU (Markdown)", ru: "Технические детали лайнапа · RU (Markdown)" })}</span>
+                    <span>{pick(locale, { en: "Seats & glossary · RU (Markdown)", ru: "Места и словарь · RU (Markdown)" })}</span>
                     <textarea
                       className="min-h-56 w-full px-4 py-3"
                       defaultValue={resolveFaqSectionMarkdown({
@@ -605,7 +716,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <div className="space-y-6" id="community-quotes">
               <form action={updateCommunityQuoteSettingsAction} className="brand-shell-soft grid gap-4 rounded-2xl border border-white/10 p-4">
                 <div className="space-y-1">
-                  <h3 className="font-display text-2xl font-semibold text-sand">
+                  <h3 className="font-display text-2xl font-semibold text-sand uppercase tracking-[0.03em]">
                     {pick(locale, { en: "Display settings", ru: "Настройки показа" })}
                   </h3>
                   <p className="max-w-2xl text-sm leading-6 text-white/66">
@@ -753,7 +864,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           >
             <div className="grid gap-6 lg:grid-cols-[0.85fr,1.15fr]">
               <div className="space-y-3">
-                <h2 className="font-display text-3xl font-semibold">
+                <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Current admins", ru: "Текущие админы" })}
                 </h2>
                 <div className="grid gap-3">
@@ -795,7 +906,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-display text-2xl font-semibold">
+                <h3 className="font-display text-2xl font-semibold uppercase tracking-[0.03em]">
                   {pick(locale, { en: "Manage admin list", ru: "Управление списком админов" })}
                 </h3>
                 {canManageAdmins ? (
@@ -894,82 +1005,61 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="space-y-4">
         <div className="space-y-2">
           <Badge>{pick(locale, { en: "Gig workspaces", ru: "Рабочие пространства гигов" })}</Badge>
-          <h2 className="font-display text-3xl font-semibold text-sand">
+          <h2 className="font-display text-3xl font-semibold text-sand uppercase tracking-[0.03em]">
             {pick(locale, { en: "All gigs, with fast next moves", ru: "Все гиги и быстрые следующие действия" })}
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-white/70">
             {pick(locale, {
-              en: "Keep the full list visible for quick operations. Each row gives you the next likely product action without forcing a trip into the event screen first.",
+              en: "Keep the full list visible for quick operations. Each row gives you the next likely product action without forcing a trip into the gig screen first.",
               ru: "Держи полный список на виду для быстрых операций. Каждая строка даёт вероятное следующее действие без обязательного перехода внутрь экрана гига.",
             })}
           </p>
         </div>
 
-        <div className="grid gap-3">
-          {data.events.map((event) => {
-            const effectiveStatus = getEffectiveEventStatus(event);
-            const quickAction = getQuickAction({
-              status: event.status,
-              effectiveStatus,
-            }, locale);
+        <form className="flex flex-wrap items-center gap-2" method="get">
+          <input
+            aria-label={pick(locale, { en: "Search gigs", ru: "Поиск гигов" })}
+            className="min-w-[16rem] flex-1 px-4 py-2 text-sm md:max-w-md"
+            defaultValue={gigQuery}
+            name="gigQuery"
+            placeholder={pick(locale, {
+              en: "Search by gig title or date (e.g. 2025, Oct)",
+              ru: "Поиск по названию или дате (например, 2025, окт)",
+            })}
+            type="search"
+          />
+          <Button size="sm" type="submit" variant="secondary">
+            {pick(locale, { en: "Search", ru: "Найти" })}
+          </Button>
+          {gigQuery ? (
+            <Link className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60 hover:text-white" href="/admin">
+              {pick(locale, { en: "Clear", ru: "Сбросить" })}
+            </Link>
+          ) : null}
+        </form>
 
-            return (
-              <Card className="brand-shell rounded-[1.35rem] border-white/10 p-4" key={event.id}>
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="border-blue/24 bg-blue/16 text-white">{effectiveStatus}</Badge>
-                      <span className="text-sm text-white/58">
-                        {event.tracks.length} {pick(locale, { en: "active tracks", ru: "активных треков" })}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sand">{event.title}</p>
-                      {effectiveStatus !== event.status ? (
-                        <p className="mt-1 text-xs text-white/45">
-                          {pick(locale, { en: "Stored status", ru: "Сохранённый статус" })}: {event.status}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
+        {gigQuery && activeGigs.length === 0 && archivedGigs.length === 0 ? (
+          <p className="text-sm text-white/60">
+            {pick(locale, { en: "No gigs match this search.", ru: "Ничего не найдено." })}
+          </p>
+        ) : null}
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <AdminEventLink
-                      href={`/admin/events/${event.id}`}
-                      label={pick(locale, { en: "Open event admin", ru: "Открыть админку гига" })}
-                      pendingLabel={pick(locale, { en: "Opening…", ru: "Открываем…" })}
-                    />
-
-                    {quickAction ? (
-                      <form action={updateEventStatusAction}>
-                        <input name="eventId" type="hidden" value={event.id} />
-                        <input name="eventSlug" type="hidden" value={event.id} />
-                        <input name="status" type="hidden" value={quickAction.status} />
-                        <SubmitButton pendingLabel={quickAction.pendingLabel} size="sm" type="submit">
-                          {quickAction.label}
-                        </SubmitButton>
-                      </form>
-                    ) : null}
-
-                    <form action={deleteEventAction}>
-                      <input name="eventId" type="hidden" value={event.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <SubmitButton
-                        className="border-red/45 bg-red/12 text-white hover:border-red/65 hover:bg-red/18"
-                        pendingLabel={pick(locale, { en: "Deleting...", ru: "Удаляем..." })}
-                        size="sm"
-                        type="submit"
-                        variant="secondary"
-                      >
-                        {pick(locale, { en: "Delete gig", ru: "Удалить гиг" })}
-                      </SubmitButton>
-                    </form>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+        <div className="grid gap-3" data-admin-active-gigs>
+          {activeGigs.map(renderGigRow)}
         </div>
+
+        {archivedGigs.length > 0 ? (
+          <details className="group space-y-3" data-admin-archived-gigs open={Boolean(gigQuery)}>
+            <summary className="cursor-pointer list-none text-sm font-semibold uppercase tracking-[0.16em] text-white/66 hover:text-white">
+              <span className="mr-2 inline-block transition group-open:rotate-90">▸</span>
+              {pick(locale, {
+                en: `Archived gigs (${archivedGigs.length})`,
+                ru: `Архивные гиги (${archivedGigs.length})`,
+              })}
+            </summary>
+            <div className="mt-3 grid gap-3">{archivedGigs.map(renderGigRow)}</div>
+          </details>
+        ) : null}
       </section>
     </div>
   );

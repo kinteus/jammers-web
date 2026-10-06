@@ -92,3 +92,19 @@ describe("event status lifecycle", () => {
     ).toBe("ARCHIVED");
   });
 });
+
+describe("admin status action labels", () => {
+  it("labels buttons with the action, not the target state", async () => {
+    const { getEventStatusActionLabel } = await import("@/lib/i18n");
+    expect(getEventStatusActionLabel("CLOSED", "OPEN", "en")).toBe("Close registration");
+    expect(getEventStatusActionLabel("OPEN", "DRAFT", "en")).toBe("Open registration");
+    expect(getEventStatusActionLabel("OPEN", "CLOSED", "en")).toBe("Reopen registration");
+    expect(getEventStatusActionLabel("PUBLISHED", "CLOSED", "ru")).toBe("Опубликовать сетлист");
+  });
+
+  it("asks for confirmation only for disruptive transitions", async () => {
+    const { getEventStatusActionConfirm } = await import("@/lib/i18n");
+    expect(getEventStatusActionConfirm("CLOSED", "en")).toContain("Close registration?");
+    expect(getEventStatusActionConfirm("OPEN", "en")).toBeNull();
+  });
+});

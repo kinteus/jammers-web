@@ -2,6 +2,18 @@
 
 import { useEffect, useState } from "react";
 
+const numberFormat = new Intl.NumberFormat("en-GB");
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+// The final value is always in the DOM (server-rendered and in an sr-only copy), so crawlers,
+// link previews and screen readers never see intermediate frames. The count-up is visual only.
 export function AnimatedNumber({
   value,
   duration = 900,
@@ -9,9 +21,14 @@ export function AnimatedNumber({
   value: number;
   duration?: number;
 }) {
-  const [displayValue, setDisplayValue] = useState(0);
+  const [displayValue, setDisplayValue] = useState(value);
 
   useEffect(() => {
+    if (prefersReducedMotion()) {
+      setDisplayValue(value);
+      return;
+    }
+
     let frame = 0;
     const startedAt = performance.now();
 
@@ -29,5 +46,12 @@ export function AnimatedNumber({
     return () => window.cancelAnimationFrame(frame);
   }, [duration, value]);
 
-  return <>{displayValue.toLocaleString()}</>;
+  return (
+    <>
+      <span className="sr-only">{numberFormat.format(value)}</span>
+      <span aria-hidden="true" data-animated-number>
+        {numberFormat.format(displayValue)}
+      </span>
+    </>
+  );
 }

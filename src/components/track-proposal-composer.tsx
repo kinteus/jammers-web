@@ -125,8 +125,8 @@ export function TrackProposalComposer({
               </div>
               <p className="text-sm leading-6 text-white/62">
                 {pick(locale, {
-                  en: "Mark the must-have players as required. Optional parts can still be joined later, but they no longer block the track from counting as assembled.",
-                  ru: "Отметь must-have музыкантов как обязательных. В optional-партии всё ещё можно вписаться позже, но они уже не мешают треку считаться собранным.",
+                  en: "Mark the must-have seats as required. Optional seats can still be joined later, but they don't block the song from counting as assembled.",
+                  ru: "Отметь без каких мест не обойтись как обязательные. На опциональные места можно вписаться позже, и они не мешают песне считаться собранной.",
                 })}
               </p>
               <SeatPlannerField

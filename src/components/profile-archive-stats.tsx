@@ -1,7 +1,8 @@
 import { CalendarClock, Music2, Radio, Users2 } from "lucide-react";
 
 import type { UserArchiveStatsSummary } from "@/lib/domain/archive-stats";
-import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { formatDateTime } from "@/lib/utils";
 
 import { AnimatedNumber } from "@/components/animated-number";
@@ -30,7 +31,7 @@ export function ProfileArchiveStats({
       icon: Music2,
     },
     {
-      label: pick(locale, { en: "Role families", ru: "Классов ролей" }),
+      label: pick(locale, { en: "Instrument groups played", ru: "Групп инструментов" }),
       value: stats.roleFamiliesCovered,
       icon: Users2,
     },
@@ -56,7 +57,7 @@ export function ProfileArchiveStats({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1.5">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{item.label}</p>
+                <p className="text-xs text-white/45">{item.label}</p>
                 <p className="text-3xl font-semibold text-sand">
                   <AnimatedNumber value={item.value} />
                 </p>
@@ -81,10 +82,10 @@ export function ProfileArchiveStats({
               </div>
               <ul className="space-y-2 text-sm leading-6 text-white/72">
                 <li>
-                  • {pick(locale, { en: "Signature role", ru: "Фирменная роль" })}:{" "}
+                  • {pick(locale, { en: "Main instrument", ru: "Основной инструмент" })}:{" "}
                   <strong className="text-sand">
                     {stats.signatureRole
-                      ? `${getRoleFamilyLabel(stats.signatureRole, locale)} · ${stats.signatureRoleAppearances} ${pick(locale, { en: "times", ru: "раз" })}`
+                      ? `${getRoleFamilyLabel(stats.signatureRole, locale)} · ${formatCount(locale, stats.signatureRoleAppearances, COUNT_FORMS.times)}`
                       : pick(locale, { en: "Still taking shape", ru: "Ещё формируется" })}
                   </strong>
                 </li>
@@ -92,7 +93,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "Favourite artist", ru: "Любимый артист" })}:{" "}
                   <strong className="text-sand">
                     {stats.favoriteArtist
-                      ? `${stats.favoriteArtist} · ${stats.favoriteArtistAppearances} ${pick(locale, { en: "tracks", ru: "треков" })}`
+                      ? `${stats.favoriteArtist} · ${formatCount(locale, stats.favoriteArtistAppearances, COUNT_FORMS.performedSongs)}`
                       : pick(locale, { en: "Still ahead", ru: "Ещё впереди" })}
                   </strong>
                 </li>
@@ -100,7 +101,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "First gig", ru: "Первый гиг" })}:{" "}
                   <strong className="text-sand">
                     {stats.firstGig
-                      ? `${stats.firstGig.title} · ${formatDateTime(stats.firstGig.startsAt, locale)}`
+                      ? `${getGigDisplayTitle(stats.firstGig, locale)} · ${formatDateTime(stats.firstGig.startsAt, locale)}`
                       : pick(locale, { en: "Soon", ru: "Скоро" })}
                   </strong>
                 </li>
@@ -108,7 +109,7 @@ export function ProfileArchiveStats({
                   • {pick(locale, { en: "Latest gig", ru: "Последний гиг" })}:{" "}
                   <strong className="text-sand">
                     {stats.latestGig
-                      ? `${stats.latestGig.title} · ${formatDateTime(stats.latestGig.startsAt, locale)}`
+                      ? `${getGigDisplayTitle(stats.latestGig, locale)} · ${formatDateTime(stats.latestGig.startsAt, locale)}`
                       : pick(locale, { en: "Soon", ru: "Скоро" })}
                   </strong>
                 </li>
@@ -132,7 +133,7 @@ export function ProfileArchiveStats({
                     <div className="flex items-end justify-between gap-3 text-sm">
                       <span className="font-semibold text-sand">{item.label}</span>
                       <span className="text-white/60">
-                        {item.value} {pick(locale, { en: "shared tracks", ru: "общих треков" })}
+                        {formatCount(locale, item.value, COUNT_FORMS.sharedSongs)}
                       </span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-white/8">
@@ -161,7 +162,7 @@ export function ProfileArchiveStats({
                 <div className="flex items-end justify-between gap-3 text-sm">
                   <span className="font-semibold text-sand">{item.year}</span>
                   <span className="text-white/60">
-                    {item.tracks} {pick(locale, { en: "tracks", ru: "треков" })}
+                    {formatCount(locale, item.tracks, COUNT_FORMS.performedSongs)}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/8">

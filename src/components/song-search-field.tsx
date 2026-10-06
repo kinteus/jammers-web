@@ -266,7 +266,7 @@ export function SongSearchField({
           <label className="text-sm font-medium text-sand">
             {pick(locale, { en: "Find the song", ru: "Найди песню" })}
           </label>
-          <span className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+          <span className="text-xs text-white/45">
             iTunes search
           </span>
         </div>

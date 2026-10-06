@@ -1,6 +1,7 @@
 import { CalendarDays, Mic2, Music2, Radio, Star, Trophy, Users2 } from "lucide-react";
 
-import { pick, type Locale } from "@/lib/i18n";
+import { COUNT_FORMS, formatCount, pick, type Locale } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import type { ArchiveRankingItem, ArchiveStatsSummary } from "@/lib/domain/archive-stats";
 
 import { AnimatedNumber } from "@/components/animated-number";
@@ -23,7 +24,7 @@ function StatTile({
           <p className="font-display text-4xl text-sand">
             {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
           </p>
-          <p className="mt-9 text-[11px] font-bold uppercase tracking-[0.28em] text-sand/52">{label}</p>
+          <p className="mt-9 text-xs font-bold text-sand/52">{label}</p>
           {hint ? <p className="mt-1 text-xs text-sand/50">{hint}</p> : null}
         </div>
         <Icon className="h-4 w-4 text-sand/36" />
@@ -33,17 +34,19 @@ function StatTile({
 }
 
 function RankingList({
+  formatHint,
+  formatValue,
   icon: Icon,
   items,
   locale,
   title,
-  valueLabel,
 }: {
+  formatHint?: (hint: string) => string;
+  formatValue: (value: number) => string;
   icon: typeof Mic2;
   items: ArchiveRankingItem[];
   locale: Locale;
   title: string;
-  valueLabel: string;
 }) {
   return (
     <div className="space-y-4">
@@ -58,11 +61,11 @@ function RankingList({
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-sand">{item.label}</p>
               <p className="min-h-4 truncate text-xs text-sand/44">
-                {item.hint ?? ""}
+                {item.hint ? (formatHint ? formatHint(item.hint) : item.hint) : ""}
               </p>
             </div>
             <p className="text-sm font-bold text-sand/82">
-              {item.value} {valueLabel}
+              {formatValue(item.value)}
             </p>
           </div>
         ))}
@@ -106,17 +109,17 @@ export function ArchiveStatsSection({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile icon={Mic2} label={pick(locale, { en: "Gigs played", ru: "Сыгранных гигов" })} value={stats.totalGigs} />
-        <StatTile icon={Music2} label={pick(locale, { en: "Tracks", ru: "Треков" })} value={stats.totalTracks} />
+        <StatTile icon={Music2} label={pick(locale, { en: "Performed songs", ru: "Песен из сетлиста" })} value={stats.totalTracks} />
         <StatTile icon={Radio} label={pick(locale, { en: "Unique songs", ru: "Уникальных песен" })} value={stats.uniqueSongs} />
-        <StatTile icon={Users2} label={pick(locale, { en: "Musicians", ru: "Музыкантов" })} value={stats.totalMusicians} />
+        <StatTile icon={Users2} label={pick(locale, { en: "Participants", ru: "Участников" })} value={stats.totalMusicians} />
         <StatTile
-          hint={stats.busiestGig?.title ?? undefined}
+          hint={stats.busiestGig ? getGigDisplayTitle(stats.busiestGig, locale) : undefined}
           icon={Trophy}
           label={pick(locale, { en: "Largest set", ru: "Самый большой сет" })}
           value={stats.busiestGig?.tracks ?? 0}
         />
         <StatTile
-          hint={peakYear ? pick(locale, { en: `${peakYear.tracks} tracks released`, ru: `${peakYear.tracks} треков` }) : undefined}
+          hint={peakYear ? formatCount(locale, peakYear.tracks, COUNT_FORMS.performedSongs) : undefined}
           icon={Star}
           label={pick(locale, { en: "Peak year", ru: "Пиковый год" })}
           value={peakYear?.year ?? "—"}
@@ -131,8 +134,8 @@ export function ArchiveStatsSection({
               </div>
             ))}
           </div>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-sand/52">
-            {pick(locale, { en: "Tracks by year", ru: "Треки по годам" })}
+          <p className="mt-4 text-xs font-bold text-sand/52">
+            {pick(locale, { en: "Performed songs by year", ru: "Песни из сетлиста по годам" })}
           </p>
         </div>
       </div>
@@ -142,15 +145,17 @@ export function ArchiveStatsSection({
           icon={Mic2}
           items={stats.topMusicians}
           locale={locale}
-          title={pick(locale, { en: "Top musicians", ru: "Топ музыкантов" })}
-          valueLabel={pick(locale, { en: "gigs", ru: "гигов" })}
+          title={pick(locale, { en: "Top participants", ru: "Топ участников" })}
+          // value = performed songs (main set), hint = number of gigs they played in
+          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.performedSongs)}
+          formatHint={(hint) => formatCount(locale, Number(hint), COUNT_FORMS.gigs)}
         />
         <RankingList
           icon={Star}
           items={stats.topArtists}
           locale={locale}
           title={pick(locale, { en: "Top artists", ru: "Топ артистов" })}
-          valueLabel={pick(locale, { en: "plays", ru: "раз" })}
+          formatValue={(value) => formatCount(locale, value, COUNT_FORMS.plays)}
         />
       </div>
     </section>

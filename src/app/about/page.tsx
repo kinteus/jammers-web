@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, Disc3, Music2, Radio, Square } from "lucide-react";
 
@@ -41,11 +42,12 @@ const partnerIcons = [Square, Music2, Radio, Disc3];
 
 export default async function AboutPage() {
   const locale = await getLocale();
+  const heroPhoto = ABOUT_PAGE_CONTENT.gallery[0];
 
   return (
     <div className="space-y-10">
-      <section className="reference-section overflow-hidden px-6 py-12 md:px-8 md:py-20">
-        <div className="max-w-3xl space-y-8">
+      <section className="reference-section grid overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="max-w-3xl space-y-8 px-6 py-12 md:px-8 md:py-20">
           <p className="reference-kicker">{pick(locale, ABOUT_PAGE_CONTENT.badge)}</p>
           <div className="space-y-8">
             <h1 className="font-display text-6xl uppercase text-sand md:text-7xl">
@@ -57,6 +59,24 @@ export default async function AboutPage() {
             </div>
           </div>
         </div>
+        {heroPhoto ? (
+          // Real gig photo fills the hero's right half (below the text on mobile).
+          // next/image serves resized WebP/AVIF instead of the 4.8 MB original.
+          <figure className="relative min-h-[16rem] lg:min-h-full" data-about-hero-photo>
+            <Image
+              alt={heroPhoto.alt}
+              className="object-cover"
+              fill
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              src={heroPhoto.src}
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent lg:bg-gradient-to-r lg:from-[#151515] lg:via-transparent"
+            />
+          </figure>
+        ) : null}
       </section>
 
       <section className="space-y-5">
@@ -137,9 +157,9 @@ export default async function AboutPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {ABOUT_PAGE_CONTENT.organizers.map((organizer) => (
-            <Card className="space-y-6 px-5 py-5" key={organizer.name}>
+            <Card className="space-y-6 px-5 py-5" key={organizer.contactValue}>
               <div className="space-y-4">
-                <h3 className="font-display text-2xl uppercase text-sand">{organizer.name}</h3>
+                <h3 className="font-display text-2xl uppercase text-sand">{pick(locale, organizer.name)}</h3>
                 <p className="text-sm text-sand/58">{organizer.role[locale]}</p>
               </div>
               <div className="border-t border-white/10 pt-4">
@@ -191,7 +211,7 @@ export default async function AboutPage() {
                 <Icon className="h-6 w-6 text-sand/45" />
                 <h3 className="font-display text-2xl uppercase text-sand">{partner.name}</h3>
                 <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sand/45">
-                  {pick(locale, { en: "Partner slot", ru: "Партнёр" })}
+                  {pick(locale, { en: "Partner", ru: "Партнёр" })}
                 </p>
               </Card>
             );

@@ -12,7 +12,6 @@ import {
   Search,
   Send,
   UserPlus,
-  X,
   Youtube,
 } from "lucide-react";
 
@@ -35,6 +34,7 @@ import {
 
 import { FLOATING_TOAST_ERROR_AUTO_HIDE_MS, FloatingToast } from "@/components/floating-toast";
 import { TrackArrangementEditLauncher } from "@/components/track-arrangement-edit-launcher";
+import { TrackRowMenu } from "@/components/track-row-menu";
 import { Loader } from "@/components/ui/loader";
 
 type BoardUser = {
@@ -229,6 +229,8 @@ function measureStickyHeaderOffset() {
   return Math.max(0, Math.round(rect.bottom));
 }
 
+const SEAT_COLUMN_WIDTH_REM = 7;
+
 function useStickyTableHeader() {
   const tableRef = useRef<HTMLTableElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement | null>(null);
@@ -275,6 +277,44 @@ function useStickyTableHeader() {
   }, []);
 
   return { tableRef, theadRef };
+}
+
+// Tracks whether the board scroller hides columns to the right, to show a fade + hint.
+function useHorizontalOverflowHint() {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [hasMoreRight, setHasMoreRight] = useState(false);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+
+    function update() {
+      const element = scrollerRef.current;
+      if (!element) {
+        return;
+      }
+      // Measure the table itself: tooltip pseudo-elements inflate scrollWidth.
+      const contentWidth =
+        element.querySelector("table")?.getBoundingClientRect().width ?? element.scrollWidth;
+      setHasMoreRight(element.scrollLeft + element.clientWidth < contentWidth - 4);
+    }
+
+    update();
+    scroller.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => update());
+    observer?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return { hasMoreRight, scrollerRef };
 }
 
 function useCloseOnOutsidePointerDown({
@@ -345,7 +385,7 @@ function formatPersonLabel(
   if (user.telegramUsername) {
     return `@${user.telegramUsername}`;
   }
-  return user.fullName ?? pick(locale, { en: "Unknown musician", ru: "Неизвестный музыкант" });
+  return user.fullName ?? pick(locale, { en: "Unknown participant", ru: "Неизвестный участник" });
 }
 
 function getTelegramProfileUrl(user: {
@@ -397,7 +437,7 @@ export function getMobileSeatDisplayLabel(seat: SeatLabelSource, locale: Locale)
   if (seat.isOptional) {
     return pick(locale, {
       en: `${seat.label} · optional`,
-      ru: `${seat.label} · optional`,
+      ru: `${seat.label} · опционально`,
     });
   }
 
@@ -416,10 +456,6 @@ function getMissingRequiredSummary(seats: SeatLabelSource[], locale: Locale) {
   });
 }
 
-function shouldShowPlaybackColumn(trackInfoFields: TrackInfoField[]) {
-  return trackInfoFields.some((field) => field.key === "playback");
-}
-
 function getVisibleTrackInfoLabels({
   locale,
   track,
@@ -431,7 +467,7 @@ function getVisibleTrackInfoLabels({
 }) {
   const activeKeys = getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired);
   return trackInfoFields
-    .filter((field) => field.key !== "playback" && activeKeys.includes(field.key))
+    .filter((field) => activeKeys.includes(field.key))
     .map((field) => getTrackInfoLabel(field, locale));
 }
 
@@ -510,7 +546,7 @@ function claimSeatButtonClass(isOptional: boolean, variant: "icon" | "text") {
 
   if (variant === "text") {
     return cn(
-      "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-70",
+      "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-70",
       colorClass,
     );
   }
@@ -675,22 +711,22 @@ function buildClaimFeedback(
         description: pick(locale, {
           en:
             result.notice === "opt-request-saved"
-              ? "The request is saved locally and still visible to the track proposer."
-              : "The track proposer will review your request.",
+              ? "The request is saved locally and still visible to the song's proposer."
+              : "The song's proposer will review your request.",
           ru:
             result.notice === "opt-request-saved"
-              ? "Запрос сохранён локально и всё равно будет виден автору трека."
-              : "Автор трека увидит и рассмотрит твой запрос.",
+              ? "Запрос сохранён локально и всё равно будет виден автору заявки."
+              : "Автор заявки увидит и рассмотрит твой запрос.",
         }),
       };
     }
 
     return {
       tone: "success",
-      title: pick(locale, { en: "You're in", ru: "Ты в лайнапе" }),
+      title: pick(locale, { en: "You're in", ru: "Ты в составе" }),
       description: pick(locale, {
         en: "The seat was claimed and the board updated instantly.",
-        ru: "Место занято, борд обновился сразу.",
+        ru: "Место занято, таблица обновилась сразу.",
       }),
     };
   }
@@ -701,7 +737,7 @@ function buildClaimFeedback(
       title: pick(locale, { en: "Telegram username needed", ru: "Нужен Telegram-ник" }),
       description: pick(locale, {
         en: "Set your Telegram username in your profile before changing the board.",
-        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять сетлист.",
+        ru: "Укажи свой Telegram-ник в профиле, прежде чем менять таблицу.",
       }),
     };
   }
@@ -711,7 +747,7 @@ function buildClaimFeedback(
       tone: "error",
       title: pick(locale, { en: "Seat already taken", ru: "Место уже занято" }),
       description: pick(locale, {
-        en: "Someone joined this position first. Pick another open seat.",
+        en: "Someone took this seat first. Pick another open seat.",
         ru: "Кто-то занял это место раньше. Выбери другое открытое место.",
       }),
     };
@@ -722,8 +758,8 @@ function buildClaimFeedback(
       tone: "error",
       title: pick(locale, { en: "Seat unavailable", ru: "Место недоступно" }),
       description: pick(locale, {
-        en: "This position is disabled in the current arrangement.",
-        ru: "Эта позиция выключена в текущей аранжировке.",
+        en: "This seat is disabled in the current arrangement.",
+        ru: "Это место выключено в текущей аранжировке.",
       }),
     };
   }
@@ -731,7 +767,7 @@ function buildClaimFeedback(
   if (result.error === "track-limit") {
     return {
       tone: "error",
-      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      title: pick(locale, { en: "Song limit reached", ru: "Лимит песен достигнут" }),
       description: pick(locale, {
         en: "Leave one of your current songs before joining another one.",
         ru: "Сначала выпишись из одной из текущих песен, потом вписывайся в новую.",
@@ -742,9 +778,9 @@ function buildClaimFeedback(
   if (result.error === "duplicate-role-family") {
     return {
       tone: "error",
-      title: pick(locale, { en: "Already on this role", ru: "Эта роль уже занята тобой" }),
+      title: pick(locale, { en: "Already on this instrument", ru: "Ты уже на этом инструменте" }),
       description: pick(locale, {
-        en: "You can join the same song multiple times only with different instrument families.",
+        en: "You can join the same song more than once only on different instruments.",
         ru: "В одну песню можно вписаться несколько раз только на разные типы инструментов.",
       }),
     };
@@ -799,8 +835,8 @@ function buildInviteFeedback(
       tone: "success",
       title: pick(locale, { en: "Invite sent", ru: "Инвайт отправлен" }),
       description: pick(locale, {
-        en: "The musician can accept it from their profile.",
-        ru: "Музыкант сможет принять его в профиле.",
+        en: "The participant can accept it from their profile.",
+        ru: "Участник сможет принять его в профиле.",
       }),
     };
   }
@@ -808,10 +844,10 @@ function buildInviteFeedback(
   const errorCopy: Record<string, BoardFeedback> = {
     "invite-recipient-required": {
       tone: "error",
-      title: pick(locale, { en: "Pick a musician", ru: "Выбери музыканта" }),
+      title: pick(locale, { en: "Pick a participant", ru: "Выбери участника" }),
       description: pick(locale, {
-        en: "Use the registered musicians list before sending an invite.",
-        ru: "Перед отправкой выбери человека из списка зарегистрированных музыкантов.",
+        en: "Pick someone from the registered participants list before sending an invite.",
+        ru: "Перед отправкой выбери человека из списка зарегистрированных участников.",
       }),
     },
     "invite-already-pending": {
@@ -824,18 +860,18 @@ function buildInviteFeedback(
     },
     "invite-track-limit": {
       tone: "error",
-      title: pick(locale, { en: "Track limit reached", ru: "Лимит треков достигнут" }),
+      title: pick(locale, { en: "Song limit reached", ru: "Лимит песен достигнут" }),
       description: pick(locale, {
-        en: "The musician is already at the event track limit.",
-        ru: "У музыканта уже достигнут лимит треков на этот гиг.",
+        en: "This participant has already reached the song limit for this gig.",
+        ru: "У участника уже достигнут лимит песен на этот гиг.",
       }),
     },
     "invite-duplicate-role-family": {
       tone: "error",
-      title: pick(locale, { en: "Role already taken", ru: "Роль уже занята" }),
+      title: pick(locale, { en: "Instrument already taken", ru: "Инструмент уже занят" }),
       description: pick(locale, {
-        en: "The musician already has this instrument family on the song.",
-        ru: "У музыканта уже есть эта группа инструментов в песне.",
+        en: "This participant already plays this instrument in the song.",
+        ru: "Этот участник уже играет на этом инструменте в песне.",
       }),
     },
   };
@@ -845,8 +881,8 @@ function buildInviteFeedback(
       tone: "error",
       title: pick(locale, { en: "Could not send invite", ru: "Не получилось отправить" }),
       description: pick(locale, {
-        en: "Please pick a registered musician and try again.",
-        ru: "Выбери зарегистрированного музыканта и попробуй ещё раз.",
+        en: "Please pick a registered participant and try again.",
+        ru: "Выбери зарегистрированного участника и попробуй ещё раз.",
       }),
     }
   );
@@ -909,7 +945,7 @@ function SeatRequestsControl({
       ref={detailsRef}
     >
       <summary
-        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[8px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[3px]"
+        className="flex h-[1.125rem] w-[1.125rem] list-none cursor-pointer items-center justify-center rounded-full border border-white/16 bg-black/28 text-[11px] font-semibold leading-none text-white/88 transition hover:bg-black/40 -translate-x-[3px]"
         onClick={(event) => {
           event.preventDefault();
           setIsOpen((current) => !current);
@@ -928,11 +964,11 @@ function SeatRequestsControl({
           preferAbove ? "bottom-6" : "top-5",
         )}
       >
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/62">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/62">
           {pick(locale, { en: "Pending seat activity", ru: "Ожидает по месту" })}
         </p>
         {requests.map((request) => (
-          <p className="text-[10px] leading-4 text-white/78" key={request.id}>
+          <p className="text-xs leading-4 text-white/78" key={request.id}>
             {request.kind === "invite"
               ? pick(locale, {
                   en: `${request.requesterLabel} invited ${request.targetLabel}`,
@@ -1063,8 +1099,8 @@ function TrackNotesControl({
           setIsOpen((current) => !current);
         }}
         title={pick(locale, {
-          en: "Track notes",
-          ru: "Заметки к треку",
+          en: "Song notes",
+          ru: "Заметки к песне",
         })}
         ref={triggerRef}
         type="button"
@@ -1207,24 +1243,24 @@ function InviteControl({
       <button
         aria-label={pick(locale, {
           en: requestLabel
-            ? `Suggest player for ${seat.label}`
-            : `Invite player to ${seat.label}`,
+            ? `Suggest a participant for ${seat.label}`
+            : `Invite a participant to ${seat.label}`,
           ru: requestLabel
-            ? `Предложить музыканта на ${seat.label}`
-            : `Позвать музыканта на ${seat.label}`,
+            ? `Предложить участника на ${seat.label}`
+            : `Позвать участника на ${seat.label}`,
         })}
         className={cn("list-none cursor-pointer", iconButtonClass())}
         data-tip={pick(locale, {
-          en: requestLabel ? "Suggest player" : "Invite",
+          en: requestLabel ? "Suggest participant" : "Invite",
           ru: requestLabel ? "Предложить" : "Позвать",
         })}
         title={pick(locale, {
           en: requestLabel
-            ? `Suggest player for ${seat.label}`
-            : `Invite player to ${seat.label}`,
+            ? `Suggest a participant for ${seat.label}`
+            : `Invite a participant to ${seat.label}`,
           ru: requestLabel
-            ? `Предложить музыканта на ${seat.label}`
-            : `Позвать музыканта на ${seat.label}`,
+            ? `Предложить участника на ${seat.label}`
+            : `Позвать участника на ${seat.label}`,
         })}
         onClick={(event) => {
           event.preventDefault();
@@ -1263,8 +1299,8 @@ function InviteControl({
             <Search className="h-3.5 w-3.5 shrink-0 text-white/42" />
             <input
               aria-label={pick(locale, {
-                en: "Search registered musicians",
-                ru: "Поиск зарегистрированных музыкантов",
+                en: "Search registered participants",
+                ru: "Поиск зарегистрированных участников",
               })}
               className="min-w-0 flex-1 border-0 bg-transparent px-0 py-1.5 text-xs focus:ring-0"
               onChange={(event) => {
@@ -1308,7 +1344,7 @@ function InviteControl({
                   >
                     <span className="truncate font-semibold text-sand">{label}</span>
                     {secondary ? (
-                      <span className="truncate text-[10px] text-white/54">{secondary}</span>
+                      <span className="truncate text-xs text-white/54">{secondary}</span>
                     ) : null}
                   </button>
                 );
@@ -1316,14 +1352,14 @@ function InviteControl({
             ) : (
               <p className="px-2.5 py-2 text-[11px] text-white/54">
                 {pick(locale, {
-                  en: loading ? "Searching…" : failed ? "Search unavailable. Try again." : "No registered musicians found.",
-                  ru: loading ? "Поиск…" : failed ? "Поиск недоступен. Попробуй ещё раз." : "Зарегистрированные музыканты не найдены.",
+                  en: loading ? "Searching…" : failed ? "Search unavailable. Try again." : "No registered participants found.",
+                  ru: loading ? "Поиск…" : failed ? "Поиск недоступен. Попробуй ещё раз." : "Зарегистрированные участники не найдены.",
                 })}
               </p>
             )}
           </div> : null}
           <button
-            className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting || !selectedUser}
             type="submit"
           >
@@ -1374,12 +1410,13 @@ export function TrackBoardTable({
   const [flashingSeatIds, setFlashingSeatIds] = useState<Set<string>>(new Set());
   const previousTracksRef = useRef(tracks);
   const { tableRef, theadRef } = useStickyTableHeader();
+  const { hasMoreRight, scrollerRef } = useHorizontalOverflowHint();
   const [seatSort, setSeatSort] = useState<SeatAvailabilitySort | null>(null);
   const columns = expandSeatColumns(lineupSlots);
   const columnGroups = groupColumns(columns);
-  const showPlaybackColumn = shouldShowPlaybackColumn(trackInfoFields);
   const displayTracks = sortTracksBySeatAvailability(currentTracks, seatSort);
-  const tableMinWidthRem = 22 + (showPlaybackColumn ? 5.75 : 0) + columns.length * 7.5;
+  // Song column min 20rem + 7rem per seat: a 9-seat lineup (~83rem) fits a 1440px screen.
+  const tableMinWidthRem = 20 + columns.length * SEAT_COLUMN_WIDTH_REM;
 
   useEffect(() => {
     const changedSeatIds = getChangedSeatIds(previousTracksRef.current, tracks);
@@ -1389,7 +1426,7 @@ export function TrackBoardTable({
       const timeoutId = window.setTimeout(() => setFlashingSeatIds(new Set()), 2200);
       setFeedback({
         tone: "success",
-        title: pick(locale, { en: "Board updated", ru: "Сетлист обновлён" }),
+        title: pick(locale, { en: "Board updated", ru: "Таблица обновлена" }),
         description: pick(locale, {
           en: "Fresh changes are highlighted on the board.",
           ru: "Свежие изменения подсвечены в таблице.",
@@ -1408,10 +1445,10 @@ export function TrackBoardTable({
       const detail = (event as CustomEvent<BoardUpdateEventDetail>).detail;
       setFeedback({
         tone: "success",
-        title: pick(locale, { en: "Live board activity", ru: "Активность в сетлисте" }),
+        title: pick(locale, { en: "Live board activity", ru: "Активность в таблице" }),
         description: pick(locale, {
           en: detail?.reason ? "Someone updated the board. Refreshing now." : "Refreshing the board now.",
-          ru: detail?.reason ? "Кто-то обновил сетлист. Сейчас подтянем изменения." : "Сейчас подтянем изменения.",
+          ru: detail?.reason ? "Кто-то обновил таблицу. Сейчас подтянем изменения." : "Сейчас подтянем изменения.",
         }),
       });
     }
@@ -1518,7 +1555,7 @@ export function TrackBoardTable({
         title: pick(locale, { en: "Could not join", ru: "Не получилось вписаться" }),
         description: pick(locale, {
           en: "The board did not confirm your change. Please try again.",
-          ru: "Борд не подтвердил изменение. Попробуй ещё раз.",
+          ru: "Таблица не подтвердила изменение. Попробуй ещё раз.",
         }),
       });
     } finally {
@@ -1561,7 +1598,7 @@ export function TrackBoardTable({
                   tone: "error",
                   title: pick(locale, { en: "Can't release seat", ru: "Нельзя освободить место" }),
                   description: pick(locale, {
-                    en: "Only the player or an admin can remove this participant.",
+                    en: "Only the participant or an admin can free this seat.",
                     ru: "Освобождать это место может только сам участник или админ.",
                   }),
                 }
@@ -1588,8 +1625,8 @@ export function TrackBoardTable({
             tone: "success",
             title: pick(locale, { en: "Seat released", ru: "Место освобождено" }),
             description: pick(locale, {
-              en: "The line-up updated right away.",
-              ru: "Лайнап обновился сразу.",
+              en: "The board updated right away.",
+              ru: "Таблица обновилась сразу.",
             }),
           });
         }
@@ -1600,7 +1637,7 @@ export function TrackBoardTable({
           title: pick(locale, { en: "Could not release seat", ru: "Не удалось освободить место" }),
           description: pick(locale, {
             en: "The board did not confirm your change. Please try again.",
-            ru: "Борд не подтвердил изменение. Попробуй ещё раз.",
+            ru: "Таблица не подтвердила изменение. Попробуй ещё раз.",
           }),
         });
       } finally {
@@ -1695,7 +1732,8 @@ export function TrackBoardTable({
 
       <div className="brand-shell hidden overflow-hidden rounded-[1.25rem] border-white/14 shadow-table-glow md:block md:mx-[calc(50%-50vw)] md:w-screen md:rounded-none">
         <div className="h-1 w-full stage-rule" />
-        <div className="table-scroll overflow-x-auto overflow-y-clip">
+        <div className="relative">
+        <div className="table-scroll overflow-x-auto overflow-y-clip" ref={scrollerRef}>
         <table
           className="table-fixed border-separate border-spacing-0"
           ref={tableRef}
@@ -1704,11 +1742,10 @@ export function TrackBoardTable({
           <colgroup>
             {/* Song column is flexible: it absorbs leftover width so the
                 Artist — Track line gets as much room as possible. The table
-                min-width keeps it at ~22rem before horizontal scrolling. */}
+                min-width keeps it at ~20rem before horizontal scrolling. */}
             <col />
-            {showPlaybackColumn ? <col style={{ width: "5.75rem" }} /> : null}
             {columns.map((column) => (
-              <col key={column.seatKey} style={{ width: "7.5rem" }} />
+              <col key={column.seatKey} style={{ width: `${SEAT_COLUMN_WIDTH_REM}rem` }} />
             ))}
           </colgroup>
           <thead className="relative z-30" ref={theadRef}>
@@ -1719,18 +1756,10 @@ export function TrackBoardTable({
               >
                 {pick(locale, { en: "Song", ru: "Песня" })}
               </th>
-              {showPlaybackColumn ? (
-                <th
-                  className="z-30 border-b border-r border-white/16 bg-[#1b1b1b] px-2 py-2 text-center text-[11px] uppercase tracking-[0.2em] text-white/92"
-                  rowSpan={2}
-                >
-                  {pick(locale, { en: "Playback", ru: "Плейбэк" })}
-                </th>
-              ) : null}
               {columnGroups.map((group, index) => (
                 <th
                   className={cn(
-                    "z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[10px] uppercase tracking-[0.22em] text-white/82",
+                    "z-30 border-b border-white/16 bg-[#1b1b1b] px-0 py-0 text-left text-[11px] uppercase tracking-[0.22em] text-white/82",
                     index > 0 && "border-l border-white/16",
                   )}
                   colSpan={group.columns.length}
@@ -1863,7 +1892,7 @@ export function TrackBoardTable({
                           </a>
                           {activeTrackInfoLabels.length > 0 ? (
                             <span
-                              className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
+                              className="shrink-0 rounded-full border border-gold/18 bg-gold/8 px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.12em] text-gold"
                               title={activeTrackInfoLabels.join(", ")}
                             >
                               {activeTrackInfoLabels[0]}
@@ -1887,7 +1916,7 @@ export function TrackBoardTable({
                               ? completion.optionalOpen > 0
                                 ? pick(locale, {
                                     en: `${completion.optionalOpen} optional left`,
-                                    ru: `${completion.optionalOpen} optional осталось`,
+                                    ru: `Опциональных мест: ${completion.optionalOpen}`,
                                   })
                                 : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })
                               : pick(locale, {
@@ -1917,42 +1946,15 @@ export function TrackBoardTable({
                               trackInfoFields={trackInfoFields}
                             />
                             {canManageTrack ? (
-                              <form
+                              <TrackRowMenu
                                 action={cancelTrackAction}
-                                onSubmit={(event) => {
-                                  if (
-                                    !window.confirm(
-                                      pick(locale, {
-                                        en: `Delete "${track.song.title}" from the setlist?`,
-                                        ru: `Удалить "${track.song.title}" из сетлиста?`,
-                                      }),
-                                    )
-                                  ) {
-                                    event.preventDefault();
-                                  }
-                                }}
-                              >
-                                <input name="trackId" type="hidden" value={track.id} />
-                                <input name="eventSlug" type="hidden" value={eventSlug} />
-                                <button
-                                  aria-label={pick(locale, {
-                                    en: `Delete ${track.song.title}`,
-                                    ru: `Удалить ${track.song.title}`,
-                                  })}
-                                  className={cn(
-                                    iconButtonClass(),
-                                    "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                                  )}
-                                  data-tip={pick(locale, { en: "Delete", ru: "Удалить" })}
-                                  title={pick(locale, {
-                                    en: `Delete ${track.song.title}`,
-                                    ru: `Удалить ${track.song.title}`,
-                                  })}
-                                  type="submit"
-                                >
-                                  <X className="h-4 w-4 stroke-[3]" />
-                                </button>
-                              </form>
+                                claimedSeatCount={track.seats.filter((seat) => seat.userId).length}
+                                eventSlug={eventSlug}
+                                locale={locale}
+                                songTitle={track.song.title}
+                                trackId={track.id}
+                                triggerClassName={iconButtonClass()}
+                              />
                             ) : null}
                           </>
                         ) : null}
@@ -1960,28 +1962,6 @@ export function TrackBoardTable({
                     </div>
                   </td>
 
-                  {showPlaybackColumn ? (
-                    <td
-                      className={cn(
-                        "border-b border-r border-white/14 px-2 py-1.5 text-center align-middle text-[10px] font-semibold uppercase tracking-[0.14em]",
-                        rowBackground,
-                      )}
-                      data-playback-cell={track.id}
-                    >
-                      <span
-                        className={cn(
-                          "inline-flex min-w-12 justify-center rounded-full border px-2 py-1",
-                          track.playbackRequired
-                            ? "border-gold/28 bg-gold/12 text-gold"
-                            : "border-white/10 bg-white/5 text-white/42",
-                        )}
-                      >
-                        {track.playbackRequired
-                          ? pick(locale, { en: "Yes", ru: "Да" })
-                          : pick(locale, { en: "No", ru: "Нет" })}
-                      </span>
-                    </td>
-                  ) : null}
 
                   {columns.map((column, columnIndex) => {
                     const seat = seatIndex.get(`${column.slotId}:${column.seatIndex}`);
@@ -2038,8 +2018,8 @@ export function TrackBoardTable({
                                 })
                               : seat.isOptional
                                 ? pick(locale, {
-                                    en: `${seat.label}: optional part`,
-                                    ru: `${seat.label}: optional партия`,
+                                    en: `${seat.label}: optional seat`,
+                                    ru: `${seat.label}: опциональное место`,
                                   })
                                 : pick(locale, {
                                     en: `${seat.label}: open`,
@@ -2060,12 +2040,12 @@ export function TrackBoardTable({
                                     )}
                                   />
                                   {seat.isOptional ? (
-                                    <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-gold/84">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gold/84">
                                       OPT
                                     </span>
                                   ) : null}
                                   {userHasPendingRequest ? (
-                                    <span className="rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white">
+                                    <span className="rounded-full border border-blue/30 bg-blue/16 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-white">
                                       {pick(locale, { en: "Sent", ru: "Есть" })}
                                     </span>
                                   ) : null}
@@ -2135,7 +2115,7 @@ export function TrackBoardTable({
                                               : `Join ${seat.label}`,
                                         ru:
                                           !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                            ? `Попросить автора трека добавить тебя на ${seat.label}`
+                                            ? `Попросить автора заявки добавить тебя на ${seat.label}`
                                             : seat.isOptional
                                               ? `Вписаться на optional ${seat.label}`
                                               : `Вписаться на ${seat.label}`,
@@ -2209,7 +2189,7 @@ export function TrackBoardTable({
                               {getTelegramProfileUrl(seat.user) ? (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <a
-                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                    className="max-w-full truncate text-center text-xs font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                     href={getTelegramProfileUrl(seat.user) ?? undefined}
                                     rel="noreferrer"
                                     target="_blank"
@@ -2221,7 +2201,7 @@ export function TrackBoardTable({
                               ) : (
                                 <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-4">
                                   <span
-                                    className="max-w-full truncate text-center text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                    className="max-w-full truncate text-center text-xs font-semibold leading-[1.05rem] text-sand"
                                     title={formatPersonLabel(seat.user, locale)}
                                   >
                                     {formatPersonLabel(seat.user, locale)}
@@ -2261,6 +2241,29 @@ export function TrackBoardTable({
             })}
           </tbody>
         </table>
+        </div>
+        {hasMoreRight ? (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 z-40 w-16 bg-gradient-to-l from-black/80 to-transparent"
+              data-board-overflow-fade
+            />
+            <button
+              className="absolute right-3 top-2 z-50 inline-flex items-center gap-1 rounded-full border border-white/16 bg-black/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/86 shadow-card transition hover:bg-black/90 hover:text-white"
+              data-board-overflow-hint
+              onClick={() =>
+                scrollerRef.current?.scrollBy({
+                  left: scrollerRef.current.clientWidth * 0.6,
+                  behavior: "smooth",
+                })
+              }
+              type="button"
+            >
+              {pick(locale, { en: "More columns →", ru: "Ещё колонки →" })}
+            </button>
+          </>
+        ) : null}
         </div>
       </div>
 
@@ -2316,7 +2319,7 @@ export function TrackBoardTable({
                             en: `Search on YouTube: ${getTrackFullTitle(track)}`,
                             ru: `Искать на YouTube: ${getTrackFullTitle(track)}`,
                           })}
-                          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-red/25 bg-red/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/84"
+                          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-red/25 bg-red/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/84"
                           data-mobile-youtube-link={track.id}
                           href={getYoutubeSearchUrl(track)}
                           rel="noreferrer"
@@ -2328,22 +2331,31 @@ export function TrackBoardTable({
                         </a>
                       </div>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/72">
+                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/72">
                       {pick(locale, { en: "Details", ru: "Детали" })}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-white/62">
-                    <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1">
+                  <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.14em] text-white/62">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1",
+                        readiness.isReady
+                          ? "border-emerald-300/24 bg-emerald-400/12 text-emerald-100"
+                          : "border-white/10 bg-white/6",
+                      )}
+                      data-mobile-required-status={readiness.isReady ? "ready" : "missing"}
+                    >
                       {missingRequiredSummary}
                     </span>
-                    {readiness.isReady ? (
-                      <span className="rounded-full border border-emerald-300/24 bg-emerald-400/12 px-2.5 py-1 text-emerald-100">
-                        {readiness.optionalOpen > 0
-                          ? pick(locale, {
-                              en: `${readiness.optionalOpen} optional left`,
-                              ru: `${readiness.optionalOpen} optional осталось`,
-                            })
-                          : pick(locale, { en: "All required filled", ru: "Обязательные закрыты" })}
+                    {readiness.isReady && readiness.optionalOpen > 0 ? (
+                      <span
+                        className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1"
+                        data-mobile-optional-status
+                      >
+                        {pick(locale, {
+                          en: `${readiness.optionalOpen} optional left`,
+                          ru: `Опциональных мест: ${readiness.optionalOpen}`,
+                        })}
                       </span>
                     ) : null}
                     {activeTrackInfoLabels.map((label) => (
@@ -2359,14 +2371,6 @@ export function TrackBoardTable({
               </summary>
 
               <div className="space-y-3 border-t border-white/10 px-4 py-4">
-                {showPlaybackColumn ? (
-                  <div className="inline-flex rounded-sm border border-gold/18 bg-gold/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
-                    {pick(locale, { en: "Playback", ru: "Плейбэк" })}:{" "}
-                    {track.playbackRequired
-                      ? pick(locale, { en: "yes", ru: "да" })
-                      : pick(locale, { en: "no", ru: "нет" })}
-                  </div>
-                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   {track.comment ? (
                     <TrackNotesControl comment={track.comment} layout="mobile" locale={locale} />
@@ -2386,38 +2390,15 @@ export function TrackBoardTable({
                         trackInfoFields={trackInfoFields}
                       />
                       {canManageTrack ? (
-                        <form
+                        <TrackRowMenu
                           action={cancelTrackAction}
-                          onSubmit={(event) => {
-                            if (
-                              !window.confirm(
-                                pick(locale, {
-                                  en: `Delete "${track.song.title}" from the setlist?`,
-                                  ru: `Удалить "${track.song.title}" из сетлиста?`,
-                                }),
-                              )
-                            ) {
-                              event.preventDefault();
-                            }
-                          }}
-                        >
-                          <input name="trackId" type="hidden" value={track.id} />
-                          <input name="eventSlug" type="hidden" value={eventSlug} />
-                          <button
-                            aria-label={pick(locale, {
-                              en: `Delete ${track.song.title}`,
-                              ru: `Удалить ${track.song.title}`,
-                            })}
-                            className={cn(
-                              iconButtonClass(),
-                              "border-red/35 bg-red/10 text-red hover:border-red/60 hover:bg-red/20 hover:text-white",
-                            )}
-                            data-tip={pick(locale, { en: "Delete", ru: "Удалить" })}
-                            type="submit"
-                          >
-                            <X className="h-4 w-4 stroke-[3]" />
-                          </button>
-                        </form>
+                          claimedSeatCount={track.seats.filter((seat) => seat.userId).length}
+                          eventSlug={eventSlug}
+                          locale={locale}
+                          songTitle={track.song.title}
+                          trackId={track.id}
+                          triggerClassName={iconButtonClass()}
+                        />
                       ) : null}
                     </>
                   ) : null}
@@ -2469,7 +2450,7 @@ export function TrackBoardTable({
                             {seat.user ? (
                               getTelegramProfileUrl(seat.user) ? (
                                 <a
-                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
+                                  className="break-all text-xs font-semibold leading-[1.05rem] text-sand transition hover:text-white hover:underline"
                                   href={getTelegramProfileUrl(seat.user) ?? undefined}
                                   rel="noreferrer"
                                   target="_blank"
@@ -2479,14 +2460,14 @@ export function TrackBoardTable({
                                 </a>
                               ) : (
                                 <span
-                                  className="break-all text-[10px] font-semibold leading-[1.05rem] text-sand"
+                                  className="break-all text-xs font-semibold leading-[1.05rem] text-sand"
                                   title={formatPersonLabel(seat.user, locale)}
                                 >
                                   {formatPersonLabel(seat.user, locale)}
                                 </span>
                               )
                             ) : (
-                              <span className="text-[10px] font-semibold text-sand">
+                              <span className="text-xs font-semibold text-sand">
                                 {getMobileSeatDisplayLabel(seat, locale)}
                               </span>
                             )}
@@ -2520,7 +2501,7 @@ export function TrackBoardTable({
                                       : `Join ${seat.label}`,
                                   ru:
                                     !isOpen && allowClosedOptionalRequests && seat.isOptional
-                                      ? `Попросить автора трека добавить тебя на ${seat.label}`
+                                      ? `Попросить автора заявки добавить тебя на ${seat.label}`
                                       : `Вписаться на ${seat.label}`,
                                 })}
                                 onClick={() =>
@@ -2539,7 +2520,7 @@ export function TrackBoardTable({
 
                           {canInvite ? (
                             <div className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-1.5 py-1">
-                              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/78">
+                              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/78">
                                 {pick(locale, { en: "Invite", ru: "Позвать" })}
                               </span>
                               <InviteControl
@@ -2564,7 +2545,7 @@ export function TrackBoardTable({
                                   en: `Release ${seat.label}`,
                                   ru: `Освободить ${seat.label}`,
                                 })}
-                                className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14 disabled:opacity-70"
+                                className="inline-flex items-center gap-1 rounded-sm border border-white/16 bg-white/8 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-white/14 disabled:opacity-70"
                                 disabled={pendingSeatId !== null}
                                 onClick={(event) => {
                                   event.preventDefault();
@@ -2591,7 +2572,7 @@ export function TrackBoardTable({
                           ) : null}
 
                           {userHasPendingRequest ? (
-                            <span className="rounded-full border border-blue/30 bg-blue/16 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white">
+                            <span className="rounded-full border border-blue/30 bg-blue/16 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white">
                               {pick(locale, { en: "Request sent", ru: "Запрос отправлен" })}
                             </span>
                           ) : null}

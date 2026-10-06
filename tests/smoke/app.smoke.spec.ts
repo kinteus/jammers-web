@@ -301,14 +301,14 @@ test.describe("Jammers smoke", () => {
       .fill(songTitle);
     await page.getByRole("button", { name: new RegExp(songTitle) }).click();
     await page.getByRole("button", { name: /I’m in|I'm in|Я играю/i }).click();
-    await page.getByRole("button", { name: /Publish proposal to board|Опубликовать трек/i }).click();
+    await page.getByRole("button", { name: /Publish proposal to board|Опубликовать заявку/i }).click();
 
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });
     await expect(
       page.locator("main a[href*='youtube.com/results']").filter({ hasText: songTitle }).first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: /Edit track|Редактировать трек/i }).first().click();
+    await page.getByRole("button", { name: /Edit song|Редактировать песню/i }).first().click();
     const editDialog = page.getByRole("dialog").filter({ hasText: songTitle });
     await expect(editDialog).toBeVisible();
     const updatedComment = `Smoke updated comment ${smokeRunId}`;
@@ -374,8 +374,8 @@ test.describe("Jammers smoke", () => {
     await createSmokeTrack({ eventId: event.id, slotId: slot.id, songTitle: "Invite search", proposerUsername: "kinteus" });
     await signInLocally(page, "kinteus");
     await page.goto(`/events/${event.id}`);
-    await page.getByRole("button", { name: /Invite player to Bass|Позвать музыканта на Bass/ }).first().click();
-    const input = page.getByRole("textbox", { name: /Search registered musicians|Поиск зарегистрированных музыкантов/ });
+    await page.getByRole("button", { name: /Invite a participant to Bass|Позвать участника на Bass/ }).first().click();
+    const input = page.getByRole("textbox", { name: /Search registered participants|Поиск зарегистрированных участников/ });
     const invite = input.locator("xpath=ancestor::form");
     await expect(invite.getByRole("button", { name: /@anna_drums/ })).toHaveCount(0);
     await input.fill("anna");
@@ -390,12 +390,11 @@ test.describe("Jammers smoke", () => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: /Open only the tool you need/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Create gig/i })).toBeVisible();
-    const eventAdminLink = page.getByRole("link", { name: /Open event admin/i }).first();
+    const eventAdminLink = page.getByRole("link", { name: /Open gig admin/i }).first();
     await expect(eventAdminLink).toBeVisible();
     const eventAdminHref = await eventAdminLink.getAttribute("href");
     await eventAdminLink.click();
     await expect(page).toHaveURL(new RegExp(`${eventAdminHref}$`));
-    await expect(page.getByText("Loading gig admin…", { exact: true })).toHaveCount(0);
     await expect(page.locator("form input[name='eventId']").first()).toBeAttached();
   });
 
@@ -417,8 +416,8 @@ test.describe("Jammers smoke", () => {
     await expect(row.getByRole("button", { name: "Delete track", exact: true })).toBeVisible();
     await expect(row.getByLabel("Track notes")).toBeVisible();
     await expect(row.getByRole("button", { name: "Save track settings", exact: true })).toBeVisible();
-    await expect(row.getByLabel("Search registered musicians")).toBeVisible();
-    await expect(row.getByRole("button", { name: "Needs full required line-up", exact: true })).toBeDisabled();
+    await expect(row.getByLabel("Search registered participants")).toBeVisible();
+    await expect(row.getByRole("button", { name: "Needs all required seats filled", exact: true })).toBeDisabled();
     await row.getByLabel("Track notes").fill("Edited in the unified list");
     await row.getByRole("button", { name: "Save track settings", exact: true }).click();
     await expect.poll(async () => (await db.track.findUniqueOrThrow({ where: { id: track.id } })).comment).toBe("Edited in the unified list");

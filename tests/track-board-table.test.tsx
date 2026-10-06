@@ -329,6 +329,59 @@ describe("TrackBoardTable", () => {
     expect(mobileYoutubeLink?.textContent).toContain("YouTube");
   });
 
+  it("shows each mobile readiness pill once for fully staffed songs", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    document.body.appendChild(host);
+
+    const filledSeat = (id: string, isOptional: boolean) => ({
+      id,
+      seatIndex: 1,
+      label: isOptional ? "Guitar" : "Vocals",
+      status: TrackSeatStatus.CLAIMED,
+      isOptional,
+      userId: `user-${id}`,
+      user: { id: `user-${id}`, telegramUsername: id, fullName: id },
+      lineupSlotId: isOptional ? "slot-guitar" : "slot-vocals",
+      invites: [],
+    });
+
+    await act(async () => {
+      root.render(
+        <TrackBoardTable
+          allowClosedOptionalRequests={true}
+          eventSlug="spring-jam-night"
+          isOpen={true}
+          locale="en"
+          lineupSlots={[
+            { id: "slot-vocals", key: "vocals", label: "Vocals", seatCount: 1, allowOptional: false, displayOrder: 1 },
+            { id: "slot-guitar", key: "guitar", label: "Guitar", seatCount: 1, allowOptional: true, displayOrder: 2 },
+          ]}
+          trackInfoFields={[]}
+          tracks={[
+            {
+              id: "track-all-filled",
+              proposedById: "user-proposer",
+              proposedBy: { telegramUsername: "proposer", fullName: "Proposer" },
+              song: { id: "song-full", title: "Full House", artist: { name: "Band" } },
+              playbackRequired: false,
+              trackInfoKeysJson: null,
+              comment: null,
+              seats: [filledSeat("vox", false), filledSeat("gtr", true)],
+            },
+          ]}
+          user={null}
+        />,
+      );
+    });
+
+    const requiredPills = host.querySelectorAll('[data-mobile-required-status="ready"]');
+    expect(requiredPills).toHaveLength(1);
+    expect(requiredPills[0]?.textContent).toBe("All required filled");
+    expect(host.querySelector("[data-mobile-optional-status]")).toBeNull();
+    expect(host.textContent?.match(/All required filled/g)?.length ?? 0).toBeLessThanOrEqual(2);
+  });
+
   it("summarizes missing required instruments for collapsed mobile songs", () => {
     expect(
       getMissingRequiredSeatLabels([
@@ -427,7 +480,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const notesTrigger = host.querySelector<HTMLElement>('[title="Track notes"]');
+    const notesTrigger = host.querySelector<HTMLElement>('[title="Song notes"]');
     expect(notesTrigger).not.toBeNull();
 
     await act(async () => {
@@ -666,7 +719,18 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const deleteButton = host.querySelector<HTMLButtonElement>(
+    // Delete is hidden behind the row's "more" menu, not shown directly in the row.
+    expect(host.querySelector('button[aria-label="Delete My Song"]')).toBeNull();
+
+    const menuTrigger = host.querySelector<HTMLButtonElement>('[data-track-row-menu="track-mine"]');
+    expect(menuTrigger).not.toBeNull();
+
+    await act(async () => {
+      menuTrigger?.click();
+    });
+
+    // The menu is portalled to <body> so the table's overflow does not clip it.
+    const deleteButton = document.body.querySelector<HTMLButtonElement>(
       'button[aria-label="Delete My Song"]',
     );
     expect(deleteButton).not.toBeNull();
@@ -675,10 +739,13 @@ describe("TrackBoardTable", () => {
       deleteButton?.closest("form")?.requestSubmit(deleteButton ?? undefined);
     });
 
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Delete "My Song" from the board? 1 participant loses their seat.',
+    );
     expect(cancelTrackAction).toHaveBeenCalledTimes(1);
   });
 
-  it("renders playback as a readonly table column outside the claimable seats", async () => {
+  it("shows playback as a badge next to the song title instead of a table column", async () => {
     const host = document.createElement("div");
     const root = createRoot(host);
     document.body.appendChild(host);
@@ -742,10 +809,10 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    const playbackCell = host.querySelector('[data-playback-cell="track-playback"]');
-    expect(playbackCell?.textContent).toContain("Да");
-    expect(playbackCell?.querySelector("button, form")).toBeNull();
-    expect(host.querySelectorAll("thead th")).toHaveLength(4);
+    expect(host.querySelector("[data-playback-cell]")).toBeNull();
+    expect(host.querySelector("table")?.textContent).toContain("Плейбэк");
+    // Song column + one role group + one seat column; no dedicated Playback column.
+    expect(host.querySelectorAll("thead th")).toHaveLength(3);
   });
 
   it("sorts tracks by a selected desktop seat column availability", () => {
@@ -862,7 +929,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    expect(host.querySelector('button[title="Редактировать трек"]')).not.toBeNull();
+    expect(host.querySelector('button[title="Редактировать песню"]')).not.toBeNull();
     // The old inline "track settings" popover is gone.
     expect(host.textContent).not.toContain("Сохранить настройки трека");
   });
@@ -931,7 +998,7 @@ describe("TrackBoardTable", () => {
       );
     });
 
-    expect(host.querySelector('button[title="Edit track"]')).not.toBeNull();
+    expect(host.querySelector('button[title="Edit song"]')).not.toBeNull();
   });
 
   it("closes the invite popover when clicking outside it", async () => {
@@ -1002,15 +1069,15 @@ describe("TrackBoardTable", () => {
     });
 
     await act(async () => {
-      fireEvent.click(host.querySelector('button[title="Invite player to Bass"]')!);
+      fireEvent.click(host.querySelector('button[title="Invite a participant to Bass"]')!);
     });
 
-    expect(host.querySelector('input[aria-label="Search registered musicians"]')).not.toBeNull();
+    expect(host.querySelector('input[aria-label="Search registered participants"]')).not.toBeNull();
 
     await act(async () => {
       fireEvent.pointerDown(document.body);
     });
 
-    expect(host.querySelector('input[aria-label="Search registered musicians"]')).toBeNull();
+    expect(host.querySelector('input[aria-label="Search registered participants"]')).toBeNull();
   });
 });

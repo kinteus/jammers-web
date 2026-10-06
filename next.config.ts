@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Dev only: let phones/laptops on the same Wi-Fi load dev assets and live reload
+  // (http://<this-mac's-LAN-IP>:3000). Has no effect on production builds.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.16.*.*", "*.local"],
   htmlLimitedBots: /.*/,
   output: "standalone",
   poweredByHeader: false,

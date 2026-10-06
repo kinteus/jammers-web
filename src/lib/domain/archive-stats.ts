@@ -62,6 +62,7 @@ export type ArchiveStatsSummary = {
   }>;
   busiestGig: {
     title: string;
+    startsAt: Date;
     tracks: number;
   } | null;
 };
@@ -190,6 +191,7 @@ export function buildArchiveStats(events: ArchiveStatsEvent[]): ArchiveStatsSumm
     events
       .map((event) => ({
         title: event.title,
+        startsAt: event.startsAt,
         tracks: event.setlistItems.length,
       }))
       .sort((a, b) => b.tracks - a.tracks)[0] ?? null;

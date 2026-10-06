@@ -12,9 +12,10 @@ import {
 import { getTrackCompletionSummary } from "@/lib/domain/track-completion";
 import { getLocale } from "@/lib/i18n-server";
 import { pick } from "@/lib/i18n";
+import { getGigDisplayTitle } from "@/lib/gig-title";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatEventDateLong, formatEventTime } from "@/lib/utils";
 import { getHomePageData } from "@/server/query-data";
 
 import { ArchiveStatsSection } from "@/components/archive-stats-section";
@@ -26,20 +27,32 @@ import { DatabaseUnavailableState } from "@/components/database-unavailable-stat
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Live Gig Boards",
-  description:
-    "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: "The Jammers",
-    description:
-      "Track upcoming gigs, see which songs are already moving, and join the live line-up for The Jammers community.",
-    url: "/",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  // The root page is in the same segment as the layout, so the "%s | The Jammers" template
+  // does not apply here: give it a complete, branded title.
+  const title = pick(locale, {
+    en: "Home | The Jammers",
+    ru: "Главная | The Jammers",
+  });
+  const description = pick(locale, {
+    en: "Follow upcoming gigs, see which songs are already moving, and join the live board for The Jammers community.",
+    ru: "Следи за ближайшими гигами, смотри, какие песни уже собираются, и присоединяйся к составу сообщества The Jammers.",
+  });
+
+  return {
+    title: { absolute: title },
+    description,
+    alternates: {
+      canonical: "/",
+    },
+    openGraph: {
+      title,
+      description,
+      url: "/",
+    },
+  };
+}
 
 const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
 
@@ -120,7 +133,7 @@ function getRightNowContent({
       }),
       intro: pick(locale, {
         en: "The gig is already visible on the board, but sign-up and song proposals unlock only after registration opens. Use the waiting time to review the rules and board logic.",
-        ru: "Гиг уже появился в сетлисте, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике сетлиста.",
+        ru: "Гиг уже появился в таблице, но вписка и добавление песен откроются только со стартом регистрации. Пока есть время, лучше разобраться в правилах и логике таблицы.",
       }),
       stats: [
         {
@@ -137,7 +150,7 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим сетлистом" }),
+        label: pick(locale, { en: "Watch this gig board", ru: "Следить за этой таблицей" }),
       },
       secondaryCta: {
         href: "/faq",
@@ -153,12 +166,12 @@ function getRightNowContent({
         ru: "Набор уже закрыт",
       }),
       intro: pick(locale, {
-        en: "The board is now in curation mode. The final setlist will be published soon, and everyone who made the final line-up will be notified.",
-        ru: "Сетлист перешёл в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все, кто попал в итоговый лайнап, получат уведомление.",
+        en: "The board is now in curation mode. The final setlist will be published soon, and every participant who made the final setlist will be notified.",
+        ru: "Таблица перешла в режим кураторской сборки. Финальный сетлист скоро будет опубликован, а все участники, попавшие в него, получат уведомление.",
       }),
       stats: [
         {
-          label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+          label: pick(locale, { en: "Participants already in", ru: "Участников уже в деле" }),
           value: String(event.participantCount),
         },
         {
@@ -168,7 +181,7 @@ function getRightNowContent({
       ],
       primaryCta: {
         href: `/events/${event.id}`,
-        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый сетлист" }),
+        label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытую таблицу" }),
       },
       secondaryCta: null,
     };
@@ -177,7 +190,7 @@ function getRightNowContent({
   return {
     title: pick(locale, {
       en: "Open seats on the board",
-      ru: "Открытые места в сетлисте",
+      ru: "Открытые места в таблице",
     }),
     intro: pick(locale, {
       en: "The healthiest next move is usually to close open seats before adding more weight to the set.",
@@ -189,17 +202,17 @@ function getRightNowContent({
         value: String(featuredRequiredOpenSeats),
       },
       {
-        label: pick(locale, { en: "Tracks needing players", ru: "Треков ждут людей" }),
+        label: pick(locale, { en: "Songs needing participants", ru: "Песен ждут участников" }),
         value: String(featuredTracksNeedingPlayers),
       },
       {
-        label: pick(locale, { en: "Players already in", ru: "Музыкантов уже в деле" }),
+        label: pick(locale, { en: "Participants already in", ru: "Участников уже в деле" }),
         value: String(event.participantCount),
       },
     ],
     primaryCta: {
       href: `/events/${event.id}`,
-      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть сетлист и закрыть нехватку" }),
+      label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть таблицу и закрыть нехватку" }),
     },
     secondaryCta: {
       href: "/faq",
@@ -241,7 +254,7 @@ export default async function HomePage() {
         locale={locale}
         title={pick(locale, {
           en: "The live board is temporarily unavailable",
-          ru: "Живой сетлист временно недоступен",
+          ru: "Живая таблица временно недоступна",
         })}
       />
     );
@@ -285,9 +298,17 @@ export default async function HomePage() {
                 </p>
                 <p className="max-w-2xl text-sm leading-6 text-sand/62">
                   {pick(locale, {
-                    en: "Some edges are still rough. If a flow feels unclear or breaks, send feedback from the FAQ form.",
-                    ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, отправь feedback через форму в FAQ.",
+                    en: "Some edges are still rough. If a flow feels unclear or breaks, ",
+                    ru: "Некоторые части ещё сыроваты. Если сценарий непонятен или что-то ломается, ",
                   })}
+                  <Link
+                    className="font-semibold text-gold underline-offset-4 transition hover:text-white hover:underline"
+                    data-beta-feedback-link
+                    href="/faq#feedback"
+                  >
+                    {pick(locale, { en: "send us feedback", ru: "напиши нам" })}
+                  </Link>
+                  .
                 </p>
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">
@@ -325,7 +346,7 @@ export default async function HomePage() {
                   {featuredEvent ? (
                     <Button asChild variant="primary">
                       <Link href={`/events/${featuredEvent.id}`}>
-                        {pick(locale, { en: "Open next gig board", ru: "Открыть сетлист ближайшего гига" })}
+                        {pick(locale, { en: "Open next gig board", ru: "Открыть таблицу ближайшего гига" })}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
@@ -338,43 +359,31 @@ export default async function HomePage() {
                     </Link>
                   </Button>
                 </div>
+                {featuredEvent ? (
+                  // Date, time and venue of the next gig stay on the first screen, even on phones.
+                  <p className="text-center text-sm font-semibold text-sand/80" data-hero-next-gig>
+                    {pick(locale, { en: "Next gig", ru: "Ближайший гиг" })}:{" "}
+                    <span className="text-gold">
+                      {[
+                        formatEventDateLong(featuredEvent.startsAt, locale),
+                        formatEventTime(featuredEvent.startsAt, locale),
+                        featuredEvent.venueName,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <CommunityQuotesCloud
-        desktopDisplayLimit={communityQuotesDesktopDisplayLimit}
-        locale={locale}
-        mobileDisplayLimit={communityQuotesMobileDisplayLimit}
-        quotes={communityQuotes}
-      />
 
+
+      {/* Next gig first: it is the most useful thing on the page, especially on mobile. */}
       <section className={`${HERO_FRAME_CLASS} space-y-4`}>
-        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1.5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
-              {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
-            </p>
-            <p className="text-sm leading-6 text-white/74">
-              {pick(locale, {
-                en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
-                ru: "Новичок? В FAQ объяснены логика сетлиста, правила вписки и то, что стоит сделать до предложения песен.",
-              })}
-            </p>
-          </div>
-          <div className="shrink-0">
-            <Button asChild variant="secondary">
-              <Link href="/faq">
-                {pick(locale, {
-                  en: "Read the FAQ",
-                  ru: "Открыть FAQ",
-                })}
-              </Link>
-            </Button>
-          </div>
-        </Card>
 
         <Card className="brand-stage relative overflow-hidden space-y-5 border border-gold/18 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.44)] sm:px-6 sm:py-6">
           <div
@@ -396,14 +405,14 @@ export default async function HomePage() {
               {featuredEvent ? (
                 <>
                   {pick(locale, { en: "Next gig", ru: "Следующий гиг" })}:{" "}
-                  <span className="text-gold">{featuredEvent.title}</span>
+                  <span className="text-gold">{getGigDisplayTitle(featuredEvent, locale)}</span>
                 </>
               ) : rightNowContent ? (
                 rightNowContent.title
               ) : (
                 pick(locale, {
                   en: "Why the board matters",
-                  ru: "Зачем вообще нужен этот сетлист",
+                  ru: "Зачем вообще нужна эта таблица",
                 })
               )}
             </h2>
@@ -423,7 +432,7 @@ export default async function HomePage() {
                       className="rounded-xl border border-white/12 bg-black/28 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                       key={stat.label}
                     >
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{stat.label}</p>
+                      <p className="text-xs text-white/45">{stat.label}</p>
                       <div className="mt-2 text-3xl font-semibold text-sand">{stat.value}</div>
                     </div>
                   ))}
@@ -433,7 +442,7 @@ export default async function HomePage() {
                 <div className="grid gap-3 md:grid-cols-3">
                   {featuredEvent.registrationOpensAt && featuredEvent.effectiveStatus === EventStatus.DRAFT ? (
                     <div className="rounded-xl border border-gold/18 bg-black/28 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      <p className="text-xs text-white/45">
                         {pick(locale, { en: "Board opens in", ru: "Таблица откроется через" })}
                       </p>
                       <p className="mt-1 text-lg">
@@ -448,7 +457,7 @@ export default async function HomePage() {
                   ) : null}
                   {featuredEvent.registrationClosesAt && featuredEvent.effectiveStatus === EventStatus.OPEN ? (
                     <div className="rounded-xl border border-red/18 bg-black/28 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                      <p className="text-xs text-white/45">
                         {pick(locale, { en: "Board closes in", ru: "Таблица закроется через" })}
                       </p>
                       <p className="mt-1 text-lg">
@@ -463,7 +472,7 @@ export default async function HomePage() {
                     </div>
                   ) : null}
                   <div className="rounded-xl border border-white/12 bg-black/28 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    <p className="text-xs text-white/45">
                       {pick(locale, { en: "Gig starts in", ru: "Гиг начнётся через" })}
                     </p>
                     <p className="mt-1 text-lg">
@@ -482,7 +491,7 @@ export default async function HomePage() {
                 <Button asChild variant="primary">
                   <Link href={rightNowContent?.primaryCta.href ?? `/events/${featuredEvent.id}`}>
                     {rightNowContent?.primaryCta.label ??
-                      pick(locale, { en: "Review the board", ru: "Посмотреть сетлист" })}
+                      pick(locale, { en: "Review the board", ru: "Посмотреть таблицу" })}
                   </Link>
                 </Button>
                 {rightNowContent?.secondaryCta ? (
@@ -498,12 +507,43 @@ export default async function HomePage() {
             <p className="text-sm leading-6 text-white/74">
               {pick(locale, {
                 en: "The board gives the community one shared source of truth: what songs exist, who is still missing, and which setlists already made it to the stage.",
-                ru: "Сетлист даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
+                ru: "Таблица даёт коммьюнити единый источник правды: какие песни уже есть, кого ещё не хватает и какие сетлисты уже добрались до сцены.",
               })}
             </p>
           )}
         </Card>
+
+        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
+              {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
+            </p>
+            <p className="text-sm leading-6 text-white/74">
+              {pick(locale, {
+                en: "New here? The FAQ explains the board logic, joining rules, and what to do before proposing songs.",
+                ru: "Новичок? В FAQ объяснены логика таблицы, правила вписки и то, что стоит сделать до предложения песен.",
+              })}
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button asChild variant="secondary">
+              <Link href="/faq">
+                {pick(locale, {
+                  en: "Read the FAQ",
+                  ru: "Открыть FAQ",
+                })}
+              </Link>
+            </Button>
+          </div>
+        </Card>
       </section>
+
+      <CommunityQuotesCloud
+        desktopDisplayLimit={communityQuotesDesktopDisplayLimit}
+        locale={locale}
+        mobileDisplayLimit={communityQuotesMobileDisplayLimit}
+        quotes={communityQuotes}
+      />
 
       <ArchiveStatsSection locale={locale} stats={archiveStats} />
 

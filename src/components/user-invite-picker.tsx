@@ -106,7 +106,7 @@ export function UserInvitePicker({
                     {getInviteableUserLabel(candidate)}
                   </span>
                   {secondary ? (
-                    <span className="truncate text-[10px] text-white/54">{secondary}</span>
+                    <span className="truncate text-xs text-white/54">{secondary}</span>
                   ) : null}
                 </button>
               );
@@ -114,8 +114,8 @@ export function UserInvitePicker({
           ) : (
             <p className="px-3 py-2 text-[11px] text-white/54">
               {pick(locale, {
-                en: loading ? "Searching…" : failed ? "Search unavailable. Try again." : "No registered musicians found.",
-                ru: loading ? "Поиск…" : failed ? "Поиск недоступен. Попробуй ещё раз." : "Зарегистрированные музыканты не найдены.",
+                en: loading ? "Searching…" : failed ? "Search unavailable. Try again." : "No registered participants found.",
+                ru: loading ? "Поиск…" : failed ? "Поиск недоступен. Попробуй ещё раз." : "Зарегистрированные участники не найдены.",
               })}
             </p>
           )}

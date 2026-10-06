@@ -111,7 +111,7 @@ describe("TrackProposalForm", () => {
     await selectSong();
 
     const publishButton = screen.getByRole<HTMLButtonElement>("button", {
-      name: "Опубликовать трек в сетлист",
+      name: "Опубликовать заявку в таблицу",
     });
 
     await act(async () => {

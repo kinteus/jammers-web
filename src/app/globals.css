@@ -269,6 +269,11 @@ h3,
   position: relative;
 }
 
+/* The shell is the content column; quote bubbles use its width (cqw) to stay out of it. */
+.home-page-shell {
+  container-type: inline-size;
+}
+
 .home-page-shell > section:not(.community-quotes-root) {
   position: relative;
   z-index: 2;
@@ -279,31 +284,47 @@ h3,
   pointer-events: auto;
 }
 
+/* Quote bubbles are a layer between the page background and the content: every other home
+   section sits above it (z-index 2), so bubbles only show through the gaps. Sections let the
+   pointer pass through their empty space, so a bubble's visible part can still be hovered, and
+   while it is hovered or focused the whole layer comes to the front to show that bubble in full. */
 .community-quotes-root {
-  position: relative;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  z-index: 1;
   pointer-events: none;
 }
 
-@media (min-width: 1024px) {
-  .community-quotes-root {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    z-index: 4;
-  }
+.community-quotes-root:has(.community-quote-peek:hover, .community-quote-peek:focus-within) {
+  z-index: 3;
 }
 
-.community-quotes-stage {
-  position: relative;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 24%),
-    radial-gradient(circle at 14% 0%, rgba(255, 179, 0, 0.14), transparent 18%),
-    radial-gradient(circle at 88% 12%, rgba(0, 61, 165, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(11, 11, 11, 0.98));
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.36);
+/* Some cards are translucent, so z-index alone would let bubbles show through them. Clip the
+   layer to the strips left and right of the content column (50% is the viewport centre, 50cqw
+   half the column) until a bubble is hovered or focused. Clipping also limits the hover target
+   to the visible part. */
+.community-quotes-root:not(:has(.community-quote-peek:hover, .community-quote-peek:focus-within))
+  .community-quotes-perimeter {
+  clip-path: polygon(
+    0 0,
+    calc(50% - 50cqw) 0,
+    calc(50% - 50cqw) 100%,
+    calc(50% + 50cqw) 100%,
+    calc(50% + 50cqw) 0,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
+}
+
+@media (max-width: 1023px) {
+  .community-quote-peek[data-mobile-hidden] {
+    display: none;
+  }
 }
 
 .community-quotes-perimeter {
@@ -339,44 +360,6 @@ h3,
 .community-quote-peek:focus-within {
   z-index: 120;
   overflow: visible;
-}
-
-.community-quotes-mobile-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.community-mobile-quote-card {
-  --mobile-quote-drift: 0;
-  position: relative;
-  overflow: hidden;
-  border-radius: 1.15rem;
-  border: 1px solid rgba(244, 244, 244, 0.1);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, rgba(19, 19, 19, 0.98), rgba(13, 13, 13, 0.98));
-  padding: 0.8rem 0.95rem;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 12px 28px rgba(0, 0, 0, 0.2);
-  transform: translateX(calc(var(--mobile-quote-drift) * 10px));
-  animation: community-mobile-quote-float 6s ease-in-out infinite;
-}
-
-.community-mobile-quote-card:nth-child(3n + 2) {
-  margin-left: 0.75rem;
-}
-
-.community-mobile-quote-card:nth-child(4n) {
-  margin-right: 0.5rem;
-}
-
-.community-mobile-quote-card__text {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .community-quote-card {
@@ -472,7 +455,9 @@ h3,
 .community-quote-peek:hover .community-quote-card--ambient,
 .community-quote-peek:focus-within .community-quote-card--ambient {
   z-index: 140 !important;
-  width: var(--quote-open-width) !important;
+  /* Open only as wide as the quote needs, up to --quote-open-width. */
+  width: max-content !important;
+  min-width: var(--quote-peek-width);
   max-width: var(--quote-open-width);
   opacity: 1;
   animation-play-state: paused;
@@ -483,11 +468,19 @@ h3,
   transform: rotate(0deg) scale(1.04) !important;
 }
 
+/* Right-edge bubbles stay anchored to their right side and grow leftwards when opened. */
+.community-quote-peek[data-edge="right"] {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.community-quote-peek[data-edge="right"] .community-quote-card--ambient {
+  flex-shrink: 0;
+}
+
 .community-quote-peek[data-edge="right"]:hover .community-quote-card--ambient,
 .community-quote-peek[data-edge="right"]:focus-within .community-quote-card--ambient {
   text-align: left;
-  transform: translateX(calc((var(--quote-open-width) - var(--quote-peek-width)) * -1)) rotate(0deg)
-    scale(1.04) !important;
 }
 
 .community-quote-card__glow {
@@ -529,16 +522,6 @@ h3,
   opacity: 1;
   overflow: visible;
   -webkit-line-clamp: unset;
-}
-
-@keyframes community-mobile-quote-float {
-  0%,
-  100% {
-    transform: translateX(calc(var(--mobile-quote-drift) * 10px)) translateY(0);
-  }
-  50% {
-    transform: translateX(calc(var(--mobile-quote-drift) * 10px)) translateY(-4px);
-  }
 }
 
 .telegram-login-widget-frame {

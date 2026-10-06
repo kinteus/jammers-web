@@ -28,6 +28,7 @@ import {
 } from "@/lib/auth/telegram-username";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
+import { isDeleteGigConfirmationValid } from "@/lib/delete-gig-confirmation";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
 import { assertEventRegistrationWindow } from "@/lib/domain/event-registration";
 import { getNextSetlistOrderIndex } from "@/lib/domain/setlist-order";
@@ -1693,7 +1694,7 @@ export async function createTrackAction(formData: FormData) {
     if (eventKey) {
       redirect(buildEventRedirectUrl(eventKey, { error: "username-required" }));
     }
-    throw new Error("Set your Telegram username before proposing tracks.");
+    throw new Error("Set your Telegram username before proposing songs.");
   }
   const songId = await resolveSongId(formData);
   if (!songId) {
@@ -1719,7 +1720,7 @@ export async function createTrackAction(formData: FormData) {
     if (eventKey) {
       redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
     }
-    throw new Error("This song is already on the current event board.");
+    throw new Error("This song is already on the current gig board.");
   }
 
   const claimSeatIds = parseSeatSelections(formData, "claimSeatKeys");
@@ -1729,7 +1730,7 @@ export async function createTrackAction(formData: FormData) {
     if (eventKey) {
       redirect(buildEventRedirectUrl(eventKey, { error: "no-self-seat" }));
     }
-    throw new Error("Add yourself to at least one position before proposing a track.");
+    throw new Error("Take at least one seat yourself before proposing a song.");
   }
   if (claimSeatIds.length > 0) {
     const joinedCount = await countUniqueJoinedTracks(user.id, event.id);
@@ -1769,7 +1770,7 @@ export async function createTrackAction(formData: FormData) {
         }),
       );
     }
-    throw new Error("Track has fewer required positions than the event minimum.");
+    throw new Error("This song has fewer required seats than the gig minimum.");
   }
   const claimedRoleFamilies = new Set<string>();
   for (const slot of slots) {
@@ -1826,7 +1827,7 @@ export async function createTrackAction(formData: FormData) {
       if (eventKey) {
         redirect(buildEventRedirectUrl(eventKey, { error: "track-exists" }));
       }
-      throw new Error("This song is already on the current event board.");
+      throw new Error("This song is already on the current gig board.");
     }
 
     throw error;
@@ -2566,6 +2567,19 @@ export async function deleteEventAction(formData: FormData) {
   await requireAdmin();
   const eventId = getString(formData, "eventId");
   const eventSlug = getString(formData, "eventSlug");
+  const confirmTitle = getString(formData, "confirmTitle");
+
+  // Deletion is irreversible: require the admin to have typed the exact gig title.
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    select: { title: true },
+  });
+  if (!event) {
+    redirect("/admin?notice=event-not-found");
+  }
+  if (!isDeleteGigConfirmationValid(confirmTitle, event.title)) {
+    redirect("/admin?notice=event-delete-not-confirmed");
+  }
 
   await db.trackSeat.deleteMany({
     where: {
@@ -2717,7 +2731,7 @@ export async function cancelTrackAction(formData: FormData) {
   });
 
   if (track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    throw new Error("Only the proposer or an admin can cancel this track.");
+    throw new Error("Only the proposer or an admin can delete this song.");
   }
 
   if (user.role !== UserRole.ADMIN) {
@@ -2757,7 +2771,7 @@ export async function updateTrackSettingsAction(formData: FormData) {
   });
 
   if (track.proposedById !== user.id && user.role !== UserRole.ADMIN) {
-    throw new Error("Only the proposer or an admin can update this track.");
+    throw new Error("Only the proposer or an admin can update this song.");
   }
 
   const selectedTrackInfoKeys = formData
@@ -2815,7 +2829,7 @@ export async function updateTrackArrangementAction(formData: FormData) {
   const isAdmin = user.role === UserRole.ADMIN;
   const isProposer = track.proposedById === user.id;
   if (!isAdmin && !isProposer) {
-    throw new Error("Only the proposer or an admin can edit this track.");
+    throw new Error("Only the proposer or an admin can edit this song.");
   }
   if (!isAdmin) {
     if (userNeedsTelegramUsername(user)) {
@@ -2997,7 +3011,7 @@ export async function adminReplaceTrackSongAction(formData: FormData) {
     },
   });
   if (duplicateTrack) {
-    throw new Error("This song is already on the current event board.");
+    throw new Error("This song is already on the current gig board.");
   }
 
   await db.track.update({
@@ -3253,7 +3267,8 @@ export async function runSelectionAction(formData: FormData) {
   const historicalEvents = await db.event.findMany({
     where: {
       startsAt: { lt: event.startsAt },
-      status: EventStatus.PUBLISHED,
+      // Past gigs end up ARCHIVED, so both statuses count as history.
+      status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
       setlistItems: {
         some: { section: SetlistSection.MAIN },
       },
@@ -3392,7 +3407,7 @@ export async function moveSetlistItemAction(formData: FormData) {
       completion.requiredOpen > 0 ||
       participantCount < Math.max(1, event.minParticipantsPerTrack)
     ) {
-      throw new Error("Only fully assembled tracks can be moved into the main set.");
+      throw new Error("Only fully assembled songs can be moved into the main set.");
     }
   }
 
