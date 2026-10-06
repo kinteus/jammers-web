@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminTrackEditor } from "@/components/admin-track-editor";
 import { AdminSongWorkspace } from "@/components/admin-song-workspace";
@@ -63,7 +63,9 @@ describe("unified admin song workspace", () => {
     reorder.mockRejectedValueOnce(new Error("Lock expired")).mockResolvedValueOnce(undefined);
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Move Band - Alpha down" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
+    });
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Could not save"));
     expect(screen.getByText("Unsaved order")).toBeTruthy();
     // Error feedback can render before React finishes the async transition.
@@ -71,9 +73,13 @@ describe("unified admin song workspace", () => {
       expect((screen.getByRole("button", { name: "Save Main set order" }) as HTMLButtonElement).disabled).toBe(false);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
-    await waitFor(() => expect(screen.queryByText("Unsaved order")).toBeNull());
-    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Unsaved order")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
     expect(reorder).toHaveBeenCalledTimes(2);
     for (const [formData] of reorder.mock.calls) {
       expect(formData.get("itemIds")).toBe(JSON.stringify(["item-1", "item-0"]));
