@@ -570,7 +570,7 @@ Admins edit the public FAQ body as markdown directly from the dashboard. Both FA
 
 Admins curate the community quote pool shown on the home page, including quote text, source label, active state, display order, and separate desktop/mobile display limits.
 
-On every screen size, quotes float as a layer between the page background and the content: cards and text always sit on top, and quotes are cut off at the edge of the content column, so they only show in the side margins. Hovering or focusing the visible part of a quote brings it to the front and opens it in full, only as wide as its text needs; clicking it hides it. The "desktop" display limit sets how many quotes are placed; on screens narrower than 1024px only the first "mobile" limit of them are shown. Phones have almost no side margin, so quotes are practically hidden there.
+On every screen size, quotes float as a layer between the page background and the content: cards and text always sit on top, and quotes are cut off at the edge of the content column, so they only show in the side margins. Hovering or focusing the visible part of a quote brings it to the front and opens it in full, only as wide as its text needs; clicking it hides it. Each quote has a fixed spot next to a home section (3 by the hero, 3 by the next gig, 1 by "Need orientation?", 5 by The Scene), alternating sides and kept clear of the rounded corners; all home sections share the same column width as The Scene. The "desktop" display limit sets how many quotes are placed (spots fill in page order, at most 12); on screens narrower than 1024px only the first "mobile" limit of them are shown. Phones have almost no side margin, so quotes are practically hidden there.
 
 ### Global queue visibility
 

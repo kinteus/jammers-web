@@ -48,7 +48,7 @@ describe("CommunityQuotesCloud", () => {
     expect(html).toContain("community-quote-card--ambient");
     expect(html).not.toContain("community-quotes-mobile-section");
     expect(html).not.toContain("hidden min-[");
-    expect(html).toContain("--quote-top");
+    expect(html).toContain('data-anchor="hero"');
     expect(html).not.toContain("community-quotes-canvas");
   });
 
@@ -84,19 +84,44 @@ describe("CommunityQuotesCloud", () => {
     expect(raisedRule).toContain("z-index: 3");
   });
 
-  it("spreads desktop quotes across distinct vertical positions", () => {
-    const html = renderToStaticMarkup(
-      <CommunityQuotesCloud
-        desktopDisplayLimit={8}
-        locale="ru"
-        mobileDisplayLimit={2}
-        quotes={quotes}
-      />,
-    );
-    const quoteTops = [...html.matchAll(/--quote-top:([^;]+)%/g)].map((match) => match[1]);
+  it("fills the section spots in order and stops at twelve", () => {
+    const manyQuotes = Array.from({ length: 15 }, (_, index) => ({
+      ...quotes[0]!,
+      id: `many-${index}`,
+    }));
+    const spotsOf = (html: string) =>
+      [...html.matchAll(/data-anchor="([^"]+)" data-align="([^"]+)" data-depth="[^"]+" data-edge="([^"]+)"/g)].map(
+        (match) => `${match[1]}:${match[2]}:${match[3]}`,
+      );
 
-    expect(quoteTops).toHaveLength(8);
-    expect(new Set(quoteTops).size).toBe(8);
+    const fewHtml = renderToStaticMarkup(
+      <CommunityQuotesCloud desktopDisplayLimit={8} locale="ru" mobileDisplayLimit={2} quotes={quotes} />,
+    );
+    const allHtml = renderToStaticMarkup(
+      <CommunityQuotesCloud desktopDisplayLimit={60} locale="ru" mobileDisplayLimit={2} quotes={manyQuotes} />,
+    );
+
+    expect(spotsOf(fewHtml)).toEqual(spotsOf(allHtml).slice(0, 8));
+    expect(spotsOf(allHtml)).toEqual([
+      "hero:start:left",
+      "hero:middle:right",
+      "hero:end:left",
+      "next-gig:start:right",
+      "next-gig:middle:left",
+      "next-gig:end:right",
+      "orientation:middle:left",
+      "scene:start:left",
+      "scene:upper-quarter:right",
+      "scene:middle:left",
+      "scene:lower-quarter:right",
+      "scene:end:left",
+    ]);
+  });
+
+  it("keeps bubbles hidden until they are placed next to their section", () => {
+    expect(globalCss).toMatch(
+      /\.community-quote-peek:not\(\[data-placed\]\)\s*\{\s*visibility: hidden;/,
+    );
   });
 
   it("clips resting quotes to the strips outside the content column", () => {

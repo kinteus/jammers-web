@@ -97,7 +97,10 @@ export function ArchiveStatsSection({
     ) ?? null;
 
   return (
-    <section className="reference-section space-y-8 px-5 py-6 md:px-8 md:py-8">
+    <section
+      className="reference-section space-y-8 px-5 py-6 md:px-8 md:py-8"
+      data-quote-anchor="scene"
+    >
       <div className="flex flex-col gap-3 border-b border-white/10 pb-6 md:flex-row md:items-end md:justify-between">
         <h2 className="font-display text-4xl uppercase text-sand">
           {pick(locale, { en: "The scene", ru: "Сцена" })}

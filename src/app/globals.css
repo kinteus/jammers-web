@@ -344,6 +344,11 @@ h3,
   pointer-events: auto;
 }
 
+/* Until QuoteSpotPlacer has measured its section, a bubble has no position yet. */
+.community-quote-peek:not([data-placed]) {
+  visibility: hidden;
+}
+
 .community-quote-peek[data-depth="back"] {
   z-index: 1;
 }

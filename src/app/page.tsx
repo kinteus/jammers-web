@@ -54,8 +54,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
-
 function getRightNowContent({
   event,
   featuredRequiredOpenSeats,
@@ -289,7 +287,7 @@ export default async function HomePage() {
   return (
     <div className="home-page-shell relative isolate space-y-8 text-sand">
       <section className="space-y-4">
-        <div className={HERO_FRAME_CLASS}>
+        <div>
           <div className="rounded-xl border border-dashed border-gold/28 bg-gold/[0.035] px-5 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-2">
@@ -323,8 +321,8 @@ export default async function HomePage() {
       </section>
 
       <section className="space-y-6">
-        <div className={`${HERO_FRAME_CLASS} border-b border-white/8 pb-8`}>
-          <div className="reference-hero px-6 py-10 md:px-8 md:py-14">
+        <div className="border-b border-white/8 pb-8">
+          <div className="reference-hero px-6 py-10 md:px-8 md:py-14" data-quote-anchor="hero">
             <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 text-center">
               <div className="space-y-4">
                 <p className="reference-kicker">
@@ -383,9 +381,12 @@ export default async function HomePage() {
 
 
       {/* Next gig first: it is the most useful thing on the page, especially on mobile. */}
-      <section className={`${HERO_FRAME_CLASS} space-y-4`}>
+      <section className="space-y-4">
 
-        <Card className="brand-stage relative overflow-hidden space-y-5 border border-gold/18 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.44)] sm:px-6 sm:py-6">
+        <Card
+          className="brand-stage relative overflow-hidden space-y-5 border border-gold/18 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.44)] sm:px-6 sm:py-6"
+          data-quote-anchor="next-gig"
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/55 to-transparent"
@@ -513,7 +514,10 @@ export default async function HomePage() {
           )}
         </Card>
 
-        <Card className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between">
+        <Card
+          className="brand-shell-soft flex flex-col gap-4 rounded-[1.5rem] px-5 py-5 md:flex-row md:items-center md:justify-between"
+          data-quote-anchor="orientation"
+        >
           <div className="space-y-1.5">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/56">
               {pick(locale, { en: "Need orientation?", ru: "Нужна ориентация?" })}
