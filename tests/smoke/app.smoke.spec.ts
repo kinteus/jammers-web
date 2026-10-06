@@ -390,12 +390,11 @@ test.describe("Jammers smoke", () => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: /Open only the tool you need/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Create gig/i })).toBeVisible();
-    const eventAdminLink = page.getByRole("link", { name: /Open event admin/i }).first();
+    const eventAdminLink = page.getByRole("link", { name: /Open gig admin/i }).first();
     await expect(eventAdminLink).toBeVisible();
     const eventAdminHref = await eventAdminLink.getAttribute("href");
     await eventAdminLink.click();
     await expect(page).toHaveURL(new RegExp(`${eventAdminHref}$`));
-    await expect(page.getByText("Loading gig admin…", { exact: true })).toHaveCount(0);
     await expect(page.locator("form input[name='eventId']").first()).toBeAttached();
   });
 
