@@ -66,7 +66,7 @@ async function createSmokeSong(title: string) {
     update: {},
     create: {
       slug: smokeSlug(`artist-${title}`),
-      name: `Smoke Artist ${title}`,
+      name: `Smoke Artist ${title} ${smokeRunId}`,
     },
   });
 
@@ -156,12 +156,17 @@ async function createSmokeTrack({
       claimedAt: claimedBy ? new Date() : null,
     },
   });
+  const lastBacklogItem = await db.setlistItem.findFirst({
+    where: { eventId, section: SetlistSection.BACKLOG },
+    orderBy: { orderIndex: "desc" },
+    select: { orderIndex: true },
+  });
   await db.setlistItem.create({
     data: {
       eventId,
       trackId: track.id,
       section: SetlistSection.BACKLOG,
-      orderIndex: 1,
+      orderIndex: (lastBacklogItem?.orderIndex ?? 0) + 1,
       editedById: proposer.id,
     },
   });
