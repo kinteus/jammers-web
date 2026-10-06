@@ -16,7 +16,7 @@ const dbMock = vi.hoisted(() => ({
     delete: vi.fn(),
     deleteMany: vi.fn(),
     findUnique: vi.fn(),
-    updateMany: vi.fn(),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
 }));
 
@@ -71,7 +71,7 @@ describe("session helpers", () => {
     await createSession("user-1");
 
     expect(dbMock.authSession.deleteMany).toHaveBeenCalledWith({
-      where: { userId: "user-1" },
+      where: { userId: "user-1", expiresAt: { lte: expect.any(Date) } },
     });
     expect(dbMock.authSession.create).toHaveBeenCalledTimes(1);
     expect(cookieStoreMock.set).toHaveBeenCalledTimes(1);
@@ -130,6 +130,20 @@ describe("session helpers", () => {
       telegramUsername: "anna",
     });
     expect(dbMock.authSession.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a verified user signed in if the activity timestamp write fails", async () => {
+    cookieStoreMock.get.mockReturnValue({ value: "raw-token" });
+    dbMock.authSession.findUnique.mockResolvedValue({
+      id: "session-2",
+      expiresAt: new Date(Date.now() + 60_000),
+      lastSeenAt: new Date(Date.now() - 16 * 60 * 1000),
+      user: { id: "user-2" },
+    });
+    dbMock.authSession.updateMany.mockRejectedValueOnce(new Error("db offline"));
+    isDatabaseUnavailableErrorMock.mockReturnValue(true);
+    const { getSessionUser } = await import("@/lib/auth/session");
+    await expect(getSessionUser()).resolves.toMatchObject({ id: "user-2" });
   });
 
   it("deletes the current session cookie and db row on sign-out", async () => {

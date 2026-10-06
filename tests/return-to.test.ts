@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildProfileSignInHref, getSafeReturnTo } from "@/lib/return-to";
 
+const destinationMock = vi.hoisted(() => vi.fn().mockResolvedValue("/events/next-gig"));
+vi.mock("@/server/post-login", () => ({ getPostLoginPath: destinationMock }));
+
 const redirectMock = vi.hoisted(() =>
   vi.fn((url: string) => {
     throw new Error(`NEXT_REDIRECT:${url}`);
@@ -94,7 +97,7 @@ describe("buildProfileSignInHref", () => {
 
 describe("devSignInAction", () => {
   it(
-    "redirects successful local sign-in back to a sanitized return target",
+    "redirects successful local sign-in to the nearest open gig",
     async () => {
       dbMock.user.upsert.mockResolvedValue({
         id: "user-1",
@@ -107,7 +110,7 @@ describe("devSignInAction", () => {
       formData.set("returnTo", "/about?authError=retry&view=full#team");
 
       await expect(devSignInAction(formData)).rejects.toThrow(
-        "NEXT_REDIRECT:/about?view=full#team",
+        "NEXT_REDIRECT:/events/next-gig",
       );
 
       expect(createSessionMock).toHaveBeenCalledWith("user-1");
@@ -128,7 +131,7 @@ describe("devSignInAction", () => {
       formData.set("returnTo", "/events/spring-jam-night#track-board");
 
       await expect(devSignInAction(formData)).rejects.toThrow(
-        "NEXT_REDIRECT:/events/spring-jam-night#track-board",
+        "NEXT_REDIRECT:/events/next-gig",
       );
 
       expect(dbMock.user.findUnique).toHaveBeenCalledWith({
@@ -159,4 +162,8 @@ describe("devSignInAction", () => {
     },
     10_000,
   );
+});
+
+it.each(["/\\evil.example", "/\t/evil.example", "/a/..//evil.example", "/%2e%2e//evil.example", "//evil.example", "https://evil.example"]) ("rejects redirect parser bypass %s", (value) => {
+  expect(getSafeReturnTo(value)).toBe("/profile");
 });

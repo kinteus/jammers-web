@@ -56,3 +56,11 @@ kubectl --kubeconfig ~/.kube/config-jammers-gha-prod -n prod logs deployment/jam
   2. Note `path`, `userAgent`, timestamp, and nearby raw stack lines.
   3. Reproduce locally with `npm run local:prod` when the issue depends on production data.
   4. If production DB state is needed, use narrow read-only SQL through the Kubernetes Postgres pod or a local port-forward.
+
+### Client-report abuse controls
+
+`/api/client-error` rejects cross-origin browser reports, limits streamed JSON to 16 KiB,
+accepts `err_` IDs containing 1–100 alphanumeric/underscore/hyphen characters, and allows
+20 reports per IP per minute per app process. HTTP 403/413/429 can therefore explain a
+missing client report. Client fields remain untrusted even when the Error ID is valid;
+correlate with server stacks before drawing conclusions. Log format and paths are unchanged.

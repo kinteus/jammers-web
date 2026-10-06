@@ -56,7 +56,9 @@ Strongly recommended:
    - only by immutable `telegramId`
    - otherwise it creates a new user if no conflicting username already exists
 6. The app creates a server-side `AuthSession` record and sets an HTTP-only cookie.
-7. The user is redirected back to `/profile` as an authenticated musician.
+7. The user is redirected to the nearest upcoming gig whose registration is currently open, or `/` when none exists. Scheduled registration opening/closing times are respected. Local development sign-in uses the same rule. A supplied `returnTo` is used only for callback retry/error navigation, not successful login.
+
+Logging in preserves active sessions on other devices. Only expired sessions are cleaned up during login, and sign-out revokes the current token only. Sessions have a fixed `SESSION_TTL_HOURS` lifetime (168 hours by default); activity does not extend it. Temporary failures writing the activity timestamp do not disconnect an already verified session.
 
 ## Existing imported users
 
@@ -116,7 +118,8 @@ Before launch:
 5. Disable dev auth with `ENABLE_DEV_AUTH=false`.
 6. Open `/profile` and confirm the Telegram widget is visible.
 7. Sign in with an already imported user and confirm:
-   - the account opens the intended Telegram-linked profile
+   - the account opens the nearest open gig, or home if none is available
+   - `/profile` shows the intended Telegram-linked identity
    - username-only legacy rows do not get auto-linked silently
 8. Sign in with a brand-new Telegram account and confirm:
    - a new user row is created
@@ -168,3 +171,18 @@ Before launch:
 The application is ready for Telegram-auth launch after external Telegram and environment setup is completed.
 
 Inside the codebase, the core auth flow is already present and working. The remaining work is operational setup, not a missing authentication feature.
+
+## Browser binding and production privileges
+
+The login component first POSTs `/api/auth/telegram/state` to create a random HttpOnly
+state cookie (10-minute lifetime). Both the redirect widget and direct OAuth return URL
+carry `authState`; fragment callbacks POST it as `state`. The server checks the cookie
+before touching users or sessions, then clears it after successful login. Expired state
+or a callback from another browser requires restarting sign-in. Concurrent sign-in flows
+in multiple tabs share one cookie; starting another flow invalidates the earlier one.
+GET and POST callbacks share the same attempt limit. JSON callbacks are capped at 16 KiB.
+
+Set `PRIMARY_ADMIN_TELEGRAM_ID` to the verified immutable Telegram ID of the primary
+administrator before release. Production no longer falls back to `DEFAULT_ADMIN_USERNAME`
+for admin-list management. Ordinary administrator roles remain stored in the database.
+`ENABLE_DEV_AUTH=true` is ignored when `NODE_ENV=production`, including local production builds.

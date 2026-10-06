@@ -89,6 +89,12 @@ describe("verifyTelegramAuth", () => {
         username: "anna_drums",
         hash: "invalid",
       }),
-    ).toThrow(/signature/);
+    ).toThrow(/payload/);
   });
+});
+
+it.each([Infinity, Math.floor(Date.now() / 1000) + 3600, 1.5, 0])("rejects invalid signed auth timestamp %s", (auth_date) => {
+  process.env.TELEGRAM_BOT_TOKEN = "123:test";
+  const payload = { id: "123", auth_date };
+  expect(() => verifyTelegramAuth({ ...payload, hash: signPayload(payload, "123:test") })).toThrow();
 });

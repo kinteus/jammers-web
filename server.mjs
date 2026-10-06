@@ -29,7 +29,8 @@ function broadcastBoardUpdate(payload) {
     return;
   }
 
-  if (parsed?.type !== "board-updated" || typeof parsed.eventId !== "string") {
+  if (parsed?.type !== "board-updated" || typeof parsed.eventId !== "string" ||
+      !["event-status", "event-updated", "selection-run", "seat-claimed", "seat-released", "track-created", "track-updated"].includes(parsed.reason)) {
     return;
   }
 
@@ -40,7 +41,7 @@ function broadcastBoardUpdate(payload) {
 
   for (const client of clients) {
     if (client.readyState === client.OPEN) {
-      client.send(payload);
+      client.send(JSON.stringify({ type: "board-updated", eventId: parsed.eventId, reason: parsed.reason }));
     }
   }
 }
@@ -71,18 +72,25 @@ async function startPostgresListener() {
 await app.prepare();
 
 const server = createServer((req, res) => {
+  // Strip framework-internal and nonce headers at the public HTTP boundary.
+  for (const name of ["x-middleware-subrequest", "x-middleware-subrequest-id", "content-security-policy", "x-nonce"]) delete req.headers[name];
   void handle(req, res);
 });
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1024, perMessageDeflate: false });
 
 wss.on("connection", (socket, request) => {
-  const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+  const url = new URL(request.url ?? "/", "http://localhost");
   const eventId = url.searchParams.get("eventId");
   if (!eventId) {
     socket.close(1008, "eventId is required");
     return;
   }
 
+  socket.on("error", () => socket.terminate());
+  // This is a receive-only invalidation channel, never an application command endpoint.
+  socket.on("message", () => socket.close(1008, "Client messages are not supported"));
+  socket.isAlive = true;
+  socket.on("pong", () => { socket.isAlive = true; });
   const clients = boardClients.get(eventId) ?? new Set();
   clients.add(socket);
   boardClients.set(eventId, clients);
@@ -94,9 +102,23 @@ wss.on("connection", (socket, request) => {
   });
 });
 
+const heartbeat = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (!socket.isAlive) { socket.terminate(); continue; }
+    socket.isAlive = false;
+    socket.ping();
+  }
+}, 30_000);
+heartbeat.unref();
+wss.on("close", () => clearInterval(heartbeat));
+
 server.on("upgrade", (request, socket, head) => {
-  const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-  if (url.pathname !== "/ws/board") {
+  const url = new URL(request.url ?? "/", "http://localhost");
+  let expectedOrigin;
+  try { expectedOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || `http://${request.headers.host}`).origin; }
+  catch { socket.destroy(); return; }
+  if (url.pathname !== "/ws/board" || request.headers.origin !== expectedOrigin ||
+      !/^[a-zA-Z0-9_-]{1,100}$/.test(url.searchParams.get("eventId") ?? "") || wss.clients.size >= 1000) {
     socket.destroy();
     return;
   }

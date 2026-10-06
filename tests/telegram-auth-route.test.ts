@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const getPostLoginPathMock = vi.hoisted(() => vi.fn().mockResolvedValue("/events/next-gig"));
+vi.mock("@/server/post-login", () => ({ getPostLoginPath: getPostLoginPathMock }));
+
+const verifyLoginStateMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/auth/login-state", () => ({ verifyLoginState: verifyLoginStateMock, clearLoginState: vi.fn() }));
+
 const createSessionMock = vi.hoisted(() => vi.fn());
 const verifyTelegramAuthMock = vi.hoisted(() => vi.fn());
 const consumeRateLimitMock = vi.hoisted(() => vi.fn());
@@ -102,7 +108,7 @@ describe("telegram auth route", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toMatch(
-      /^https:\/\/thejammers\.org\/profile\?auth=\d+$/,
+      /^https:\/\/thejammers\.org\/events\/next-gig\?auth=\d+$/,
     );
     expect(verifyTelegramAuthMock).toHaveBeenCalledWith({
       id: "tg-1",
@@ -112,6 +118,17 @@ describe("telegram auth route", () => {
       hash: "hash",
     });
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
+  });
+
+  it("returns home when no open gig is available", async () => {
+    getPostLoginPathMock.mockResolvedValueOnce("/");
+    consumeRateLimitMock.mockReturnValue({ allowed: true });
+    upsertTelegramUserMock.mockResolvedValue({ id: "user-1" });
+    const { POST } = await import("@/app/api/auth/telegram/route");
+    const response = await POST(new Request("https://thejammers.org/api/auth/telegram", {
+      method: "POST", body: JSON.stringify({ payload: {} }),
+    }));
+    expect(await response.json()).toMatchObject({ ok: true, redirectTo: "/" });
   });
 
   it("returns 429 when rate-limited", async () => {
@@ -208,12 +225,12 @@ describe("telegram auth route", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      redirectTo: "/profile",
+      redirectTo: "/events/next-gig",
     });
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
   });
 
-  it("returns profile on success instead of honoring a safe return target", async () => {
+  it("returns the nearest open gig instead of honoring a safe return target", async () => {
     consumeRateLimitMock.mockReturnValue({
       allowed: true,
     });
@@ -247,8 +264,24 @@ describe("telegram auth route", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      redirectTo: "/profile",
+      redirectTo: "/events/next-gig",
     });
     expect(createSessionMock).toHaveBeenCalledWith("user-1");
   });
+});
+
+it("rejects a callback with invalid browser state before any database writes", async () => {
+  consumeRateLimitMock.mockReturnValue({ allowed: true });
+  verifyLoginStateMock.mockRejectedValueOnce(new Error("Invalid login state"));
+  const { POST } = await import("@/app/api/auth/telegram/route");
+  const response = await POST(new Request("https://thejammers.org/api/auth/telegram", { method: "POST", body: JSON.stringify({ payload: {}, state: "wrong" }) }));
+  expect(response.status).toBe(400);
+  expect(upsertTelegramUserMock).not.toHaveBeenCalled();
+});
+it("rate limits GET callbacks too", async () => {
+  consumeRateLimitMock.mockReturnValue({ allowed: false, retryAfterSeconds: 30 });
+  const { GET } = await import("@/app/api/auth/telegram/route");
+  const response = await GET(new Request("https://thejammers.org/api/auth/telegram?id=123&auth_date=123&hash=x"));
+  expect(response.status).toBe(429);
+  expect(verifyTelegramAuthMock).not.toHaveBeenCalled();
 });

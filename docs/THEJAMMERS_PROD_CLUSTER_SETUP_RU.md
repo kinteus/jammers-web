@@ -178,3 +178,12 @@ curl -I https://thejammers.org/api/healthz
 - существующий TLS secret `jammers-next-gig-ingress-tls`
 
 Новый сайт живёт отдельно как `deployment/service/ingress jammers-web`, но использует тот же домен и тот же TLS-secret.
+
+## Усиление безопасности от 2026-10-06
+
+Приложение запускается с UID/GID 1000 и без Linux capabilities. До выпуска настройте
+проверенный `PRIMARY_ADMIN_TELEGRAM_ID`: fallback на username в production отключён.
+Контроллер ingress подменяет HSTS приложения. Отдельный merge patch расположен в
+`infra/k8s/controller/hsts-patch.yaml`; порядок применения и область действия описаны в
+`docs/K8S_DEPLOYMENT.md`. Он влияет на все HTTPS-хосты контроллера и не входит в overlay
+приложения. Изменения файлов не означают, что новый образ или настройки уже применены.

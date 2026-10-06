@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { AdminEventLink } from "@/components/admin-event-link";
 import Link from "next/link";
 
+import { hasActiveBan } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { normalizeTelegramUsername } from "@/lib/auth/telegram-username";
 import { EventStatus } from "@prisma/client";
@@ -93,7 +95,7 @@ function getQuickAction(
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   const params = await searchParams;
   const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN" || hasActiveBan(user)) {
     if (!(await isDatabaseAvailable())) {
       return (
         <DatabaseUnavailableState
@@ -203,11 +205,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/admin/events/${event.id}`}>
-              <Button size="sm" variant="secondary">
-                {pick(locale, { en: "Open gig admin", ru: "Открыть админку гига" })}
-              </Button>
-            </Link>
+            <AdminEventLink
+              href={`/admin/events/${event.id}`}
+              label={pick(locale, { en: "Open gig admin", ru: "Открыть админку гига" })}
+              pendingLabel={pick(locale, { en: "Opening…", ru: "Открываем…" })}
+            />
 
             {quickAction ? (
               <form action={updateEventStatusAction}>
@@ -408,8 +410,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 />
                 <p className="text-xs leading-5 text-white/55">
                   {pick(locale, {
-                    en: "One label per line. These flags appear on song proposals and inside the board as extra context only.",
-                    ru: "По одной подписи на строку. Эти флаги появляются в заявках и внутри таблицы только как дополнительный контекст.",
+                    en: "One flag per line: Label|stable-key|English label|Russian label. Translations are optional; keep existing keys when editing.",
+                    ru: "Один флаг на строку: Подпись|ключ|English label|Русская подпись. Переводы необязательны; сохраняйте существующие ключи.",
                   })}
                 </p>
               </label>

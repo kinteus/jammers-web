@@ -41,7 +41,7 @@ describe("isSuperAdminUser", () => {
     ).toBe(false);
   });
 
-  it("falls back to the configured username in production when no immutable id is configured", async () => {
+  it("fails closed in production when no immutable id is configured", async () => {
     const { isSuperAdminUser } = await loadAdminAccess({
       NODE_ENV: "production",
       DEFAULT_ADMIN_USERNAME: "kinteus",
@@ -52,7 +52,7 @@ describe("isSuperAdminUser", () => {
         telegramId: null,
         telegramUsername: "kinteus",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("falls back to normalized username outside production", async () => {

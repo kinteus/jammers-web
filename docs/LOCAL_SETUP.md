@@ -75,3 +75,34 @@ npm run test
 npm run test:coverage
 npm run build
 ```
+
+## Selection package dependency
+
+`npm ci` downloads `@kinteus/jammers-setlist` from the public GitHub archive URL pinned in the lockfile. GitHub must be reachable; no registry login, Git installation, or separate package compilation is required. Do not replace the SHA with a moving branch.
+
+Develop algorithm changes in [kinteus/jammers-setlist](https://github.com/kinteus/jammers-setlist), run its `npm run check`, and submit a PR for @kinteus to merge. Once merged, update the app with:
+
+```sh
+npm install --save-exact 'https://api.github.com/repos/kinteus/jammers-setlist/tarball/<FULL_MERGED_COMMIT_SHA>'
+npm run typecheck
+npm test -- tests/setlist-algorithm.test.ts tests/setlist-history.test.ts
+```
+
+Commit both package manifests. The selection-confirmation smoke test still describes the same behavior; run it only against an isolated test database, never the production tunnel.
+
+## Security checks without production writes
+
+For CSP/browser checks, build with a disconnected local database and run the dedicated suite:
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55439/jammers_security SESSION_SECRET=security-audit-local-only-secret NEXT_PUBLIC_APP_URL=http://127.0.0.1:3019 ENABLE_DEV_AUTH=false npm run build
+npx playwright test -c playwright.security.config.ts
+```
+
+The suite uses port 3019 and an intentionally unavailable database on 55439; ensure that
+port is unused. It checks headers, nonce freshness, inline-script blocking and the anonymous
+admin view. It starts Next directly and does not exercise the custom WebSocket bridge.
+The full `tests/smoke/app.smoke.spec.ts` still writes fixtures/sessions and must use an
+isolated disposable database, never a production tunnel. Production builds now always
+disable development sign-in; development-mode `npm run local:prod` retains its existing
+production-data restrictions.

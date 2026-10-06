@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,6 +62,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  refreshMock.mockClear();
   document.body.innerHTML = "";
   vi.useRealTimers();
   vi.restoreAllMocks();

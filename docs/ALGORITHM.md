@@ -1,5 +1,13 @@
 # Setlist Selection Algorithm
 
+## Implementation package
+
+The pure selection engine lives in the public [kinteus/jammers-setlist](https://github.com/kinteus/jammers-setlist) repository as `@kinteus/jammers-setlist`. The application installs a GitHub archive pinned to a full commit SHA in `package.json` and `package-lock.json`; it does not follow `main` automatically.
+
+The package owns historical weights, participant track-limit detection, ranking, and recommendation output. The application still queries eligible history and active tracks, determines required-seat completeness and exact known-group matches, normalizes legacy event limits, checks permissions, and persists results atomically. Selection behavior is unchanged by the extraction.
+
+Algorithm changes go through issues and pull requests in that repository. Only @kinteus performs the final merge to `main`; then the application's pinned dependency can be updated separately. See its README and CONTRIBUTING guide for development and release instructions.
+
 ## Goal
 
 Build a deterministic main set that favors musicians who have not appeared in a past gig's main set recently. The algorithm derives participant weights from event history and then ranks tracks sequentially, recalculating scores after every selected position.

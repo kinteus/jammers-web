@@ -422,3 +422,8 @@ If a person is not in the database yet:
 2. Confirm pods are ready
 3. Confirm migration job completed
 4. Confirm ingress serves the real host
+
+The security release uses a non-root runtime image and prunes development dependencies
+from that image; Prisma CLI remains a production dependency for migration jobs. Configure
+`PRIMARY_ADMIN_TELEGRAM_ID` before rollout and follow the HSTS controller-patch procedure
+in `docs/K8S_DEPLOYMENT.md`. Full smoke tests must continue using the disposable CI database.

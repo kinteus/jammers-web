@@ -77,8 +77,8 @@ export function AdminSeatAssignControl({
   }
 
   return (
-    <div className="relative flex min-w-[260px] flex-wrap items-start gap-2">
-      <div className="relative w-[220px]">
+    <div className="relative flex w-full min-w-0 flex-wrap sm:w-auto items-start gap-2">
+      <div className="relative w-full sm:w-[220px]">
         <div className="flex items-center gap-2 rounded-sm border border-white/12 bg-black/24 px-2">
           <Search className="h-3.5 w-3.5 shrink-0 text-white/42" />
           <input

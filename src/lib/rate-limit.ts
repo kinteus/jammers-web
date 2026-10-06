@@ -30,6 +30,9 @@ export function consumeRateLimit({ key, limit, windowMs }: ConsumeRateLimitOptio
 
   const existing = rateLimitStore.get(key);
   if (!existing || existing.resetAt <= now) {
+    if (rateLimitStore.size >= 10_000) {
+      return { allowed: false, remaining: 0, retryAfterSeconds: Math.ceil(windowMs / 1000) };
+    }
     rateLimitStore.set(key, {
       count: 1,
       resetAt: now + windowMs,
