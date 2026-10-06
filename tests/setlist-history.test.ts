@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildParticipantHistorySnapshot,
   type HistoricalParticipationEvent,
-} from "@/lib/domain/setlist-history";
+} from "@kinteus/jammers-setlist";
 
 function event(
   id: string,

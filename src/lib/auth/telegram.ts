@@ -36,9 +36,13 @@ export function verifyTelegramAuth(payload: TelegramAuthPayload) {
     throw new Error("TELEGRAM_BOT_TOKEN is required for Telegram auth.");
   }
 
+  if (!payload || !/^[1-9]\d{0,19}$/.test(String(payload.id)) ||
+      !/^[a-f0-9]{64}$/i.test(String(payload.hash))) {
+    throw new Error("Invalid Telegram auth payload.");
+  }
   const authDate = Number(payload.auth_date);
   const now = Math.floor(Date.now() / 1000);
-  if (Number.isNaN(authDate) || now - authDate > maxAgeSeconds) {
+  if (!Number.isSafeInteger(authDate) || authDate > now + 30 || now - authDate > maxAgeSeconds) {
     throw new Error("Telegram auth payload expired.");
   }
 

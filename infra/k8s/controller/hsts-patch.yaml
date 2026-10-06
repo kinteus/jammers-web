@@ -1,0 +1,7 @@
+# Merge patch for the existing ingress controller ConfigMap; not an application overlay.
+# This policy applies to every TLS host managed by that controller.
+data:
+  hsts: "true"
+  hsts-max-age: "31536000"
+  hsts-include-subdomains: "true"
+  hsts-preload: "true"

@@ -21,6 +21,7 @@ import { expandSeatColumns, getTrackReadinessState, type LineupSlotLite } from "
 import { getRoleFamilyLabel, pick, type Locale } from "@/lib/i18n";
 import { getRoleFamilyKey } from "@/lib/role-families";
 import { parseClosedOptionalSeatRequestMeta } from "@/lib/track-invite-meta";
+import { useMusicianSearch } from "@/hooks/use-musician-search";
 import { getTrackInfoKeys, getTrackInfoLabel, type TrackInfoField } from "@/lib/track-info-flags";
 import { cn } from "@/lib/utils";
 
@@ -1082,7 +1083,6 @@ function InviteControl({
   allowClosedOptionalRequests,
   align = "end",
   controlId,
-  inviteableUsers,
   onInviteComplete,
   onOpenChange,
   seat,
@@ -1106,37 +1106,17 @@ function InviteControl({
 }) {
   const requestLabel = allowClosedOptionalRequests && seat.isOptional;
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<InviteableUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLFormElement>(null);
   const [popoverLayout, setPopoverLayout] = useState<InvitePopoverLayout | null>(null);
   const isOpen = activeInviteControlId === controlId;
-  const normalizedQuery = debouncedQuery.trim().toLowerCase().replace(/^@+/, "");
-  const filteredUsers = inviteableUsers
-    .filter((candidate) => {
-      if (!normalizedQuery) {
-        return true;
-      }
-      return [candidate.telegramUsername, candidate.fullName]
-        .filter((value): value is string => Boolean(value))
-        .some((value) => value.toLowerCase().includes(normalizedQuery));
-    })
-    .slice(0, 8);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 400);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [query]);
+  const { users: filteredUsers, loading, failed, canSearch } = useMusicianSearch(query, isOpen && !selectedUser);
 
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
-      setDebouncedQuery("");
       setSelectedUser(null);
       setIsSubmitting(false);
       setPopoverLayout(null);
@@ -1292,8 +1272,8 @@ function InviteControl({
                 setSelectedUser(null);
               }}
               placeholder={pick(locale, {
-                en: "Name or @telegram",
-                ru: "Имя или @telegram",
+                en: "Name or @telegram (at least 3 characters)",
+                ru: "Имя или @telegram (от 3 символов)",
               })}
               value={
                 selectedUser
@@ -1304,7 +1284,7 @@ function InviteControl({
               }
             />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-white/10 bg-black/24">
+          {canSearch ? <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-white/10 bg-black/24">
             {filteredUsers.length > 0 ? (
               filteredUsers.map((candidate) => {
                 const label = candidate.telegramUsername
@@ -1336,12 +1316,12 @@ function InviteControl({
             ) : (
               <p className="px-2.5 py-2 text-[11px] text-white/54">
                 {pick(locale, {
-                  en: "No registered musicians found.",
-                  ru: "Зарегистрированные музыканты не найдены.",
+                  en: loading ? "Searching…" : failed ? "Search unavailable. Try again." : "No registered musicians found.",
+                  ru: loading ? "Поиск…" : failed ? "Поиск недоступен. Попробуй ещё раз." : "Зарегистрированные музыканты не найдены.",
                 })}
               </p>
             )}
-          </div>
+          </div> : null}
           <button
             className="inline-flex items-center justify-center gap-1 rounded-sm border border-white/10 bg-red/90 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-red disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting || !selectedUser}

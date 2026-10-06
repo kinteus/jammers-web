@@ -43,21 +43,6 @@ export const metadata: Metadata = {
 
 const HERO_FRAME_CLASS = "mx-auto max-w-[1360px]";
 
-function formatGigDate(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function formatGigTime(value: Date | string, locale: Awaited<ReturnType<typeof getLocale>>) {
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function getRightNowContent({
   event,
   featuredRequiredOpenSeats,
@@ -95,20 +80,6 @@ function getRightNowContent({
   ) : (
     pick(locale, { en: "Venue TBD", ru: "Площадка уточняется" })
   );
-  const eventDetails = [
-    {
-      label: pick(locale, { en: "Date", ru: "Дата" }),
-      value: formatGigDate(event.startsAt, locale),
-    },
-    {
-      label: pick(locale, { en: "Time", ru: "Время" }),
-      value: formatGigTime(event.startsAt, locale),
-    },
-    {
-      label: pick(locale, { en: "Venue", ru: "Место" }),
-      value: venueValue,
-    },
-  ];
 
   if (event.effectiveStatus === EventStatus.PUBLISHED) {
     return {
@@ -130,7 +101,6 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
-      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "See the final setlist", ru: "Открыть финальный сетлист" }),
@@ -165,7 +135,6 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
-      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "Watch this gig board", ru: "Следить за этим сетлистом" }),
@@ -197,7 +166,6 @@ function getRightNowContent({
           value: formatDateTime(event.startsAt, locale),
         },
       ],
-      eventDetails,
       primaryCta: {
         href: `/events/${event.id}`,
         label: pick(locale, { en: "Review the locked board", ru: "Посмотреть закрытый сетлист" }),
@@ -229,7 +197,6 @@ function getRightNowContent({
         value: String(event.participantCount),
       },
     ],
-    eventDetails,
     primaryCta: {
       href: `/events/${event.id}`,
       label: pick(locale, { en: "Open the board and fill a gap", ru: "Открыть сетлист и закрыть нехватку" }),
@@ -445,19 +412,6 @@ export default async function HomePage() {
           {featuredEvent ? (
             <>
               <div className="space-y-3">
-                {rightNowContent?.eventDetails ? (
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {rightNowContent.eventDetails.map((detail) => (
-                      <div
-                        className="rounded-xl border border-white/12 bg-black/28 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                        key={detail.label}
-                      >
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{detail.label}</p>
-                        <div className="mt-1 text-base font-semibold leading-6 text-sand">{detail.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
                 <p className="text-sm leading-6 text-white/74">{rightNowContent?.intro}</p>
               </div>
               {rightNowContent && rightNowContent.stats.length > 0 ? (

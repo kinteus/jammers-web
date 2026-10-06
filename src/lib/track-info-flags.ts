@@ -3,6 +3,7 @@ import { slugify } from "@/lib/utils";
 export type TrackInfoField = {
   key: string;
   label: string;
+  labels?: Partial<Record<"en" | "ru", string>>;
 };
 
 export const DEFAULT_TRACK_INFO_FIELDS: TrackInfoField[] = [
@@ -32,6 +33,7 @@ export function parseTrackInfoFields(value: string | null | undefined): TrackInf
     .map((item) => ({
       key: slugify(item.key || item.label),
       label: item.label?.trim(),
+      ...(item.labels ? { labels: { en: item.labels.en?.trim(), ru: item.labels.ru?.trim() } } : {}),
     }))
     .filter((item) => item.key && item.label);
 }
@@ -65,7 +67,7 @@ export function parseTrackInfoFieldsInput(
   const fields: TrackInfoField[] = [];
 
   for (const line of lines) {
-    const [rawLabel, rawKey] = line.includes("|")
+    const [rawLabel, rawKey, english, russian] = line.includes("|")
       ? line.split("|").map((part) => part.trim())
       : [line, ""];
     const label = rawLabel;
@@ -76,7 +78,7 @@ export function parseTrackInfoFieldsInput(
     }
 
     seen.add(key);
-    fields.push({ key, label });
+    fields.push({ key, label, ...(english || russian ? { labels: { en: english || undefined, ru: russian || undefined } } : {}) });
   }
 
   return fields.length > 0 ? fields : fallback;
@@ -87,7 +89,10 @@ export function serializeTrackInfoFields(fields: TrackInfoField[]): string {
 }
 
 export function formatTrackInfoFieldsForTextarea(fields: TrackInfoField[]): string {
-  return fields.map((field) => field.label).join("\n");
+  return fields.map((field) => {
+    if (field.labels) return [field.label, field.key, field.labels.en ?? "", field.labels.ru ?? ""].join("|");
+    return field.key === slugify(field.label) ? field.label : `${field.label}|${field.key}`;
+  }).join("\n");
 }
 
 export function parseTrackInfoKeys(value: string | null | undefined): string[] {
@@ -112,7 +117,8 @@ export function getTrackInfoKeys(
 }
 
 export function getTrackInfoLabel(field: TrackInfoField, locale: "en" | "ru") {
-  if (field.key === PLAYBACK_KEY) {
+  if (field.labels?.[locale]) return field.labels[locale];
+  if ([PLAYBACK_KEY, "плейбэк", "плейбек", "плэйбэк"].includes(field.key)) {
     return locale === "ru" ? "Плейбэк" : "Playback";
   }
 

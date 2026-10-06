@@ -23,7 +23,7 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await getCurrentUser();
 
-  if (!user || user.role !== UserRole.ADMIN) {
+  if (!user || user.role !== UserRole.ADMIN || hasActiveBan(user)) {
     throw new Error("Admin access required.");
   }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { NextRequest } from "next/server";
+import { middleware } from "@/middleware";
 import nextConfig from "../next.config";
 import robots from "@/app/robots";
 import { metadata as aboutMetadata } from "@/app/about/page";
@@ -30,12 +32,16 @@ describe("platform hardening", () => {
   });
 
   it("does not allow eval in the production CSP", async () => {
-    const headers = await nextConfig.headers?.();
-    const globalHeaders = headers?.find((entry) => entry.source === "/(.*)")?.headers ?? [];
-    const csp = globalHeaders.find((header) => header.key === "Content-Security-Policy")?.value;
-
-    expect(csp).toBeDefined();
+    const first = middleware(new NextRequest("https://thejammers.org/profile", { headers: { "x-nonce": "injected", "Content-Security-Policy": "script-src 'unsafe-inline'" } }));
+    const csp = first.headers.get("Content-Security-Policy")!;
+    const second = middleware(new NextRequest("https://thejammers.org/profile"));
+    expect(csp).toContain("'nonce-");
     expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp.split("script-src ")[1].split(";")[0]).not.toContain("'unsafe-inline'");
+    expect(csp).not.toContain("injected");
+    expect(csp).not.toMatch(/connect-src[^;]* (?:ws:|wss:)(?: |;)/);
+    expect(second.headers.get("Content-Security-Policy")).not.toBe(csp);
+    expect(first.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
   });
 
   it("allows Telegram auth popups to keep opener communication", async () => {

@@ -19,6 +19,9 @@ COPY . .
 RUN DATABASE_URL="$DATABASE_URL" npx prisma generate
 RUN DATABASE_URL="$DATABASE_URL" SESSION_SECRET="$SESSION_SECRET" ENABLE_DEV_AUTH="$ENABLE_DEV_AUTH" npm run build
 
+FROM deps AS production-deps
+RUN npm prune --omit=dev --ignore-scripts
+
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -27,11 +30,12 @@ ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=your_bot_username
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=$NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 COPY --from=builder /app/package.json ./package.json
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+COPY --from=production-deps /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/server.mjs ./server.mjs
+USER node
 EXPOSE 3000
 CMD ["node", "server.mjs"]

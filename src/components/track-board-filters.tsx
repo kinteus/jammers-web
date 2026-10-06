@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -16,10 +16,12 @@ function buildQueryString({
   search,
   roles,
   view,
+  participant,
 }: {
   search: string;
   roles: RoleFamilyKey[];
   view: ViewKey;
+  participant: string;
 }) {
   const params = new URLSearchParams();
 
@@ -33,15 +35,18 @@ function buildQueryString({
     params.set("roles", roles.join(","));
   }
 
+  if (participant) params.set("participant", participant);
   return params.toString();
 }
 
 export function TrackBoardFilters({
-  activeView,
+  activeView: serverView,
   locale,
   roleOptions,
   searchQuery,
-  selectedRoles,
+  selectedRoles: serverRoles,
+  selectedParticipant = "",
+  participants = [],
   showMineView,
   visibleCount,
 }: {
@@ -50,36 +55,83 @@ export function TrackBoardFilters({
   roleOptions: RoleFamilyKey[];
   searchQuery: string;
   selectedRoles: RoleFamilyKey[];
+  selectedParticipant?: string;
+  participants?: { id: string; label: string }[];
   showMineView: boolean;
   visibleCount: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState(searchQuery);
+  const [activeView, setActiveView] = useState(serverView);
+  const [selectedRoles, setSelectedRoles] = useState(serverRoles);
+  const [participant, setParticipant] = useState(selectedParticipant);
+  const dirty = useRef(false);
+  const issuedQueries = useRef(new Set<string>());
+  const lastRequested = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverState = buildQueryString({ search: searchQuery, roles: serverRoles, view: serverView, participant: selectedParticipant });
+  const draftState = buildQueryString({ search: query, roles: selectedRoles, view: activeView, participant });
 
   const replace = useCallback(
-    (next: { search: string; roles: RoleFamilyKey[]; view: ViewKey }) => {
-      const queryString = buildQueryString(next);
+    (next: { search: string; roles: RoleFamilyKey[]; view: ViewKey; participant?: string }) => {
+      if (timer.current) clearTimeout(timer.current);
+      dirty.current = true;
+      setQuery(next.search);
+      setSelectedRoles(next.roles);
+      setActiveView(next.view);
+      setParticipant(next.participant ?? participant);
+      const queryString = buildQueryString({ ...next, participant: next.participant ?? participant });
+      issuedQueries.current.add(queryString);
+      lastRequested.current = queryString;
       router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
-    [pathname, router],
+    [participant, pathname, router],
   );
 
   useEffect(() => {
+    // An RSC response may belong to an earlier keystroke. Only acknowledge the
+    // latest draft; never replace newer local input with that response.
+    if (dirty.current && (
+      serverState !== draftState ||
+      (lastRequested.current !== null && lastRequested.current !== draftState)
+    )) return;
+    if (serverState !== draftState && issuedQueries.current.has(serverState)) return;
+    dirty.current = false;
+    if (serverState === draftState) return;
+    lastRequested.current = null;
+    issuedQueries.current.clear();
     setQuery(searchQuery);
-  }, [searchQuery]);
+    setSelectedRoles(serverRoles);
+    setActiveView(serverView);
+    setParticipant(selectedParticipant);
+  }, [serverState, draftState, searchQuery, serverRoles, serverView, selectedParticipant]);
 
   useEffect(() => {
-    if (query.trim() === searchQuery.trim()) {
-      return;
-    }
+    const onPopState = () => {
+      if (timer.current) clearTimeout(timer.current);
+      dirty.current = true;
+      issuedQueries.current.clear();
+      lastRequested.current = null;
+      const params = new URLSearchParams(window.location.search);
+      setQuery(params.get("q") ?? "");
+      setSelectedRoles((params.get("roles")?.split(",") ?? []).filter((role): role is RoleFamilyKey => roleOptions.includes(role as RoleFamilyKey)));
+      setActiveView(params.get("view") === "open" ? "open" : params.get("view") === "mine" && showMineView ? "mine" : "all");
+      setParticipant(params.get("participant") ?? "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [roleOptions, showMineView]);
 
-    const timeoutId = window.setTimeout(() => {
-      replace({ search: query, roles: selectedRoles, view: activeView });
+  useEffect(() => {
+    if (!dirty.current || lastRequested.current === draftState) return;
+    timer.current = setTimeout(() => {
+      issuedQueries.current.add(draftState);
+      lastRequested.current = draftState;
+      router.replace(draftState ? `${pathname}?${draftState}` : pathname, { scroll: false });
     }, 240);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [activeView, query, replace, searchQuery, selectedRoles]);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [draftState, serverState, pathname, router]);
 
   function toggleRole(role: RoleFamilyKey) {
     const nextRoles = selectedRoles.includes(role)
@@ -103,7 +155,7 @@ export function TrackBoardFilters({
       : []),
   ];
 
-  const hasExtraFilters = query.trim().length > 0 || selectedRoles.length > 0 || activeView !== "all";
+  const hasExtraFilters = query.trim().length > 0 || selectedRoles.length > 0 || activeView !== "all" || Boolean(participant);
 
   return (
     <div className="space-y-3">
@@ -143,7 +195,7 @@ export function TrackBoardFilters({
                 })}
                 className="w-full border-white/12 bg-stage py-2.5 pl-10 pr-4"
                 name="q"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => { dirty.current = true; setQuery(event.target.value); }}
                 placeholder={pick(locale, {
                   en: "Search by song, artist or proposer",
                   ru: "Поиск по песне, артисту или автору",
@@ -151,11 +203,19 @@ export function TrackBoardFilters({
                 value={query}
               />
             </div>
+            <select
+              aria-label={pick(locale, { en: "Filter by musician", ru: "Фильтр по музыканту" })}
+              value={participant}
+              onChange={(event) => replace({ search: query, roles: selectedRoles, view: activeView, participant: event.target.value })}
+              className="border-white/12 bg-stage text-sm"
+            >
+              <option value="">{pick(locale, { en: "All musicians", ru: "Все музыканты" })}</option>
+              {participants.map((person) => <option key={person.id} value={person.id}>{person.label}</option>)}
+            </select>
             {hasExtraFilters ? (
               <Button
                 onClick={() => {
-                  setQuery("");
-                  router.replace(pathname, { scroll: false });
+                  replace({ search: "", roles: [], view: "all", participant: "" });
                 }}
                 size="sm"
                 type="button"

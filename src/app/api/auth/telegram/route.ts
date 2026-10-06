@@ -1,4 +1,9 @@
+import { verifyLoginState, clearLoginState } from "@/lib/auth/login-state";
+import { isCrossOriginRequest, readLimitedJson, RequestBodyTooLargeError } from "@/lib/request-security";
+
 import { NextResponse } from "next/server";
+
+import { getPostLoginPath } from "@/server/post-login";
 
 import { createSession } from "@/lib/auth/session";
 import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
@@ -28,11 +33,13 @@ async function completeTelegramAuth(
   const verified = verifyTelegramAuth(payload as never);
   const user = await upsertTelegramUser(verified);
 
+  const returnTo = getSafeReturnTo(await getPostLoginPath(), "/");
   await createSession(user.id);
+  await clearLoginState();
 
   return {
     user,
-    returnTo: "/profile",
+    returnTo,
   };
 }
 
@@ -56,6 +63,7 @@ function redirectNoStore(url: URL) {
   return NextResponse.redirect(url, {
     headers: {
       "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
     },
   });
 }
@@ -75,6 +83,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    const limit = consumeRateLimit({ key: `telegram-auth:${getClientIpFromHeaders(request.headers)}`, limit: 20, windowMs: 600_000 });
+    if (!limit.allowed) return NextResponse.json({ ok: false }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
+    await verifyLoginState(searchParams.get("authState"));
     const { returnTo } = await completeTelegramAuth(payload);
     const redirectUrl = new URL(returnTo, env.NEXT_PUBLIC_APP_URL);
     redirectUrl.searchParams.set("auth", String(Date.now()));
@@ -86,6 +97,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isCrossOriginRequest(request)) return NextResponse.json({ ok: false }, { status: 403 });
   try {
     const rateLimit = consumeRateLimit({
       key: `telegram-auth:${getClientIpFromHeaders(request.headers)}`,
@@ -108,11 +120,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as {
+    const body = (await readLimitedJson(request)) as {
       payload?: TelegramPayloadRecord;
       returnTo?: string;
+      state?: string;
     };
 
+    await verifyLoginState(body?.state);
     const { returnTo } = await completeTelegramAuth(
       body.payload ?? (body as TelegramPayloadRecord),
     );
@@ -123,9 +137,8 @@ export async function POST(request: Request) {
       cacheBuster: Date.now(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Telegram authentication failed.";
-    const status = error instanceof TelegramIdentityConflictError ? 409 : 400;
+    const message = error instanceof TelegramIdentityConflictError ? error.message : "Telegram authentication failed.";
+    const status = error instanceof RequestBodyTooLargeError ? 413 : error instanceof TelegramIdentityConflictError ? 409 : 400;
 
     return NextResponse.json(
       {

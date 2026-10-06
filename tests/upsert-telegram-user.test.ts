@@ -106,76 +106,12 @@ describe("upsertTelegramUser", () => {
     expect(dbMock.user.create).not.toHaveBeenCalled();
   });
 
-  it("links an imported user matched case-insensitively by username", async () => {
-    dbMock.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null);
-    dbMock.user.findFirst.mockResolvedValueOnce({ id: "legacy-user", telegramId: null });
-    dbMock.user.update.mockResolvedValue({
-      id: "legacy-user",
-      telegramId: "tg-kyle",
-      telegramUsername: "kyle_reese",
-      fullName: "Kyle Reese",
-    });
-
-    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
-
-    await expect(
-      upsertTelegramUser({
-        telegramId: "tg-kyle",
-        telegramUsername: "@Kyle_Reese",
-        fullName: "Kyle Reese",
-      }),
-    ).resolves.toMatchObject({
-      id: "legacy-user",
-      telegramId: "tg-kyle",
-    });
-
-    expect(dbMock.user.findFirst).toHaveBeenCalledWith({
-      where: {
-        telegramUsername: {
-          equals: "kyle_reese",
-          mode: "insensitive",
-        },
-      },
-      select: { id: true, telegramId: true },
-    });
-  });
-
-  it("links an imported user matched by username when telegram id is still empty", async () => {
-    dbMock.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: "legacy-user", telegramId: null });
-    dbMock.user.update.mockResolvedValue({
-      id: "legacy-user",
-      telegramId: "tg-new",
-      telegramUsername: "disentinel",
-      fullName: "Disentinel",
-    });
-
-    const { upsertTelegramUser } = await import("@/server/upsert-telegram-user");
-
-    await expect(
-      upsertTelegramUser({
-        telegramId: "tg-new",
-        telegramUsername: "@Disentinel",
-        fullName: "Disentinel",
-      }),
-    ).resolves.toMatchObject({
-      id: "legacy-user",
-      telegramId: "tg-new",
-      telegramUsername: "disentinel",
-    });
-
-    expect(dbMock.user.update).toHaveBeenCalledWith({
-      where: { id: "legacy-user" },
-      data: {
-        telegramId: "tg-new",
-        telegramUsername: "disentinel",
-        fullName: "Disentinel",
-        avatarUrl: undefined,
-      },
-    });
+  it.each([false, true])("rejects username-only legacy takeover (case-insensitive=%s)", async (insensitive) => {
+    dbMock.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(insensitive ? null : { id: "legacy", telegramId: null });
+    if (insensitive) dbMock.user.findFirst.mockResolvedValueOnce({ id: "legacy", telegramId: null });
+    const { upsertTelegramUser, TelegramIdentityConflictError } = await import("@/server/upsert-telegram-user");
+    await expect(upsertTelegramUser({ telegramId: "123", telegramUsername: "legacy" })).rejects.toBeInstanceOf(TelegramIdentityConflictError);
+    expect(dbMock.user.update).not.toHaveBeenCalled();
     expect(dbMock.user.create).not.toHaveBeenCalled();
   });
 

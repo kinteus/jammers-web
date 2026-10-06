@@ -36,7 +36,7 @@ export async function createSession(userId: string) {
   const cookieStore = await cookies();
 
   await db.authSession.deleteMany({
-    where: { userId },
+    where: { userId, expiresAt: { lte: new Date() } },
   });
 
   await db.authSession.create({
@@ -130,12 +130,15 @@ export async function getSessionUser() {
       now.getTime() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS;
 
     if (shouldRefreshLastSeen) {
+      // Activity bookkeeping must not turn a valid session into a signed-out view.
       await db.authSession.updateMany({
         where: {
           id: session.id,
           lastSeenAt: { lt: new Date(now.getTime() - SESSION_LAST_SEEN_UPDATE_INTERVAL_MS) },
         },
         data: { lastSeenAt: now },
+      }).catch((error: unknown) => {
+        if (!isDatabaseUnavailableError(error)) throw error;
       });
     }
 

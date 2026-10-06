@@ -89,3 +89,9 @@ describe("auth guards", () => {
     });
   });
 });
+
+it("rejects banned admins", async () => {
+  getCurrentUserMock.mockResolvedValue({ id: "admin", role: UserRole.ADMIN, status: "ACTIVE", bans: [{ endsAt: null, isPermanent: true }] });
+  const { requireAdmin } = await import("@/server/auth-guards");
+  await expect(requireAdmin()).rejects.toThrow("Admin access required.");
+});

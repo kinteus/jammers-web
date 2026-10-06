@@ -100,10 +100,13 @@ At a high level the system interacts with:
 - `/admin`
   Global admin dashboard.
 - `/admin/events/[id]`
+  A route-level `loading.tsx` streams a localized loading status while the workspace loads. Dashboard links use Next.js `useLinkStatus` for pending feedback without a fixed timeout.
   Event-level operations and curation.
 
 ### API routes
 
+- `/api/musician-search?q=...`
+  Authenticated, active-user lookup by name or Telegram username. Queries require 3–80 characters after trimming and removing leading `@`; results contain at most eight active users (id, name, username). The endpoint has a per-user, per-process limit of 60 valid searches/minute and returns uncached results. Public event pages no longer preload the user directory.
 - `/api/auth/telegram`
   Telegram authentication callback endpoint.
 - `/api/song-search`
@@ -186,7 +189,7 @@ Important rule and domain modules include:
 - [src/lib/domain/event-status.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-status.ts)
 - [src/lib/domain/event-registration.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/event-registration.ts)
 - [src/lib/domain/lineup.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/lineup.ts)
-- [src/lib/domain/setlist-algorithm.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-algorithm.ts)
+- [`@kinteus/jammers-setlist`](https://github.com/kinteus/jammers-setlist) — external pure selection engine and historical weights
 - [src/lib/domain/setlist-limit.ts](/Users/maksimnaumov/jammers-web/src/lib/domain/setlist-limit.ts)
 
 These modules are the main place to evolve business rules without bloating page components.
@@ -264,7 +267,7 @@ Important content fields:
 
 Current optional-seat and track-info storage:
 
-- `Event.trackInfoFieldsJson` defines configurable per-track info flags.
+- `Event.trackInfoFieldsJson` defines configurable per-track info flags as `{ key, label, labels?: { en?, ru? } }`. Admin textarea format is `Label|stable-key|English label|Russian label`; legacy one/two-column entries remain supported. Formatting preserves keys and translations on edits. Playback labels also recognize legacy Russian keys without changing stored track selections.
 - `Track.trackInfoKeysJson` stores the selected flags for one proposal.
 - `EventLineupSlot.allowOptional` and `defaultOptionalSeats` control optional-seat availability and defaults.
 - `TrackSeat.isOptional` marks a seat as optional; optional seats do not count toward minimum required-player completion.
@@ -294,7 +297,9 @@ Sessions are:
 - stored server-side,
 - invalidated centrally.
 
-This is safer and operationally simpler than fully client-side JWT session ownership for this product.
+Login deletes only expired sessions for that user, preserving active sessions on other devices. Logout deletes only the presented token. Expiry remains fixed at `SESSION_TTL_HOURS` (168 by default), not sliding. A temporary failure updating `lastSeenAt` no longer hides an already verified user; a failure reading the session still returns an unauthenticated view without deleting the cookie.
+
+`src/server/post-login.ts` resolves the nearest future event with effective OPEN registration, respecting scheduled opening and closing timestamps, and falls back to `/`. Telegram callbacks and development sign-in share this destination instead of returning to the profile or a supplied return target.
 
 ## Local development auth
 
@@ -395,6 +400,10 @@ The algorithm is documented at a product level in:
 
 Implementation details:
 
+- `src/server/actions.ts` imports `@kinteus/jammers-setlist` directly; local copies of the algorithm and history engine have been removed,
+- the package has no runtime dependencies and no Prisma/database coupling; MAIN/BACKLOG are compatible string literals,
+- npm installs committed JavaScript and declarations from an immutable GitHub commit archive, so Docker builds do not need Git, a registry token, or a package build step,
+- the package repository owns algorithm unit tests and a packed-consumer smoke test; the app retains regression tests against the installed package and its existing selection E2E,
 - current strategy is deterministic sequential history-weighted ranking,
 - history includes only earlier `PUBLISHED` events with at least one `MAIN` item; participants are deduplicated per event,
 - each current participant starts with exact weight `2^r + m`, where `r` is their most-recent participation position (or history length plus one) and `m` is their miss count over the newest ten qualifying events,
@@ -442,6 +451,17 @@ submits one ordered `SetlistItem` id payload when the admin clicks Save order, a
 write after every local move. Backlog ordering still uses the same server action immediately. The
 labels and controls are only admin presentation; publishing and public setlist rendering use the
 persisted `orderIndex` order exactly.
+
+The event admin page composes `AdminTrackEditor` component slots into `AdminSetlistStack`
+rows using each track id. Main and backlog retain `SetlistItem` ids for mutations; active tracks
+absent from both sections render once in a non-reorderable Not selected section. `AdminSongWorkspace`
+provides client-side search across song/artist/lineup/proposer text and shares the catalog/user options
+once. Editors mount their form controls only on expansion, avoiding a full catalog select and seat
+assignment controls in the DOM for every collapsed song. Filtering hides rows without
+unmounting editors, keeps original order indexes, disables ordering controls, and does not restrict
+CSV export. Main-set draft changes disable editing and section moves within that stack until saved
+or discarded. Order actions are awaited inside transitions; failed main-set saves retain the draft,
+while failed immediate backlog saves restore the server-provided order.
 
 ## Security model
 
@@ -503,7 +523,7 @@ Recent UX additions in the production UI include:
 - newcomer onboarding and next-gig guidance on `/`,
 - page-specific FAQ metadata and localized fallback content,
 - a dedicated board-guide component on event pages,
-- automatically applying board search filters,
+- automatically applying board search filters with local draft state protected from stale server responses, and `participant` filtering against seat assignments; browser history restores filter state,
 - actionable empty states on `/profile`,
 - optimistic join and leave flows with floating toast feedback,
 - aligned seat-cell composition and inward-opening invite popovers,
@@ -566,7 +586,7 @@ The test suite is currently strongest in the domain layer, especially:
 
 Vitest also covers a growing set of component and server-action tests (board table, song search field/route, track proposal form, seat actions, setlist reorder safety, drummer-block labels, floating-toast duration, site content/FAQ resolution).
 
-A Playwright smoke suite ([tests/smoke/app.smoke.spec.ts](/Users/maksimnaumov/jammers-web/tests/smoke/app.smoke.spec.ts)) runs against a production build and a real Postgres in CI (`npm run test:smoke`). It currently exercises: public page rendering, local sign-in, join/release a seat, cross-session realtime updates, add-a-proposal + edit track settings, sign-in `returnTo`, the admin cockpit, and the selection-algorithm confirm dialog.
+A Playwright smoke suite ([tests/smoke/app.smoke.spec.ts](/Users/maksimnaumov/jammers-web/tests/smoke/app.smoke.spec.ts)) runs against a production build and a real Postgres in CI (`npm run test:smoke`). It currently exercises: public page rendering, local sign-in, join/release a seat, cross-session realtime updates, add-a-proposal + edit track settings, post-login gig/home routing, rapid board filtering and musician selection, search-only invitation suggestions, the admin cockpit, unified song editing/search (including not-selected songs), and the selection-algorithm confirm dialog.
 
 There is still room to expand E2E coverage — see [docs/superpowers/specs/2026-05-29-board-faq-search-fixes-design.md](/Users/maksimnaumov/jammers-web/docs/superpowers/specs/2026-05-29-board-faq-search-fixes-design.md) for a prioritized backlog of proposed E2E cases.
 
@@ -641,3 +661,17 @@ If the product continues to grow, the highest-leverage technical evolution would
 3. add audit logging for all admin mutations,
 4. introduce a job queue for invite delivery and future notifications,
 5. add analytics and recommendation services only after the core workflow stabilizes.
+
+## Security hardening (2026-10-06)
+
+- `src/middleware.ts` generates a fresh CSP nonce for every page request and overwrites inbound CSP/nonce headers. Next applies the nonce to its scripts; event JSON-LD receives it explicitly. Production scripts do not allow `unsafe-inline` or `unsafe-eval`. Inline styles remain allowed for UI libraries. Pages using nonces must remain dynamic and must not be cached as shared HTML.
+- `connect-src` permits the site and its exact WebSocket origin derived from `NEXT_PUBLIC_APP_URL`; external WebSocket schemes are not allowed. Telegram frames and the widget script have explicit hosts. External HTTPS images are still permitted; CSP is defense in depth, not a guarantee against every XSS impact.
+- Authorization remains in server pages/actions, independent of middleware. Admin guards also enforce active bans. The custom HTTP server strips incoming framework-internal middleware bypass headers.
+- Telegram login requires a random, 10-minute, HttpOnly browser-state cookie and matching callback state for both GET and POST. Both callbacks share a per-IP limit of 20 attempts/10 minutes. The unused alternative sign-in server action was removed. POST checks browser origin and limits actual JSON bytes to 16 KiB. Auth failures do not reveal internal database errors.
+- `PRIMARY_ADMIN_TELEGRAM_ID` is required for super-admin privileges in production; usernames never confer them. Legacy profiles without an immutable Telegram ID are not automatically linked by username. `ENABLE_DEV_AUTH` cannot enable development login under `NODE_ENV=production`.
+- Return paths are restricted to local paths, rejecting backslashes, control characters and paths that normalize to a network-path reference; both API output and client navigation are sanitized.
+- `/api/client-error` rejects cross-origin browser writes, accepts at most 16 KiB of streamed JSON, validates Error IDs, and limits reports to 20/IP/minute. Reports remain untrusted client claims. Rate-limit storage is bounded to 10,000 buckets/process and fails closed when full. Limits are local to each replica, not a distributed quota; ingress throttling remains necessary.
+- Catalog requests enforce bans, field bounds and 10 requests/user/minute on both API and server-action paths. API requests additionally validate origin.
+- `/ws/board` accepts only same-origin browser upgrades, bounded event IDs and up to 1,000 clients/process, limits incoming frames to 1 KiB, disables compression, closes clients sending application messages and pings idle connections. It publishes only event ID, enumerated change reason and message type; the public invalidation channel carries no user/session data.
+- The app container runs as UID/GID 1000 without privilege escalation or Linux capabilities. HSTS is also controlled by ingress: see `infra/k8s/controller/hsts-patch.yaml` and the deployment runbook.
+- Regression verification: `npm test`, `npm run test:coverage`, `npm run typecheck`, `npm run lint`, production build, and `npx playwright test -c playwright.security.config.ts`. The dedicated browser checks use a disconnected database and do not replace the full product smoke suite.

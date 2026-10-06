@@ -12,29 +12,24 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   formatTrackInfoFieldsForTextarea,
   getEventTrackInfoFields,
-  getTrackInfoKeys,
-  getTrackInfoLabel,
 } from "@/lib/track-info-flags";
 import {
   acquireCurationLockAction,
-  adminClearSeatAction,
-  adminReplaceTrackSongAction,
-  cancelTrackAction,
   deleteEventAction,
   publishSetlistAction,
   runSelectionAction,
   sortSetlistByDrummerAction,
   updateEventAction,
   updateEventStatusAction,
-  updateTrackSettingsAction,
 } from "@/server/actions";
 import { isDatabaseAvailable } from "@/server/database-health";
 import { requireAdmin } from "@/server/auth-guards";
 import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
 import { db } from "@/lib/db";
 
+import { AdminTrackEditor } from "@/components/admin-track-editor";
+import { AdminSongWorkspace } from "@/components/admin-song-workspace";
 import { AdminSetlistStack } from "@/components/admin-setlist-stack";
-import { AdminSeatAssignControl } from "@/components/admin-seat-assign-control";
 import { AdminTimezoneOffsetField } from "@/components/admin-timezone-offset-field";
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { Badge } from "@/components/ui/badge";
@@ -235,11 +230,28 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
   );
   const effectiveStatus = getEffectiveEventStatus(event);
   const nextStatuses = getAllowedNextEventStatuses(event.status);
+  const editorEvent = { id: event.id, trackInfoFieldsJson: event.trackInfoFieldsJson, allowPlayback: event.allowPlayback };
+  const editors = new Map(event.tracks.map((track) => [track.id, (
+    <AdminTrackEditor key={track.id} track={track} event={editorEvent} locale={locale} />
+  )]));
+  const selectedTrackIds = new Set(event.setlistItems.map((item) => item.trackId));
+  const unselectedItems = event.tracks.filter((track) => !selectedTrackIds.has(track.id)).map((track, index) => ({
+    id: track.id,
+    trackId: track.id,
+    title: track.song.title,
+    artistName: track.song.artist.name,
+    lineupSummary: buildLineupSummary(locale, track.seats),
+    originatorLabel: buildUserLabel(locale, track.proposedBy),
+    orderIndex: index + 1,
+    editor: editors.get(track.id),
+  }));
   const mainSetItems = event.setlistItems
     .filter((item) => item.section === "MAIN")
     .sort((left, right) => left.orderIndex - right.orderIndex)
     .map((item) => ({
       id: item.id,
+      trackId: item.trackId,
+      editor: editors.get(item.trackId),
       orderIndex: item.orderIndex,
       title: item.track.song.title,
       artistName: item.track.song.artist.name,
@@ -270,6 +282,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
       return {
         id: item.id,
+        trackId: item.trackId,
+        editor: editors.get(item.trackId),
         orderIndex: item.orderIndex,
         title: item.track.song.title,
         artistName: item.track.song.artist.name,
@@ -345,6 +359,9 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         </div>
       ) : null}
 
+      <nav aria-label={pick(locale, { en: "Event workspace", ru: "Разделы гига" })} className="flex flex-wrap gap-3 text-sm text-sand">
+        <a className="rounded-sm border border-white/20 px-4 py-2 hover:bg-white/10" href="#songs">{pick(locale, { en: "Manage songs", ru: "Управление песнями" })} · {event.tracks.length}</a>
+      </nav>
       <section className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
         <Card className="space-y-4">
           <Badge>{pick(locale, { en: "Event settings", ru: "Настройки гига" })}</Badge>
@@ -453,8 +470,8 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
               />
               <p className="text-xs leading-5 text-white/55">
                 {pick(locale, {
-                  en: "One label per line. These checkboxes add context to a song, but never affect completeness or setlist selection.",
-                  ru: "По одной подписи на строку. Эти чекбоксы добавляют контекст к песне, но никогда не влияют на собранность или отбор в сетлист.",
+                  en: "One flag per line: Label|stable-key|English label|Russian label. Keep existing keys; flags never affect completeness or selection.",
+                  ru: "Один флаг на строку: Подпись|ключ|English label|Русская подпись. Сохраняйте ключи; флаги не влияют на собранность или отбор.",
                 })}
               </p>
             </label>
@@ -486,23 +503,23 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
 
         <div className="space-y-6">
           <Card className="space-y-4">
-            <Badge>{pick(locale, { en: "Lock", ru: "Лок" })}</Badge>
+            <Badge>{pick(locale, { en: "Lock", ru: "Редактирование сетлиста" })}</Badge>
             <p className="text-sm text-white/70">
               {activeLock
                 ? pick(locale, {
                     en: `Lock owned by @${activeLock.user.telegramUsername ?? activeLock.user.fullName} until ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
-                    ru: `Лок у @${activeLock.user.telegramUsername ?? activeLock.user.fullName} до ${new Date(activeLock.expiresAt).toLocaleTimeString()}.`,
+                    ru: `Право редактирования закреплено за ${buildUserLabel(locale, activeLock.user)} до ${new Date(activeLock.expiresAt).toLocaleTimeString()}. Это защищает сетлист от одновременных правок других администраторов. Владелец может продлить этот режим на 15 минут кнопкой ниже.`,
                   })
                 : pick(locale, {
                     en: "No active curation lock. Acquire one before running the algorithm or publishing.",
-                    ru: "Сейчас нет активного курационного лока. Возьми его перед запуском алгоритма или публикацией.",
+                    ru: "Перед отбором песен или публикацией закрепи редактирование за собой на 15 минут. Это защитит сетлист от одновременных правок других администраторов.",
                   })}
             </p>
             <form action={acquireCurationLockAction}>
               <input name="eventId" type="hidden" value={event.id} />
               <input name="eventSlug" type="hidden" value={event.id} />
-              <SubmitButton pendingLabel={pick(locale, { en: "Refreshing lock...", ru: "Обновляем лок..." })} type="submit" variant="secondary">
-                {pick(locale, { en: "Acquire or refresh lock", ru: "Взять или обновить лок" })}
+              <SubmitButton pendingLabel={pick(locale, { en: "Refreshing lock...", ru: "Закрепляем редактирование..." })} type="submit" variant="secondary">
+                {pick(locale, { en: "Acquire or refresh lock", ru: "Закрепить редактирование за мной" })}
               </SubmitButton>
             </form>
           </Card>
@@ -640,10 +657,10 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
         </div>
       </section>
 
-      <section className="space-y-6">
-        <Card className="space-y-4">
-          <Badge>{pick(locale, { en: "Main set", ru: "Мейн-сет" })}</Badge>
+      <AdminSongWorkspace locale={locale} songCatalog={songCatalog} assignableUsers={assignableUsers} counts={{ main: mainSetItems.length, backlog: backlogItems.length, unselected: unselectedItems.length }}>
+        <Card className="scroll-mt-48 sm:scroll-mt-28 space-y-4" id="songs-main">
           <AdminSetlistStack
+            locale={locale}
             deferOrderSave
             emptyLabel={pick(locale, {
               en: "Run the selection algorithm to generate the main set.",
@@ -667,9 +684,9 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
           />
         </Card>
 
-        <Card className="space-y-4">
-          <Badge>{pick(locale, { en: "Backlog", ru: "Бэклог" })}</Badge>
+        <Card className="scroll-mt-48 sm:scroll-mt-28 space-y-4" id="songs-backlog">
           <AdminSetlistStack
+            locale={locale}
             emptyLabel={pick(locale, { en: "No backlog tracks yet.", ru: "Пока нет треков в бэклоге." })}
             eventId={event.id}
             eventSlug={event.id}
@@ -683,161 +700,24 @@ export default async function AdminEventPage({ params, searchParams }: AdminEven
             title={pick(locale, { en: "Backlog order", ru: "Порядок бэклога" })}
           />
         </Card>
-      </section>
+        <Card className="scroll-mt-48 sm:scroll-mt-28 space-y-4" id="songs-unselected">
+          <AdminSetlistStack
+            locale={locale}
+            emptyLabel={pick(locale, { en: "All proposed songs are in the main set or backlog.", ru: "Все предложенные песни находятся в мейн-сете или бэклоге." })}
+            eventId={event.id}
+            eventSlug={event.id}
+            items={unselectedItems}
+            moveLabel=""
+            movePendingLabel=""
+            savingLabel=""
+            section="UNSELECTED"
+            sectionLabel={pick(locale, { en: "Not selected", ru: "Вне сетлиста" })}
+            targetSection="MAIN"
+            title={pick(locale, { en: "Not selected", ru: "Вне сетлиста" })}
+          />
+        </Card>
+      </AdminSongWorkspace>
 
-      <section className="space-y-4">
-        <Badge>{pick(locale, { en: "Track administration", ru: "Администрирование треков" })}</Badge>
-        <div className="space-y-3">
-          {event.tracks.map((track) => {
-            const completion = getTrackCompletionSummary(track.seats);
-            const claimedCount = track.seats.filter((seat) => seat.status === TrackSeatStatus.CLAIMED).length;
-            const occupiedLineup = buildLineupSummary(locale, track.seats);
-            const activeTrackInfoKeys = new Set(
-              getTrackInfoKeys(track.trackInfoKeysJson, track.playbackRequired),
-            );
-
-            return (
-              <details className="brand-shell overflow-hidden rounded-2xl border-white/10" key={track.id}>
-                <summary className="flex cursor-pointer flex-wrap items-start justify-between gap-4 px-5 py-4">
-                  <div className="min-w-0 space-y-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
-                      {pick(locale, { en: "Proposed by", ru: "Предложил(а)" })} @{track.proposedBy.telegramUsername}
-                    </p>
-                    <h2 className="font-display text-2xl font-semibold text-sand">
-                      {track.song.artist.name} - {track.song.title}
-                    </h2>
-                    <p className="text-sm leading-6 text-white/62">
-                      {claimedCount} {pick(locale, { en: "filled", ru: "занято" })} · {completion.requiredOpen}{" "}
-                      {pick(locale, { en: "required open", ru: "обязательных открыто" })} · {track.seats.length}{" "}
-                      {pick(locale, { en: "total seats", ru: "мест всего" })}
-                    </p>
-                  </div>
-                  <div className="max-w-[520px] text-sm leading-6 text-white/56">
-                    {occupiedLineup}
-                  </div>
-                </summary>
-
-                <div className="space-y-3 border-t border-white/10 px-5 py-5">
-                  <div className="flex flex-wrap justify-end gap-3">
-                    <form action={adminReplaceTrackSongAction} className="flex flex-wrap items-center gap-2">
-                      <input name="trackId" type="hidden" value={track.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <select className="min-w-[260px] px-3 py-2 text-sm" defaultValue={track.songId} name="songId">
-                        {songCatalog.map((song) => (
-                          <option key={song.id} value={song.id}>
-                            {song.artist.name} - {song.title}
-                          </option>
-                        ))}
-                      </select>
-                      <SubmitButton pendingLabel={pick(locale, { en: "Replacing...", ru: "Меняем..." })} type="submit" variant="secondary">
-                        {pick(locale, { en: "Replace song", ru: "Заменить песню" })}
-                      </SubmitButton>
-                    </form>
-                    <form action={cancelTrackAction}>
-                      <input name="trackId" type="hidden" value={track.id} />
-                      <input name="eventSlug" type="hidden" value={event.id} />
-                      <ConfirmSubmitButton
-                        confirmMessage={pick(locale, {
-                          en: `Delete "${track.song.title}" from the setlist?`,
-                          ru: `Удалить "${track.song.title}" из сетлиста?`,
-                        })}
-                        pendingLabel={pick(locale, { en: "Deleting...", ru: "Удаляем..." })}
-                        type="submit"
-                        variant="ghost"
-                      >
-                        {pick(locale, { en: "Delete track", ru: "Удалить трек" })}
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
-
-                  <form action={updateTrackSettingsAction} className="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-4 md:grid-cols-2">
-                    <input name="trackId" type="hidden" value={track.id} />
-                    <input name="eventSlug" type="hidden" value={event.id} />
-                    <label className="space-y-2 text-sm md:col-span-2">
-                      <span>{pick(locale, { en: "Track notes", ru: "Заметки трека" })}</span>
-                      <textarea className="min-h-20 w-full px-3 py-2" defaultValue={track.comment ?? ""} name="comment" />
-                    </label>
-                    {getEventTrackInfoFields(event.trackInfoFieldsJson, event.allowPlayback).map((field) => (
-                      <label className="flex items-center gap-2 text-sm" key={field.key}>
-                        <input
-                          defaultChecked={activeTrackInfoKeys.has(field.key)}
-                          name="trackInfoFlagKeys"
-                          type="checkbox"
-                          value={field.key}
-                        />
-                        {getTrackInfoLabel(field, locale)}
-                      </label>
-                    ))}
-                    <div className="space-y-2 md:col-span-2">
-                      <p className="text-sm font-semibold text-sand">
-                        {pick(locale, { en: "Optional open positions", ru: "Опциональные открытые позиции" })}
-                      </p>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {track.seats
-                          .filter((seat) => seat.status === TrackSeatStatus.OPEN)
-                          .map((seat) => (
-                            <label className="flex items-center gap-2 text-sm" key={seat.id}>
-                              <input
-                                defaultChecked={seat.isOptional}
-                                name="optionalSeatIds"
-                                type="checkbox"
-                                value={seat.id}
-                              />
-                              {seat.label}
-                            </label>
-                          ))}
-                      </div>
-                    </div>
-                    <SubmitButton className="md:col-span-2" pendingLabel={pick(locale, { en: "Saving track...", ru: "Сохраняем трек..." })} type="submit" variant="secondary">
-                      {pick(locale, { en: "Save track settings", ru: "Сохранить настройки трека" })}
-                    </SubmitButton>
-                  </form>
-
-                  <div className="space-y-2">
-                    {track.seats.map((seat) => (
-                      <div
-                        className="brand-shell-soft flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3"
-                        key={seat.id}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sand">{seat.label}</p>
-                            <Badge>{seat.status}</Badge>
-                            {seat.isOptional ? <Badge className="border-blue/24 bg-blue/16 text-white">OPT</Badge> : null}
-                          </div>
-                          <p className="text-sm text-white/62">
-                            {seat.user
-                              ? `@${seat.user.telegramUsername ?? seat.user.fullName}`
-                              : pick(locale, { en: "Open", ru: "Открыто" })}
-                          </p>
-                        </div>
-
-                        {seat.status !== TrackSeatStatus.CLAIMED ? (
-                          <AdminSeatAssignControl
-                            eventSlug={event.id}
-                            locale={locale}
-                            seatId={seat.id}
-                            users={assignableUsers}
-                          />
-                        ) : (
-                          <form action={adminClearSeatAction}>
-                            <input name="seatId" type="hidden" value={seat.id} />
-                            <input name="eventId" type="hidden" value={event.id} />
-                            <input name="eventSlug" type="hidden" value={event.id} />
-                            <SubmitButton pendingLabel={pick(locale, { en: "Clearing...", ru: "Очищаем..." })} size="sm" type="submit" variant="secondary">
-                              {pick(locale, { en: "Clear seat", ru: "Очистить место" })}
-                            </SubmitButton>
-                          </form>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </details>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }

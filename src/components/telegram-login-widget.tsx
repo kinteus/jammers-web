@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MessageCircleMore } from "lucide-react";
 
+import { getSafeReturnTo } from "@/lib/return-to";
+
 import { Button } from "@/components/ui/button";
 import { pick, type Locale } from "@/lib/i18n";
 
@@ -12,7 +14,7 @@ function getTelegramAuthUrl(authRequest: string) {
       ? process.env.NEXT_PUBLIC_APP_URL
       : window.location.origin;
   const url = new URL("/api/auth/telegram", origin);
-  url.searchParams.set("authRequest", authRequest);
+  url.searchParams.set("authState", authRequest);
 
   return url.toString();
 }
@@ -49,7 +51,7 @@ function removeTelegramAuthResultFromLocation() {
   window.history.replaceState(null, "", cleanUrl || "/profile");
 }
 
-function getDirectTelegramAuthUrl(botId: string) {
+function getDirectTelegramAuthUrl(botId: string, state: string) {
   const origin =
     typeof window === "undefined"
       ? process.env.NEXT_PUBLIC_APP_URL
@@ -62,7 +64,9 @@ function getDirectTelegramAuthUrl(botId: string) {
   url.searchParams.set("bot_id", botId);
   url.searchParams.set("origin", origin ?? "");
   url.searchParams.set("request_access", "write");
-  url.searchParams.set("return_to", returnTo);
+  const callback = new URL(returnTo);
+  callback.searchParams.set("authState", state);
+  url.searchParams.set("return_to", callback.toString());
 
   return url.toString();
 }
@@ -77,18 +81,28 @@ export function TelegramLoginWidget({
   locale: Locale;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const authRequestRef = useRef(`${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+  const [loginState, setLoginState] = useState<string | null>(null);
   const [directAuthUrl, setDirectAuthUrl] = useState<string | null>(null);
   const [authState, setAuthState] = useState<"idle" | "pending" | "failed">("idle");
 
   useEffect(() => {
-    if (!botId) {
+    if (getTelegramAuthResultFromLocation()) return;
+    let cancelled = false;
+    void fetch("/api/auth/telegram/state", { method: "POST" })
+      .then(async (response) => { if (!response.ok) throw new Error(); return response.json(); })
+      .then((result: { state: string }) => { if (!cancelled) setLoginState(result.state); })
+      .catch(() => { if (!cancelled) setAuthState("failed"); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!botId || !loginState) {
       setDirectAuthUrl(null);
       return;
     }
 
-    setDirectAuthUrl(getDirectTelegramAuthUrl(botId));
-  }, [botId]);
+    setDirectAuthUrl(getDirectTelegramAuthUrl(botId, loginState));
+  }, [botId, loginState]);
 
   useEffect(() => {
     const payload = getTelegramAuthResultFromLocation();
@@ -105,7 +119,7 @@ export function TelegramLoginWidget({
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ payload, state: new URL(window.location.href).searchParams.get("authState") }),
     })
       .then(async (response) => {
         const result = (await response.json()) as {
@@ -120,7 +134,7 @@ export function TelegramLoginWidget({
           return;
         }
 
-        const redirectUrl = new URL(result.redirectTo ?? "/profile", window.location.origin);
+        const redirectUrl = new URL(getSafeReturnTo(result.redirectTo, "/"), window.location.origin);
         redirectUrl.searchParams.set("auth", String(result.cacheBuster ?? Date.now()));
         window.location.assign(redirectUrl.toString());
       })
@@ -136,7 +150,7 @@ export function TelegramLoginWidget({
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current || !botUsername || botId) {
+    if (!containerRef.current || !botUsername || botId || !loginState) {
       return;
     }
 
@@ -147,10 +161,10 @@ export function TelegramLoginWidget({
     script.setAttribute("data-telegram-login", botUsername);
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "12");
-    script.setAttribute("data-auth-url", getTelegramAuthUrl(authRequestRef.current));
+    script.setAttribute("data-auth-url", getTelegramAuthUrl(loginState));
     script.setAttribute("data-request-access", "write");
     containerRef.current.appendChild(script);
-  }, [botId, botUsername]);
+  }, [botId, botUsername, loginState]);
 
   if (!botUsername) {
     return (
@@ -174,8 +188,8 @@ export function TelegramLoginWidget({
         <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
         <p>
           {pick(locale, {
-            en: "Telegram handles identity confirmation in its own secure flow. After approval, this page will refresh automatically and open your profile.",
-            ru: "Telegram подтверждает личность в собственном защищённом сценарии. После одобрения страница автоматически обновится и откроет твой профиль.",
+            en: "Telegram handles identity confirmation in its own secure flow. After approval, this page will refresh automatically and open the nearest open gig, or the home page if none is open.",
+            ru: "Telegram подтверждает личность в собственном защищённом сценарии. После одобрения страница автоматически обновится и откроет ближайший открытый гиг или главную страницу.",
           })}
         </p>
       </div>

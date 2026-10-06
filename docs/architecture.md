@@ -2,7 +2,7 @@
 
 ## High-level design
 
-The application is implemented as a single deployable Next.js monolith with server-rendered pages, server actions, and Prisma-backed domain services.
+The application is implemented as a single deployable Next.js monolith with server-rendered pages, server actions, and Prisma-backed domain services. Its pure history-weighted selection engine is supplied by the public [`@kinteus/jammers-setlist`](https://github.com/kinteus/jammers-setlist) package, pinned to a GitHub commit archive. The package is an in-process dependency; database reads, authorization, candidate preparation, and persistence remain in the application.
 
 ```mermaid
 flowchart LR
@@ -35,3 +35,9 @@ flowchart LR
 - All privileged mutations require server-side role checks.
 - Bans are enforced server-side before participation mutations.
 - Production deployment expects secrets to come from Kubernetes `Secret` resources, not committed files.
+
+Browser security policy is generated per request by middleware; privileged authorization
+stays inside server pages/actions. Telegram callbacks are bound to a short-lived browser
+state cookie. Production super-admin identity uses an immutable Telegram ID. Rate limits
+are bounded in-process safeguards plus ingress throttling; they are not shared quotas
+across replicas. See `docs/TECHNICAL_REFERENCE.md` for limits and CSP/runtime details.

@@ -51,18 +51,6 @@ export async function upsertTelegramUser(identity: TelegramIdentity) {
       }));
 
     if (conflictingUser) {
-      if (!conflictingUser.telegramId) {
-        return db.user.update({
-          where: { id: conflictingUser.id },
-          data: {
-            telegramId: identity.telegramId,
-            telegramUsername: normalizedUsername,
-            fullName: identity.fullName,
-            avatarUrl: identity.avatarUrl,
-          },
-        });
-      }
-
       throw new TelegramIdentityConflictError();
     }
   }
