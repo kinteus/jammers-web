@@ -60,13 +60,24 @@ describe("unified admin song workspace", () => {
   });
 
   it("retains an unsaved draft and shows recoverable feedback when saving fails", async () => {
-    reorder.mockRejectedValueOnce(new Error("Lock expired"));
+    reorder.mockRejectedValueOnce(new Error("Lock expired")).mockResolvedValueOnce(undefined);
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Move Band - Alpha down" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Could not save"));
     expect(screen.getByText("Unsaved order")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Save Main set order" }) as HTMLButtonElement).disabled).toBe(false);
+    // Error feedback can render before React finishes the async transition.
+    await waitFor(() => {
+      expect((screen.getByRole("button", { name: "Save Main set order" }) as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Main set order" }));
+    await waitFor(() => expect(screen.queryByText("Unsaved order")).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reorder).toHaveBeenCalledTimes(2);
+    for (const [formData] of reorder.mock.calls) {
+      expect(formData.get("itemIds")).toBe(JSON.stringify(["item-1", "item-0"]));
+    }
   });
 
   it("keeps not-selected songs editable without setlist-only actions", () => {
