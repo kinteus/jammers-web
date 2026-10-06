@@ -26,7 +26,6 @@ import {
   isValidTelegramUsername,
   normalizeTelegramUsername,
 } from "@/lib/auth/telegram-username";
-import { TelegramAuthPayload, verifyTelegramAuth } from "@/lib/auth/telegram";
 import { ADMIN_LOCK_SCOPE } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { seatLabelForSlot } from "@/lib/domain/lineup";
@@ -73,6 +72,7 @@ import {
 } from "@/lib/site-content";
 import { slugify } from "@/lib/utils";
 import { normalizeVenueMapUrl } from "@/lib/url-security";
+import { getPostLoginPath } from "@/server/post-login";
 import { getSafeReturnTo } from "@/lib/return-to";
 import { isUniqueConstraintErrorForFields } from "@/lib/prisma-errors";
 import { buildSongUpsertArgs } from "@/lib/song-identity";
@@ -95,7 +95,6 @@ import {
   buildPublishedSetNotifications,
 } from "@/server/published-set-notifications";
 import { publishBoardUpdate } from "@/server/board-event-bus";
-import { upsertTelegramUser } from "@/server/upsert-telegram-user";
 
 function pathBundle(...eventKeys: Array<string | undefined>) {
   const paths = ["/", "/admin", "/profile", "/faq"];
@@ -1323,16 +1322,6 @@ export async function signOutAction() {
   revalidateAll(["/", "/admin", "/profile"]);
 }
 
-export async function telegramSignInAction(
-  payload: Record<string, TelegramAuthPayload[keyof TelegramAuthPayload]>,
-) {
-  const verified = verifyTelegramAuth(payload as never);
-  const user = await upsertTelegramUser(verified);
-
-  await createSession(user.id);
-  revalidateAll(["/", "/admin", "/profile"]);
-}
-
 export async function devSignInAction(formData: FormData) {
   if (!env.ENABLE_DEV_AUTH) {
     throw new Error("Development auth is disabled.");
@@ -1353,9 +1342,10 @@ export async function devSignInAction(formData: FormData) {
       redirect(`/profile?${params.toString()}`);
     }
 
+    const destination = await getPostLoginPath();
     await createSession(user.id);
     revalidateAll(["/", "/admin", "/profile"]);
-    redirect(returnTo);
+    redirect(destination);
   }
 
   const username = normalizeTelegramUsername(getString(formData, "telegramUsername"));
@@ -1385,9 +1375,10 @@ export async function devSignInAction(formData: FormData) {
     redirect(`/profile?${params.toString()}`);
   }
 
+  const destination = await getPostLoginPath();
   await createSession(user.id);
   revalidateAll(["/", "/admin", "/profile"]);
-  redirect(returnTo);
+  redirect(destination);
 }
 
 export async function updateProfileAction(formData: FormData) {
@@ -1494,13 +1485,19 @@ export async function revokeAdminRoleAction(formData: FormData) {
 
 export async function requestSongCatalogAction(formData: FormData) {
   const user = await requireUser();
+  const limit = consumeRateLimit({ key: `catalog-request:${user.id}`, limit: 10, windowMs: 60_000 });
+  if (!limit.allowed) throw new Error("Too many catalog requests.");
+  const artistName = getString(formData, "artistName").trim();
+  const trackTitle = getString(formData, "trackTitle").trim();
+  const comment = getString(formData, "comment").trim();
+  if (!artistName || !trackTitle || artistName.length > 200 || trackTitle.length > 300 || comment.length > 2000) throw new Error("Invalid catalog request.");
   const eventSlug = getString(formData, "eventSlug");
   await db.songCatalogRequest.create({
     data: {
       requestedById: user.id,
-      artistName: getString(formData, "artistName"),
-      trackTitle: getString(formData, "trackTitle"),
-      comment: getString(formData, "comment") || null,
+      artistName,
+      trackTitle,
+      comment: comment || null,
     },
   });
 

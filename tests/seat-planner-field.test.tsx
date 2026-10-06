@@ -18,7 +18,11 @@ afterEach(() => {
 });
 
 describe("SeatPlannerField", () => {
-  it("filters inviteable users by typing while proposing a track", () => {
+  it("fetches invitation suggestions by typing while proposing a track", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ users: [{ fullName: "Boris Bass", id: "user-boris", telegramUsername: "boris_bass" }] }),
+    }));
     render(
       <form data-testid="proposal-form">
         <SeatPlannerField
@@ -43,10 +47,11 @@ describe("SeatPlannerField", () => {
 
     const inviteInput = screen.getByRole("combobox", { name: "Invite Bass" });
     fireEvent.focus(inviteInput);
+    expect(screen.queryByRole("listbox")).toBeNull();
     fireEvent.change(inviteInput, { target: { value: "boris" } });
 
     const listbox = screen.getByRole("listbox", { name: "Invite Bass" });
-    expect(within(listbox).getByRole("option", { name: /@boris_bass/i })).toBeTruthy();
+    expect(await within(listbox).findByRole("option", { name: /@boris_bass/i })).toBeTruthy();
     expect(within(listbox).queryByRole("option", { name: /@anna_drums/i })).toBeNull();
 
     fireEvent.click(within(listbox).getByRole("option", { name: /@boris_bass/i }));

@@ -15,9 +15,11 @@ The Jammers is a public concert planning web app for community jam events. Users
 - Telegram-based registration and sign-in, with a dev-only local fallback
 - Public event boards with configurable stage lineups, registration-open countdowns, and board-reading guidance
 - Track proposals from live song search plus resilient missing-song requests with inline success and error feedback
-- Multi-seat sign-up, optimistic join/leave flows, Telegram invites for registered users, and a personal dashboard with actionable empty states
+- Multi-seat sign-up, optimistic join/leave flows, search-only Telegram invitation suggestions, musician filters, localized track flags, and a personal dashboard with actionable empty states
+- Sign-in opens the nearest upcoming gig with open registration (or home); active sessions on other devices remain signed in
 - Public FAQ, newcomer onboarding, and published setlist discovery from the main navigation
 - Admin event CRUD, moderation, known-group registry, ratings, curation lock, quick event actions, and event deletion
+- Unified admin song rows with search, inline song/seat editing, and main-set/backlog curation
 - History-weighted setlist selection with previous-concert song exclusion, backlog support, draft-save set ordering, CSV export, and final-set Telegram notifications
 
 ## Quick start

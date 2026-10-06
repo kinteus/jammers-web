@@ -67,6 +67,7 @@ The current application exposes the following main surfaces:
 
 - `/`
   Public home page with current events, newcomer onboarding, next-gig shortage framing, community quotes, and recently published setlists.
+  The next-gig card omits the duplicate Date / Time / Place summary row; gig details remain in its status-specific statistics and countdowns.
 - `/faq`
   Public operating guide: participation rules and line-up semantics rendered from admin-editable markdown, plus the product feedback form. Both content sections are editable per locale (EN/RU) from the admin dashboard.
 - `/about`
@@ -179,6 +180,8 @@ The intended production path is Telegram authentication. Telegram username is th
 - published track rosters,
 - collaboration references across the product.
 
+After successful sign-in, the app opens the nearest upcoming gig with registration currently open (including scheduled opening/closing times). If none exists, it opens the home page. This applies to Telegram and local sign-in. Signing in on another device keeps existing device sessions active; sign-out affects the current session only. Sessions still expire after the configured lifetime (seven days by default).
+
 ### Local development sign-in
 
 When development auth is enabled in non-production environments, `/profile` exposes a local sign-in form. This is intended only for:
@@ -232,7 +235,7 @@ The public event page shows:
 - published setlist once the event is published.
 
 The page supports a `view=mine` filter, allowing a user to focus only on songs where they are already participating.
-Board filtering is designed to feel low-friction: search updates automatically while the user types instead of requiring a separate apply step.
+Board search updates automatically while the user types, preserving newer input when a slower response arrives. The musician filter (`participant=<user id>`) shows tracks with that musician assigned to a seat; it combines with search, open-role filters, and the All/Need players/My songs views. Clear resets every filter. The musician list comes from the full visible board roster, so other filters do not remove its options.
 Event URLs are canonicalized by `event.id` rather than by title-derived slugs, which removes Unicode routing edge cases for newly created gigs.
 
 ### Registration window behavior
@@ -296,7 +299,7 @@ The proposer can also add:
 
 - notes for the band,
 - playback flag if the event allows playback usage.
-- event-configured track info flags such as short arrangement markers.
+- event-configured track info flags such as short arrangement markers. Playback is localized automatically, including legacy Russian flag keys. Custom flags support English and Russian labels; an untranslated flag falls back to its configured label. Admins enter `Label|stable-key|English label|Russian label`, one flag per line, keeping existing keys when editing.
 
 ### Validation rules during proposal
 
@@ -362,11 +365,11 @@ If the proposer or an admin decides that a role is not used in the arrangement, 
 
 ## 9. Inviting another musician
 
-For open seats, the proposer or an admin can invite another user by Telegram username.
+For open seats while registration is open, signed-in musicians can invite another registered user. In both the board and proposal composer, the picker initially shows only a search field. Type at least three characters of a name or Telegram username to fetch up to eight matching active accounts from the database, then select a suggestion. It does not offer a browsable directory. Lookup requests are rate limited; this discourages casual directory-based broadcasting but is not a hard quota on invitation delivery.
 
 The invite flow performs the following:
 
-- resolves the recipient by username,
+- resolves the selected recipient from the database,
 - creates an invitation record,
 - attempts Telegram bot delivery,
 - records delivery failures if messaging cannot be completed,
@@ -461,7 +464,7 @@ In addition to the table itself, the surrounding board UI surfaces:
 - shortage summaries,
 - a board legend,
 - a "best next move" block,
-- filters for all songs, shortage-heavy songs, and the viewer's own songs.
+- filters for all songs, shortage-heavy songs, the viewer's own songs, and a selected musician.
 
 Recent interaction hardening on the board also includes:
 
@@ -556,6 +559,8 @@ The admin home is now intentionally compact:
 - the event list stays visible on the main page,
 - each event row exposes quick actions such as open, close, publish, and delete.
 
+Opening an event admin shows a spinner and an opening label on the link while navigation is pending, followed by a loading panel while the event workspace loads. Both messages follow the selected language.
+
 ## 15. Event settings administration
 
 On `/admin/events/[id]`, admins can edit event configuration after creation:
@@ -572,7 +577,9 @@ This page is the operational control center for a specific event.
 
 The event admin screen also includes:
 
-- compact stack-style rendering for main-set and backlog items,
+- one song-management workspace, grouped into Main set, Backlog, and Not selected, with each song shown once,
+- search by song, artist, proposer, or assigned musician and quick links to each section,
+- expandable song details in each row: replace the song, edit notes and track-info flags, mark optional open seats, assign/clear musicians, and delete the track,
 - arrow-based final-set reordering with an explicit save step,
 - CSV export for the current main-set order,
 - a dedicated danger zone for event deletion.
@@ -602,7 +609,7 @@ Before sensitive curation actions, an admin can acquire a lock. The lock is inte
 - make ownership of the current editing session explicit,
 - protect selection and publishing flows.
 
-The UI shows the current lock owner and expiration time when a lock exists.
+The UI shows the current lock owner and expiration time when a lock exists. In Russian, this panel is labeled «Редактирование сетлиста» and explains that «Закрепить редактирование за мной» reserves editing for 15 minutes to prevent simultaneous admin changes. The owner can use the same button to extend that period.
 
 ## 18. Running the selection algorithm
 
@@ -649,8 +656,11 @@ After selection, admins can manually move tracks:
 - from main to backlog,
 - to a different order index.
 
+Songs outside the generated setlist remain editable in Not selected; they have no setlist-order or section-move controls until selection includes them. Search preserves draft edits, and clearing it restores all rows. Reordering is disabled while searching to keep the full running order unambiguous; CSV export still includes the entire main set in its current draft order.
+
 Backlog ordering and section moves continue to persist through server actions. Main-set order
 changes are saved explicitly from the main-set block after admins finish arranging the local draft.
+Within the main-set section, song editing and section moves are disabled while its order is unsaved; Save order or Discard order changes re-enables them. Failed order saves show feedback and retain the main-set draft for retry.
 This ensures the algorithm remains a recommendation engine, not a hard lock on the final artistic or
 operational decision.
 
@@ -722,3 +732,12 @@ In product terms, The Jammers currently supports the full end-to-end loop:
 5. admins run selection,
 6. admins curate and publish the setlist,
 7. musicians review their assignments and the public final result.
+
+### Sign-in security
+
+Telegram sign-in must finish in the browser that started it within ten minutes. If the
+flow expires, restart it from the profile page. Imported username-only profiles require
+an administrator to verify and link their immutable Telegram ID; matching a username
+alone does not grant access to historical data. Production admin-list management requires
+a configured primary administrator's Telegram ID. Banned administrators cannot use admin
+pages or actions. Catalog requests are limited to ten per account per minute.

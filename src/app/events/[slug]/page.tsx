@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
@@ -31,7 +32,7 @@ import {
   createTrackAction,
   updateEventStatusAction,
 } from "@/server/actions";
-import { getEventWorkspace, getInviteableUsers } from "@/server/query-data";
+import { getEventWorkspace } from "@/server/query-data";
 
 import { DatabaseUnavailableState } from "@/components/database-unavailable-state";
 import { BoardRealtimeRefresh } from "@/components/board-realtime-refresh";
@@ -457,14 +458,13 @@ export default async function EventPage({ params, searchParams }: EventPageProps
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
   let event;
-  let inviteableUsers;
+  const inviteableUsers: { id: string; fullName: string | null; telegramUsername: string | null }[] = [];
   let user;
   let locale;
 
   try {
-    [event, inviteableUsers, user, locale] = await Promise.all([
+    [event, user, locale] = await Promise.all([
       getEventWorkspace(slug),
-      getInviteableUsers(),
       getCurrentUser(),
       getLocale(),
     ]);
@@ -594,7 +594,14 @@ export default async function EventPage({ params, searchParams }: EventPageProps
           .filter((track): track is (typeof event.tracks)[number] => Boolean(track))
       : event.tracks;
 
+  const selectedParticipant = typeof resolvedSearchParams.participant === "string" ? resolvedSearchParams.participant : "";
+  const participants = Array.from(new Map(boardTracks.flatMap((track) =>
+    track.seats.flatMap((seat) => seat.userId && seat.user
+      ? [[seat.userId, { id: seat.userId, label: seat.user.telegramUsername ? `@${seat.user.telegramUsername}` : seat.user.fullName ?? seat.userId }] as const]
+      : []),
+  )).values()).sort((a, b) => a.label.localeCompare(b.label, locale));
   const visibleTracks = boardTracks.filter((track) => {
+    if (selectedParticipant && !track.seats.some((seat) => seat.userId === selectedParticipant)) return false;
     const matchesSearch =
       searchNeedle.length === 0 ||
       [
@@ -667,6 +674,7 @@ export default async function EventPage({ params, searchParams }: EventPageProps
       <script
         dangerouslySetInnerHTML={{ __html: serializeJsonForHtmlScript(structuredData) }}
         type="application/ld+json"
+        nonce={(await headers()).get("x-nonce") ?? undefined}
       />
       {notice === "track-created" ? (
         <div className="rounded-xl border border-blue/30 bg-blue/12 px-4 py-3 text-sm text-white">
@@ -878,6 +886,9 @@ export default async function EventPage({ params, searchParams }: EventPageProps
         <Card className="brand-shell space-y-4 border-white/10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TrackBoardFilters
+              key={event.id}
+              participants={participants}
+              selectedParticipant={selectedParticipant}
               activeView={activeView}
               locale={locale}
               roleOptions={roleOptions}

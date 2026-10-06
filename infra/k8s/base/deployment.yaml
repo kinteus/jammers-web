@@ -15,6 +15,15 @@ spec:
       containers:
         - name: app
           image: ghcr.io/kinteus/jammers-web:latest
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

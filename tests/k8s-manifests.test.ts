@@ -48,6 +48,8 @@ describe("kubernetes manifests", () => {
   });
 
   it("keeps the Prisma CLI available in the production image for migration jobs", () => {
-    expect(getDockerRunnerStage()).toContain("COPY --from=deps /app/node_modules ./node_modules");
+    expect(JSON.parse(readFileSync("package.json", "utf8")).dependencies.prisma).toBeTruthy();
+    expect(getDockerRunnerStage()).toContain("USER node");
+    expect(getDockerRunnerStage()).toContain("COPY --from=production-deps /app/node_modules ./node_modules");
   });
 });

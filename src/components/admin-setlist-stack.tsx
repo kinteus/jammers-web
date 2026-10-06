@@ -1,15 +1,19 @@
 "use client";
 
-import { Fragment, useEffect, useState, useTransition } from "react";
+import { Fragment, useEffect, useState, useTransition, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Download, ListOrdered, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { moveSetlistItemAction, reorderSetlistSectionAction } from "@/server/actions";
 
+import { pick, type Locale } from "@/lib/i18n";
+import { useAdminSongSearch } from "@/components/admin-song-workspace";
 import { Loader } from "@/components/ui/loader";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 type AdminSetlistStackItem = {
+  trackId?: string;
+  editor?: ReactNode;
   id: string;
   title: string;
   artistName: string;
@@ -25,6 +29,7 @@ type AdminSetlistStackItem = {
 };
 
 type AdminSetlistStackProps = {
+  locale?: Locale;
   deferOrderSave?: boolean;
   emptyLabel: string;
   eventId: string;
@@ -35,7 +40,7 @@ type AdminSetlistStackProps = {
   movePendingLabel: string;
   saveOrderLabel?: string;
   savingLabel: string;
-  section: "MAIN" | "BACKLOG";
+  section: "MAIN" | "BACKLOG" | "UNSELECTED";
   sectionLabel: string;
   clusterItemLabel?: string;
   clusterItemsLabel?: string;
@@ -284,6 +289,7 @@ function getDrummerClusterLabel(
 }
 
 export function AdminSetlistStack({
+  locale = "en",
   deferOrderSave = false,
   emptyLabel,
   eventId,
@@ -303,9 +309,12 @@ export function AdminSetlistStack({
   unsavedOrderLabel = "Unsaved order",
 }: AdminSetlistStackProps) {
   const router = useRouter();
+  const query = useAdminSongSearch();
+  const isUnselected = section === "UNSELECTED";
   const [currentItems, setCurrentItems] = useState(items);
   const [savedOrderKey, setSavedOrderKey] = useState(() => getOrderKey(items));
   const [isSaving, startTransition] = useTransition();
+  const [saveError, setSaveError] = useState(false);
   const hasUnsavedOrder = getOrderKey(currentItems) !== savedOrderKey;
 
   useEffect(() => {
@@ -314,16 +323,20 @@ export function AdminSetlistStack({
   }, [items]);
 
   async function persistOrder(nextItems: AdminSetlistStackItem[], refreshAfterSave: boolean) {
+    setSaveError(false);
     const formData = new FormData();
     formData.set("eventId", eventId);
     formData.set("eventSlug", eventSlug);
     formData.set("section", section);
     formData.set("itemIds", JSON.stringify(nextItems.map((item) => item.id)));
 
-    await reorderSetlistSectionAction(formData);
-    setSavedOrderKey(getOrderKey(nextItems));
-    if (refreshAfterSave) {
-      router.refresh();
+    try {
+      await reorderSetlistSectionAction(formData);
+      setSavedOrderKey(getOrderKey(nextItems));
+      if (refreshAfterSave) router.refresh();
+    } catch {
+      setSaveError(true);
+      if (!deferOrderSave) setCurrentItems(items);
     }
   }
 
@@ -335,8 +348,8 @@ export function AdminSetlistStack({
 
     setCurrentItems(nextItems);
     if (!deferOrderSave) {
-      startTransition(() => {
-        void persistOrder(nextItems, true);
+      startTransition(async () => {
+        await persistOrder(nextItems, true);
       });
     }
   }
@@ -349,8 +362,8 @@ export function AdminSetlistStack({
 
     setCurrentItems(nextItems);
     if (!deferOrderSave) {
-      startTransition(() => {
-        void persistOrder(nextItems, true);
+      startTransition(async () => {
+        await persistOrder(nextItems, true);
       });
     }
   }
@@ -359,8 +372,8 @@ export function AdminSetlistStack({
     if (!hasUnsavedOrder) {
       return;
     }
-    startTransition(() => {
-      void persistOrder(currentItems, true);
+    startTransition(async () => {
+      await persistOrder(currentItems, true);
     });
   }
 
@@ -376,14 +389,18 @@ export function AdminSetlistStack({
     URL.revokeObjectURL(url);
   }
 
+  const matchesSearch = (item: AdminSetlistStackItem) =>
+    !query || `${item.artistName} ${item.title} ${item.lineupSummary} ${item.originatorLabel ?? ""}`.toLocaleLowerCase().includes(query);
+  const matchCount = currentItems.filter(matchesSearch).length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ListOrdered className="h-4 w-4 text-gold" />
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/62">
-            {title}
-          </p>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/75">
+            {title} · {query ? `${matchCount} / ` : ""}{currentItems.length}
+          </h3>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {hasUnsavedOrder ? (
@@ -423,12 +440,20 @@ export function AdminSetlistStack({
         </div>
       </div>
 
+      {saveError ? <p role="alert" className="text-sm text-red">{pick(locale, { en: "Could not save the order. Please try again.", ru: "Не удалось сохранить порядок. Попробуй ещё раз." })}</p> : null}
+      {deferOrderSave && hasUnsavedOrder ? (
+        <div className="flex flex-wrap items-center gap-3 text-sm text-gold" role="status">
+          <p>{pick(locale, { en: "Save or discard this order before editing a song or moving it to another section.", ru: "Сохрани или отмени порядок перед редактированием песни или переносом в другой раздел." })}</p>
+          <button className="underline underline-offset-4" disabled={isSaving} onClick={() => { setCurrentItems(items); setSaveError(false); }} type="button">{pick(locale, { en: "Discard order changes", ru: "Отменить изменения порядка" })}</button>
+        </div>
+      ) : null}
       {currentItems.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-white/55">
           {emptyLabel}
         </div>
       ) : (
         <div className="space-y-3">
+          {matchCount === 0 ? <p className="py-3 text-sm text-white/65" role="status">{pick(locale, { en: "No matching songs in this section.", ru: "В этом разделе нет подходящих песен." })}</p> : null}
           {currentItems.map((item, index) => {
             const drummerClusterLabel = getDrummerClusterLabel(
               currentItems,
@@ -439,7 +464,7 @@ export function AdminSetlistStack({
 
             return (
               <Fragment key={item.id}>
-                {drummerClusterLabel ? (
+                {drummerClusterLabel && !query ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-gold/60 pl-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/58">
                       {drummerClusterLabel}
@@ -447,9 +472,9 @@ export function AdminSetlistStack({
                     <div className="flex items-center gap-1">
                       <button
                         aria-label={`Move ${item.drummerLabel} cluster up`}
-                        className="ui-tooltip inline-flex h-7 w-7 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ui-tooltip inline-flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         data-tip="Move drummer block up"
-                        disabled={isSaving || index === 0}
+                        disabled={Boolean(query) || isSaving || index === 0}
                         onClick={() => handleClusterMove(index, "up")}
                         title="Move drummer block up"
                         type="button"
@@ -458,7 +483,7 @@ export function AdminSetlistStack({
                       </button>
                       <button
                         aria-label={`Move ${item.drummerLabel} cluster down`}
-                        className="ui-tooltip inline-flex h-7 w-7 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ui-tooltip inline-flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/70 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         data-tip="Move drummer block down"
                         disabled={isSaving || getClusterRange(currentItems, index)?.end === currentItems.length}
                         onClick={() => handleClusterMove(index, "down")}
@@ -472,15 +497,17 @@ export function AdminSetlistStack({
                 ) : null}
                 <div
                   className="brand-shell-soft rounded-lg border border-white/10 px-3 py-2.5"
+                  data-song-row={item.trackId ?? item.id}
+                  hidden={!matchesSearch(item)}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 flex-1 basis-64 space-y-1">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
                         {sectionLabel} · {index + 1}
                       </p>
                       <a
                         aria-label={`Search on YouTube: ${getFullTitle(item)}`}
-                        className="block min-w-0 truncate text-base font-semibold text-sand transition hover:text-white hover:underline"
+                        className="block min-w-0 break-words text-base font-semibold text-sand transition hover:text-white hover:underline"
                         href={getYoutubeSearchUrl(item.artistName, item.title)}
                         rel="noreferrer"
                         target="_blank"
@@ -491,12 +518,12 @@ export function AdminSetlistStack({
                       <p className="text-sm leading-6 text-white/64">{item.lineupSummary}</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-2">
+                    {!isUnselected ? <div className="flex flex-wrap items-center justify-end gap-2">
                       <button
                         aria-label={`Move ${item.artistName} - ${item.title} up`}
-                        className="ui-tooltip inline-flex h-8 w-8 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ui-tooltip inline-flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         data-tip="Move up"
-                        disabled={isSaving || index === 0}
+                        disabled={Boolean(query) || isSaving || index === 0}
                         onClick={() => handleMove(item.id, "up")}
                         title="Move up"
                         type="button"
@@ -505,9 +532,9 @@ export function AdminSetlistStack({
                       </button>
                       <button
                         aria-label={`Move ${item.artistName} - ${item.title} down`}
-                        className="ui-tooltip inline-flex h-8 w-8 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        className="ui-tooltip inline-flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/6 text-white/72 transition hover:border-white/20 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         data-tip="Move down"
-                        disabled={isSaving || index === currentItems.length - 1}
+                        disabled={Boolean(query) || isSaving || index === currentItems.length - 1}
                         onClick={() => handleMove(item.id, "down")}
                         title="Move down"
                         type="button"
@@ -524,7 +551,7 @@ export function AdminSetlistStack({
                         <input name="section" type="hidden" value={targetSection} />
                         <input name="orderIndex" type="hidden" value={1} />
                         <SubmitButton
-                          disabled={item.moveDisabled}
+                          disabled={item.moveDisabled || isSaving || (deferOrderSave && hasUnsavedOrder)}
                           pendingLabel={movePendingLabel}
                           size="sm"
                           title={item.moveDisabled ? item.moveDisabledLabel : undefined}
@@ -534,8 +561,9 @@ export function AdminSetlistStack({
                           {item.moveDisabled ? (item.moveDisabledLabel ?? moveLabel) : moveLabel}
                         </SubmitButton>
                       </form>
-                    </div>
+                    </div> : null}
                   </div>
+                  {item.editor ? <fieldset className="min-w-0" disabled={isSaving || (deferOrderSave && hasUnsavedOrder)}>{item.editor}</fieldset> : null}
                 </div>
               </Fragment>
             );

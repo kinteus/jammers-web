@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("React", React);
+  window.history.replaceState(null, "", "/profile");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ state: "a".repeat(64) }) }));
 });
 
 afterEach(() => {
@@ -57,7 +59,7 @@ describe("TelegramLoginWidget", () => {
     expect(authUrl.origin).toBe(window.location.origin);
     expect(authUrl.pathname).toBe("/api/auth/telegram");
     expect(authUrl.searchParams.has("returnTo")).toBe(false);
-    expect(authUrl.searchParams.get("authRequest")).toMatch(/^\d+-[a-z0-9]+$/);
+    expect(authUrl.searchParams.get("authState")).toBe("a".repeat(64));
   });
 
   it("offers a same-tab Telegram auth link when the bot id is available", async () => {
@@ -91,7 +93,7 @@ describe("TelegramLoginWidget", () => {
     expect(url.searchParams.get("bot_id")).toBe("8366922626");
     expect(url.searchParams.get("origin")).toBe(window.location.origin);
     expect(url.searchParams.get("request_access")).toBe("write");
-    expect(url.searchParams.get("return_to")).toBe(window.location.href);
+    expect(new URL(url.searchParams.get("return_to")!).searchParams.get("authState")).toBe("a".repeat(64));
   });
 
   it("completes Telegram auth from a tgAuthResult return without reopening the popup", async () => {
@@ -107,7 +109,7 @@ describe("TelegramLoginWidget", () => {
     window.history.replaceState(
       null,
       "",
-      `/profile#tgAuthResult=${encodeTelegramAuthResult(payload)}`,
+      `/profile?authState=${"a".repeat(64)}#tgAuthResult=${encodeTelegramAuthResult(payload)}`,
     );
 
     const host = document.createElement("div");
@@ -128,7 +130,7 @@ describe("TelegramLoginWidget", () => {
       "/api/auth/telegram",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ payload }),
+        body: JSON.stringify({ payload, state: "a".repeat(64) }),
       }),
     );
   });

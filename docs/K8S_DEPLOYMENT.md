@@ -68,3 +68,26 @@ kubectl rollout status deployment/jammers-web
 - Run `prisma migrate deploy` as a pre-deploy job or init job.
 - Keep `ENABLE_DEV_AUTH=false` in production.
 - Ensure Telegram bot credentials are valid before enabling invite delivery flows.
+
+## Security release prerequisites
+
+- Configure the verified `PRIMARY_ADMIN_TELEGRAM_ID` before deploying the security changes;
+  otherwise production admin-list management fails closed. Never infer the ID from a username.
+- The application container now runs as UID/GID 1000 with capabilities dropped and privilege
+  escalation disabled. The image owns its writable `.next` cache as `node`; `/tmp` holds logs.
+- `NEXT_PUBLIC_APP_URL` must match the actual browser origin, including scheme/port. It is
+  used for WebSocket CSP and origin validation. Keep nonce-bearing HTML out of shared caches.
+- NGINX ingress overrides application HSTS. The MicroK8s controller currently returns
+  `max-age=15724800; includeSubDomains`. A merge patch is provided separately because it
+  affects every TLS host on the controller, not just this application:
+
+```bash
+kubectl --kubeconfig ~/.kube/config-jammers-microk8s -n ingress patch configmap nginx-load-balancer-microk8s-conf --type merge --patch-file infra/k8s/controller/hsts-patch.yaml
+curl -sSI https://thejammers.org/
+```
+
+Review other controller hosts before applying the patch. Expect exactly one HSTS header
+with `max-age=31536000; includeSubDomains; preload`. The `preload` directive does not submit
+the domain to the browser preload list; registration is a separate operational decision.
+Do not enable arbitrary ingress snippets to work around HSTS. This repository patch alone
+does not change the running controller or deploy the updated application.

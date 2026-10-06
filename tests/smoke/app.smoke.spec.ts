@@ -26,10 +26,6 @@ async function signInLocally(page: Page, username: string) {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  await db.authSession.deleteMany({
-    where: { userId: user.id },
-  });
-
   await db.authSession.create({
     data: {
       tokenHash: hashToken(rawToken),
@@ -195,6 +191,7 @@ test.describe("Jammers smoke", () => {
     await expect(nextGigSection.getByText(/^Time$/)).toHaveCount(0);
     await expect(nextGigSection.getByText(/^Дата$/)).toHaveCount(0);
     await expect(nextGigSection.getByText(/^Время$/)).toHaveCount(0);
+    await expect(nextGigSection.getByText(/^(Place|Location|Место)$/)).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Read the FAQ|Открыть FAQ/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Setlists|Сетлисты/i }).first()).toHaveAttribute(
       "href",
@@ -325,17 +322,61 @@ test.describe("Jammers smoke", () => {
     }).toPass({ timeout: 15_000 });
   });
 
-  test("header sign-in returns the user to the original about page", async ({ page }) => {
+  test("production sign-in never exposes development impersonation", async ({ page }) => {
     await page.goto("/about");
-
     await page.getByRole("button", { name: /Sign in|Войти/i }).first().click();
     await expect(page).toHaveURL(/\/profile\?returnTo=/i);
+    await expect(page.getByRole("button", { name: /Continue locally|Продолжить локально/i })).toHaveCount(0);
+    await expect(page.locator('input[name="devUserId"]')).toHaveCount(0);
+  });
 
-    await page.locator('input[name="telegramUsername"]').fill("anna_drums");
-    await page.getByRole("button", { name: /Continue locally|Продолжить локально/i }).click();
+  test("board search preserves fast typing and combines with the musician filter", async ({ page }) => {
+    const { event, slot } = await createSmokeEvent({ slug: smokeSlug("filters"), title: "Smoke filters" });
+    const { song } = await createSmokeTrack({ eventId: event.id, slotId: slot.id, songTitle: "FilterTarget", proposerUsername: "kinteus", claimedByUsername: "anna_drums" });
+    await createSmokeTrack({ eventId: event.id, slotId: slot.id, songTitle: "Other song", proposerUsername: "kinteus" });
+    const anna = await getSmokeUser("anna_drums");
+    await page.goto(`/events/${event.id}`);
+    const search = page.getByRole("textbox", { name: /Search songs|Искать песни/ });
+    // Keep the first RSC response in flight while the user continues typing.
+    await page.route(`**/events/${event.id}?**`, async (route) => {
+      if (new URL(route.request().url()).searchParams.get("q") === "Filter") {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+      await route.continue();
+    });
+    const firstSearchRequest = page.waitForRequest((request) => new URL(request.url()).searchParams.get("q") === "Filter");
+    await search.fill("Filter");
+    await firstSearchRequest;
+    await search.pressSequentially("Target", { delay: 10 });
+    await expect(search).toHaveValue(song.title);
+    await expect(page).toHaveURL(/q=FilterTarget/);
+    await expect(search).toHaveValue(song.title);
+    const participant = page.getByRole("combobox", { name: /Filter by musician|Фильтр по музыканту/ });
+    await participant.selectOption(anna.id);
+    await expect(page).toHaveURL(new RegExp(`participant=${anna.id}`));
+    await expect(page.locator("main a[href*='youtube.com/results']").filter({ hasText: song.title }).first()).toBeVisible();
+    await search.fill("");
+    await expect(page).toHaveURL(new RegExp(`/events/${event.id}\\?participant=${anna.id}$`));
+    await expect(page.locator("main a[href*='youtube.com/results']").filter({ hasText: "Other song" })).toHaveCount(0);
+    await page.getByRole("button", { name: /^(Clear|Сбросить)$/ }).click();
+    await expect(search).toHaveValue("");
+    await expect(participant).toHaveValue("");
+    await expect(page.locator("main a[href*='youtube.com/results']").filter({ hasText: "Other song" }).first()).toBeVisible();
+  });
 
-    await expect(page).toHaveURL(/\/about(?:\?auth=\d+)?$/i);
-    await expect(page.getByRole("heading", { name: /About Us|О нас/i })).toBeVisible();
+  test("invitations show no directory until a musician is searched", async ({ page }) => {
+    const { event, slot } = await createSmokeEvent({ slug: smokeSlug("invite-search"), title: "Smoke invite search" });
+    await createSmokeTrack({ eventId: event.id, slotId: slot.id, songTitle: "Invite search", proposerUsername: "kinteus" });
+    await signInLocally(page, "kinteus");
+    await page.goto(`/events/${event.id}`);
+    await page.getByRole("button", { name: /Invite player to Bass|Позвать музыканта на Bass/ }).first().click();
+    const input = page.getByRole("textbox", { name: /Search registered musicians|Поиск зарегистрированных музыкантов/ });
+    const invite = input.locator("xpath=ancestor::form");
+    await expect(invite.getByRole("button", { name: /@anna_drums/ })).toHaveCount(0);
+    await input.fill("anna");
+    await expect(invite.getByRole("button", { name: /@anna_drums/ })).toBeVisible();
+    await input.fill("");
+    await expect(invite.getByRole("button", { name: /@anna_drums/ })).toHaveCount(0);
   });
 
   test("admin can sign in locally and open the admin cockpit", async ({ page }) => {
@@ -344,7 +385,47 @@ test.describe("Jammers smoke", () => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: /Open only the tool you need/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Create gig/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Open event admin/i }).first()).toBeVisible();
+    const eventAdminLink = page.getByRole("link", { name: /Open event admin/i }).first();
+    await expect(eventAdminLink).toBeVisible();
+    const eventAdminHref = await eventAdminLink.getAttribute("href");
+    await eventAdminLink.click();
+    await expect(page).toHaveURL(new RegExp(`${eventAdminHref}$`));
+    await expect(page.getByText("Loading gig admin…", { exact: true })).toHaveCount(0);
+    await expect(page.locator("form input[name='eventId']").first()).toBeAttached();
+  });
+
+  test("admin manages each song from a single searchable row", async ({ page }) => {
+    const { event, slot } = await createSmokeEvent({ slug: smokeSlug("unified-songs"), title: "Unified Songs" });
+    const { track } = await createSmokeTrack({ eventId: event.id, slotId: slot.id,
+      songTitle: `Unified Song ${smokeRunId}`, proposerUsername: "anna_drums" });
+    const song = await createSmokeSong(`Unselected Song ${smokeRunId}`);
+    const unselected = await db.track.create({ data: { eventId: event.id, songId: song.id, proposedById: track.proposedById } });
+    await signInLocally(page, "kinteus");
+    await page.goto(`/admin/events/${event.id}`);
+    await page.getByRole("link", { name: /Manage songs/ }).click();
+    await expect(page.getByText("Track administration", { exact: true })).toHaveCount(0);
+    const row = page.locator(`[data-song-row="${track.id}"]`);
+    await expect(row).toHaveCount(1);
+    await row.locator("summary").click();
+    await expect(row.getByLabel("Replacement song")).toBeVisible();
+    await expect(row.getByRole("button", { name: "Replace song", exact: true })).toBeVisible();
+    await expect(row.getByRole("button", { name: "Delete track", exact: true })).toBeVisible();
+    await expect(row.getByLabel("Track notes")).toBeVisible();
+    await expect(row.getByRole("button", { name: "Save track settings", exact: true })).toBeVisible();
+    await expect(row.getByLabel("Search registered musicians")).toBeVisible();
+    await expect(row.getByRole("button", { name: "Needs full required line-up", exact: true })).toBeDisabled();
+    await row.getByLabel("Track notes").fill("Edited in the unified list");
+    await row.getByRole("button", { name: "Save track settings", exact: true }).click();
+    await expect.poll(async () => (await db.track.findUniqueOrThrow({ where: { id: track.id } })).comment).toBe("Edited in the unified list");
+    await page.getByLabel("Find a song or musician").fill("Unselected Song");
+    await expect(row).toBeHidden();
+    const unselectedRow = page.locator(`[data-song-row="${unselected.id}"]`);
+    await expect(unselectedRow).toHaveCount(1);
+    await expect(unselectedRow).toBeVisible();
+    await unselectedRow.locator("summary").click();
+    await expect(unselectedRow.getByLabel("Track notes")).toBeVisible();
+    await page.getByLabel("Find a song or musician").fill("");
+    await expect(row).toBeVisible();
   });
 
   test("admin confirms before running the selection algorithm", async ({ page }) => {

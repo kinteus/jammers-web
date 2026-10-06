@@ -4,11 +4,12 @@ export function getSafeReturnTo(
   value: string | null | undefined,
   fallback = "/profile",
 ) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u0020\u007f]/.test(value)) {
     return fallback;
   }
 
   const url = new URL(value, "https://thejammers.local");
+  if (url.origin !== "https://thejammers.local" || url.pathname.startsWith("//")) return fallback;
   for (const key of AUTH_NOISE_PARAMS) {
     url.searchParams.delete(key);
   }
