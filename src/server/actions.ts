@@ -3270,7 +3270,8 @@ export async function runSelectionAction(formData: FormData) {
   const historicalEvents = await db.event.findMany({
     where: {
       startsAt: { lt: event.startsAt },
-      status: EventStatus.PUBLISHED,
+      // Past gigs end up ARCHIVED, so both statuses count as history.
+      status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
       setlistItems: {
         some: { section: SetlistSection.MAIN },
       },

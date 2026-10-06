@@ -2,19 +2,19 @@
 
 ## Goal
 
-Build a deterministic main set that favors musicians who have not appeared in a published main set recently. The algorithm derives participant weights from event history and then ranks tracks sequentially, recalculating scores after every selected position.
+Build a deterministic main set that favors musicians who have not appeared in a past gig's main set recently. The algorithm derives participant weights from event history and then ranks tracks sequentially, recalculating scores after every selected position.
 
 ## Historical participation
 
 A historical event is included only when it:
 
 - starts before the current event;
-- has status `PUBLISHED`; and
+- has status `PUBLISHED` or `ARCHIVED` (finished gigs are archived, so both count); and
 - contains at least one `MAIN` setlist item.
 
 Events are ordered from newest to oldest by start time, then by ID. A musician participated in an event when they occupied at least one claimed seat on one of its published `MAIN` tracks. Multiple tracks or seats in the same event still count as one participation.
 
-Published events without a `MAIN` set are ignored completely. The newest qualifying event is also the previous concert used for song-repeat exclusion.
+Past events without a `MAIN` set are ignored completely. The newest qualifying event is also the previous concert used for song-repeat exclusion.
 
 ## Initial participant weights
 

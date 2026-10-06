@@ -964,7 +964,7 @@ describe("event route slugs in server actions", () => {
     expect(dbMock.event.findMany).toHaveBeenCalledWith({
       where: {
         startsAt: { lt: new Date("2026-06-01T19:30:00.000Z") },
-        status: EventStatus.PUBLISHED,
+        status: { in: [EventStatus.PUBLISHED, EventStatus.ARCHIVED] },
         setlistItems: {
           some: { section: SetlistSection.MAIN },
         },
