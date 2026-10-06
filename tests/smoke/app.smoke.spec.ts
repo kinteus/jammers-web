@@ -457,7 +457,9 @@ test.describe("Jammers smoke", () => {
     });
 
     await signInLocally(page, "kinteus");
-    await page.goto(`/admin/events/${slug}`);
+    // Admin links use the immutable ID; avoid interacting during the legacy slug redirect.
+    await page.goto(`/admin/events/${event.id}`);
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${event.id}$`));
 
     page.once("dialog", async (dialog) => {
       expect(dialog.message()).toMatch(/Run the selection algorithm|Запустить алгоритм отбора/i);
